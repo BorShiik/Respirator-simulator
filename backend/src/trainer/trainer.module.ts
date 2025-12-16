@@ -1,0 +1,14 @@
+import { Module } from '@nestjs/common';
+import { TrainerGateway } from './trainer.gateway';
+import { TrainerController } from './trainer.controller';
+import { StationsModule } from '../stations/stations.module';
+import { ScenariosModule } from '../scenarios/scenarios.module';
+import { SessionsModule } from '../sessions/sessions.module';
+import { SimulationModule } from '../simulation/simulation.module';
+
+@Module({
+  imports: [StationsModule, ScenariosModule, SessionsModule, SimulationModule],
+  controllers: [TrainerController],
+  providers: [TrainerGateway],
+})
+export class TrainerModule {}

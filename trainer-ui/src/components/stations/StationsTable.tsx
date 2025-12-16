@@ -1,0 +1,157 @@
+import { Link } from 'react-router-dom';
+import { StationLiveStatus, ASYNCHRONY_LABELS } from '../../types/trainer';
+import { trainerApi } from '../../api/trainerApi';
+import { useState } from 'react';
+
+interface StationsTableProps {
+  stations: StationLiveStatus[];
+}
+
+export function StationsTable({ stations }: StationsTableProps) {
+  const [loadingCommand, setLoadingCommand] = useState<{ stationId: string; command: string } | null>(null);
+
+  const handleCommand = async (stationId: string, command: 'start' | 'stop' | 'reset') => {
+    setLoadingCommand({ stationId, command });
+    try {
+      await trainerApi.sendCommand(stationId, command);
+    } catch (error) {
+      console.error('Command failed:', error);
+    } finally {
+      setLoadingCommand(null);
+    }
+  };
+
+  const formatStationName = (stationId: string) => {
+    return stationId.replace('station-', 'Stanowisko ');
+  };
+
+  return (
+    <div className="admin-card overflow-hidden">
+      <table className="admin-table">
+        <thead>
+          <tr>
+            <th>Stanowisko</th>
+            <th>Status</th>
+            <th>Kursant</th>
+            <th>Scenariusz</th>
+            <th>Asynchronia</th>
+            <th>Akcje</th>
+          </tr>
+        </thead>
+        <tbody>
+          {stations.length === 0 ? (
+            <tr>
+              <td colSpan={6} className="text-center py-8 text-admin-muted">
+                Brak dostępnych stanowisk
+              </td>
+            </tr>
+          ) : (
+            stations.map((station) => (
+              <tr key={station.stationId}>
+                <td>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`status-dot ${
+                        station.status === 'online' ? 'status-dot-online' : 'status-dot-offline'
+                      }`}
+                    />
+                    <span className="font-medium">{formatStationName(station.stationId)}</span>
+                  </div>
+                </td>
+                <td>
+                  <span
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      station.status === 'online'
+                        ? 'bg-green-100 text-green-800'
+                        : station.status === 'error'
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}
+                  >
+                    {station.status === 'online' ? 'Online' : station.status === 'error' ? 'Błąd' : 'Offline'}
+                  </span>
+                </td>
+                <td>
+                  <span className="text-admin-muted">Nie przypisano</span>
+                </td>
+                <td>
+                  <span className="text-admin-muted">Brak scenariusza</span>
+                </td>
+                <td>
+                  {station.status === 'online' && station.asynchrony ? (
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`status-dot ${
+                          station.asynchrony.active ? 'status-dot-async' : 'status-dot-sync'
+                        }`}
+                      />
+                      <span
+                        className={`text-sm ${
+                          station.asynchrony.active ? 'text-admin-danger font-medium' : 'text-admin-success'
+                        }`}
+                      >
+                        {station.asynchrony.active && station.asynchrony.type
+                          ? ASYNCHRONY_LABELS[station.asynchrony.type]
+                          : station.asynchrony.active
+                          ? 'Wykryto'
+                          : 'Synchronia'}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-admin-muted">—</span>
+                  )}
+                </td>
+                <td>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      to={`/stations/${station.stationId}`}
+                      className="admin-btn admin-btn-secondary admin-btn-sm"
+                    >
+                      Szczegóły
+                    </Link>
+                    {station.status === 'online' && (
+                      <>
+                        <button
+                          onClick={() => handleCommand(station.stationId, 'start')}
+                          disabled={loadingCommand?.stationId === station.stationId}
+                          className="admin-btn admin-btn-success admin-btn-sm"
+                        >
+                          {loadingCommand?.stationId === station.stationId &&
+                          loadingCommand?.command === 'start'
+                            ? '...'
+                            : 'Start'}
+                        </button>
+                        <button
+                          onClick={() => handleCommand(station.stationId, 'stop')}
+                          disabled={loadingCommand?.stationId === station.stationId}
+                          className="admin-btn admin-btn-danger admin-btn-sm"
+                        >
+                          {loadingCommand?.stationId === station.stationId &&
+                          loadingCommand?.command === 'stop'
+                            ? '...'
+                            : 'Stop'}
+                        </button>
+                        <button
+                          onClick={() => handleCommand(station.stationId, 'reset')}
+                          disabled={loadingCommand?.stationId === station.stationId}
+                          className="admin-btn admin-btn-warning admin-btn-sm"
+                        >
+                          {loadingCommand?.stationId === station.stationId &&
+                          loadingCommand?.command === 'reset'
+                            ? '...'
+                            : 'Reset'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export default StationsTable;

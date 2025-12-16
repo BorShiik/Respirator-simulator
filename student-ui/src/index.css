@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root {
+    @apply h-full w-full m-0 p-0 overflow-hidden;
+  }
+  
+  body {
+    @apply bg-clinical-bg font-display text-clinical-text antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  .parameter-card {
+    @apply bg-clinical-panel rounded-lg p-3 border border-clinical-border shadow-sm;
+  }
+  
+  .parameter-value {
+    @apply font-mono text-value-lg text-clinical-accent leading-none;
+  }
+  
+  .parameter-unit {
+    @apply text-sm text-clinical-muted font-medium ml-1;
+  }
+  
+  .parameter-label {
+    @apply text-xs uppercase tracking-wider text-clinical-muted font-semibold;
+  }
+  
+  .status-badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold;
+  }
+  
+  .status-badge-success {
+    @apply bg-green-100 text-green-800 border border-green-300;
+  }
+  
+  .status-badge-danger {
+    @apply bg-red-100 text-red-800 border border-red-300;
+  }
+  
+  .control-button {
+    @apply px-6 py-3 rounded-lg font-semibold text-sm uppercase tracking-wide transition-all duration-200;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+  }
+  
+  .control-button-primary {
+    @apply bg-clinical-accent text-white hover:bg-blue-700 focus:ring-clinical-accent;
+  }
+  
+  .control-button-danger {
+    @apply bg-clinical-danger text-white hover:bg-red-700 focus:ring-clinical-danger;
+  }
+  
+  .control-button-warning {
+    @apply bg-clinical-warning text-white hover:bg-amber-600 focus:ring-clinical-warning;
+  }
+  
+  .chart-container {
+    @apply bg-clinical-panel rounded-lg border border-clinical-border p-2 shadow-sm;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
