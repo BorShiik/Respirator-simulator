@@ -9,6 +9,7 @@ import { SimulationService } from '../simulation/simulation.service';
 import { SessionsService } from '../sessions/sessions.service';
 import { ScenariosService } from '../scenarios/scenarios.service';
 import { VentilatorSettings, DEFAULT_SETTINGS } from '../common/dto';
+import { GpioService, EncoderEvent, ButtonEvent } from '../hardware/gpio.service';
 
 interface ExtendedWebSocket extends WebSocket {
   clientId?: string;           // Internal unique ID (UUID)
@@ -17,6 +18,7 @@ interface ExtendedWebSocket extends WebSocket {
   scenarioId?: string | null;
   isRunning?: boolean;
   isRegistered?: boolean;      // Whether student has registered with name
+  selectedParameter?: string | null;
 }
 
 @WebSocketGateway({
@@ -30,12 +32,21 @@ export class StationsGateway implements OnGatewayConnection, OnGatewayDisconnect
   private clients: Map<string, ExtendedWebSocket> = new Map();
   // Map by clientId for internal tracking
   private clientsById: Map<string, ExtendedWebSocket> = new Map();
+  private encoderActiveStudent: string | null = null;
 
   constructor(
     private readonly simulationService: SimulationService,
     private readonly sessionsService: SessionsService,
     private readonly scenariosService: ScenariosService,
-  ) {}
+    private readonly gpioService: GpioService,
+  ) {
+    this.gpioService.on('encoder', (event: EncoderEvent) => {
+      this.handleEncoderRotation(event);
+    });
+    this.gpioService.on('button', (event: ButtonEvent) => {
+      this.handleEncoderButton(event);
+    });
+  }
 
   handleConnection(client: ExtendedWebSocket, request: any) {
     try {
@@ -48,6 +59,7 @@ export class StationsGateway implements OnGatewayConnection, OnGatewayDisconnect
       client.scenarioId = null;
       client.isRunning = false;
       client.isRegistered = false;
+      client.selectedParameter = null;
 
       this.clientsById.set(clientId, client);
       console.log(`Client connected: ${clientId} (awaiting registration)`);
@@ -75,6 +87,9 @@ export class StationsGateway implements OnGatewayConnection, OnGatewayDisconnect
       console.log(`Student disconnected: ${studentName}`);
       this.simulationService.stopSimulation(studentName);
       this.clients.delete(studentName);
+      if (this.encoderActiveStudent === studentName) {
+        this.encoderActiveStudent = null;
+      }
     }
     
     if (clientId) {
@@ -104,6 +119,9 @@ export class StationsGateway implements OnGatewayConnection, OnGatewayDisconnect
           break;
         case 'settingsUpdate':
           this.handleSettingsUpdate(client, message.settings || message.data);
+          break;
+        case 'parameterSelect':
+          this.handleParameterSelect(client, message.data || message);
           break;
         default:
           console.log('Unknown message type:', message.type || message.event);
@@ -178,6 +196,10 @@ export class StationsGateway implements OnGatewayConnection, OnGatewayDisconnect
     
     client.studentName = undefined;
     client.isRegistered = false;
+    client.selectedParameter = null;
+    if (this.encoderActiveStudent === studentName) {
+      this.encoderActiveStudent = null;
+    }
 
     console.log(`Student logged out: ${studentName}`);
 
@@ -313,6 +335,74 @@ export class StationsGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     this.simulationService.updateSettings(studentName, settings);
     this.sendToClient(client, { type: 'settingsUpdate', settings });
+  }
+
+  private handleParameterSelect(client: ExtendedWebSocket, data: { parameter?: string | null }) {
+    const studentName = client.studentName;
+    if (!studentName) return;
+
+    const parameter = data?.parameter ?? null;
+    client.selectedParameter = parameter;
+
+    if (parameter) {
+      this.encoderActiveStudent = studentName;
+      this.gpioService.setSelectedParameter(parameter);
+    } else if (this.encoderActiveStudent === studentName) {
+      this.encoderActiveStudent = null;
+      this.gpioService.setSelectedParameter('');
+    }
+  }
+
+  private handleEncoderRotation(event: EncoderEvent) {
+    const studentName = this.encoderActiveStudent;
+    if (!studentName) return;
+
+    const client = this.clients.get(studentName);
+    const selectedParameter = client?.selectedParameter;
+    if (!client || !selectedParameter) return;
+
+    const parameterConfig = this.gpioService.getParameterConfig();
+    const config = parameterConfig[selectedParameter];
+    if (!config) return;
+
+    const currentState = this.simulationService.getState(studentName);
+    if (!currentState) return;
+
+    const currentValue = (currentState.settings as any)[selectedParameter];
+    if (typeof currentValue !== 'number') return;
+
+    const newValue = this.gpioService.calculateNewValue(
+      currentValue,
+      config,
+      event.direction,
+      event.clicks,
+    );
+
+    const settingsUpdate: Partial<VentilatorSettings> = {
+      [selectedParameter]: newValue,
+    };
+
+    if (selectedParameter === 'ipap') {
+      settingsUpdate.pinsp = newValue;
+    } else if (selectedParameter === 'epap') {
+      settingsUpdate.peep = newValue;
+    }
+
+    void this.handleSettingsUpdate(client, settingsUpdate);
+  }
+
+  private handleEncoderButton(event: ButtonEvent) {
+    if (event.action !== 'press' && event.action !== 'longPress') return;
+    const studentName = this.encoderActiveStudent;
+    if (!studentName) return;
+
+    const client = this.clients.get(studentName);
+    if (!client) return;
+
+    client.selectedParameter = null;
+    this.encoderActiveStudent = null;
+    this.gpioService.setSelectedParameter('');
+    this.sendToClient(client, { type: 'encoderButton', action: event.action });
   }
 
   private sendToClient(client: ExtendedWebSocket, data: any) {
