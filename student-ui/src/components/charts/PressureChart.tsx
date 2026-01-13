@@ -17,23 +17,26 @@ interface PressureChartProps {
 
 interface ChartPoint {
   index: number;
-  value: number;
+  value: number | null;
 }
 
+const FIXED_BUFFER_SIZE = 200; // Должен совпадать с BUFFER_SIZE в useStudentWebSocket
+
 export function PressureChart({ data, peep = 5, pip }: PressureChartProps) {
+  // Создаём данные с сохранением позиции каждой точки
   const chartData: ChartPoint[] = useMemo(() => {
     return data.map((value, index) => ({
       index,
-      value: Math.round(value * 10) / 10,
+      value: value != null ? Math.round(value * 10) / 10 : null,
     }));
   }, [data]);
 
   const yDomain = useMemo(() => {
-    if (chartData.length === 0) return [0, 30];
-    const values = chartData.map(d => d.value);
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    return [Math.floor(min / 5) * 5 - 5, Math.ceil(max / 5) * 5 + 5];
+    const validValues = chartData.filter(d => d.value !== null).map(d => d.value as number);
+    if (validValues.length === 0) return [0, 20];
+    const min = Math.min(...validValues);
+    const max = Math.max(...validValues);
+    return [Math.floor(min / 5) * 5 - 2, Math.ceil(max / 5) * 5 + 2];
   }, [chartData]);
 
   return (
@@ -51,6 +54,8 @@ export function PressureChart({ data, peep = 5, pip }: PressureChartProps) {
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
           <XAxis 
             dataKey="index" 
+            type="number"
+            domain={[0, FIXED_BUFFER_SIZE - 1]}
             tick={false} 
             axisLine={{ stroke: '#cbd5e1' }}
             tickLine={false}
@@ -83,6 +88,7 @@ export function PressureChart({ data, peep = 5, pip }: PressureChartProps) {
             strokeWidth={2}
             dot={false}
             isAnimationActive={false}
+            connectNulls={false}
           />
         </LineChart>
       </ResponsiveContainer>
@@ -91,3 +97,4 @@ export function PressureChart({ data, peep = 5, pip }: PressureChartProps) {
 }
 
 export default PressureChart;
+

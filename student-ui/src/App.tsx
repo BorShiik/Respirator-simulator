@@ -3,10 +3,10 @@ import { StudentLayout } from './components/layout/StudentLayout';
 import { PressureChart } from './components/charts/PressureChart';
 import { FlowChart } from './components/charts/FlowChart';
 import { VolumeChart } from './components/charts/VolumeChart';
-import { SettingsPanel } from './components/panels/SettingsPanel';
+import { SettingsPanel, ParameterKey, PARAMETER_CONFIGS } from './components/panels/SettingsPanel';
 import { StatusPanel } from './components/panels/StatusPanel';
 import { useStudentWebSocket } from './hooks/useStudentWebSocket';
-import { DEFAULT_SETTINGS } from './types/student';
+import { DEFAULT_SETTINGS, VentilatorSettings } from './types/student';
 
 function StudentRegistration({ onRegister }: { onRegister: (studentName: string) => void }) {
   const [firstName, setFirstName] = useState('');
@@ -112,9 +112,63 @@ function StudentRegistration({ onRegister }: { onRegister: (studentName: string)
 }
 
 function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: () => void }) {
-  const { telemetry, connectionStatus, isRegistered, logout } = useStudentWebSocket(studentName);
+  const [selectedParameter, setSelectedParameter] = useState<ParameterKey | null>(null);
+  const [localSettings, setLocalSettings] = useState<VentilatorSettings>(DEFAULT_SETTINGS);
+  
+  const { telemetry, connectionStatus, isRegistered, logout } = useStudentWebSocket(studentName, localSettings);
 
-  const settings = telemetry?.settings || DEFAULT_SETTINGS;
+  // Синхронизация с настройками от сервера (если не в mock режиме)
+  useEffect(() => {
+    if (telemetry?.settings && !import.meta.env.VITE_USE_MOCK) {
+      setLocalSettings(telemetry.settings);
+    }
+  }, [telemetry?.settings]);
+
+  // Обработка клавиш ↑↓ для изменения параметров
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!selectedParameter) return;
+      
+      const config = PARAMETER_CONFIGS.find(c => c.key === selectedParameter);
+      if (!config) return;
+      
+      let delta = 0;
+      if (e.key === 'ArrowUp') {
+        delta = config.step;
+      } else if (e.key === 'ArrowDown') {
+        delta = -config.step;
+      } else if (e.key === 'Escape') {
+        setSelectedParameter(null);
+        return;
+      } else {
+        return;
+      }
+      
+      e.preventDefault();
+      
+      setLocalSettings(prev => {
+        const currentValue = prev[selectedParameter];
+        const newValue = Math.min(config.max, Math.max(config.min, currentValue + delta));
+        // Округляем до нужного количества знаков
+        const roundedValue = Math.round(newValue * Math.pow(10, config.decimals)) / Math.pow(10, config.decimals);
+        
+        const newSettings = { ...prev, [selectedParameter]: roundedValue };
+        
+        // Синхронизируем связанные параметры
+        if (selectedParameter === 'ipap') {
+          newSettings.pinsp = roundedValue;
+        } else if (selectedParameter === 'epap') {
+          newSettings.peep = roundedValue;
+        }
+        
+        return newSettings;
+      });
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedParameter]);
+
   const pressure = telemetry?.pressure || [];
   const flow = telemetry?.flow || [];
   const volume = telemetry?.volume || [];
@@ -130,20 +184,24 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
   return (
     <StudentLayout
       leftPanel={
-        <SettingsPanel settings={settings} />
+        <SettingsPanel 
+          settings={localSettings} 
+          selectedParameter={selectedParameter}
+          onParameterSelect={setSelectedParameter}
+        />
       }
       centerTop={
         <PressureChart 
           data={pressure} 
-          peep={settings.peep || settings.epap} 
-          pip={settings.ipap || settings.pinsp} 
+          peep={localSettings.peep || localSettings.epap} 
+          pip={localSettings.ipap || localSettings.pinsp} 
         />
       }
       centerMiddle={
         <FlowChart data={flow} />
       }
       centerBottom={
-        <VolumeChart data={volume} targetVt={settings.vt} />
+        <VolumeChart data={volume} targetVt={localSettings.vt} />
       }
       rightPanel={
         <StatusPanel

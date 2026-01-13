@@ -16,22 +16,24 @@ interface VolumeChartProps {
 
 interface ChartPoint {
   index: number;
-  value: number;
+  value: number | null;
 }
+
+const FIXED_BUFFER_SIZE = 200; // Должен совпадать с BUFFER_SIZE в useStudentWebSocket
 
 export function VolumeChart({ data, targetVt }: VolumeChartProps) {
   const chartData: ChartPoint[] = useMemo(() => {
     return data.map((value, index) => ({
       index,
-      value: Math.round(value),
+      value: value != null ? Math.round(value) : null,
     }));
   }, [data]);
 
   const yDomain = useMemo(() => {
-    if (chartData.length === 0) return [0, 600];
-    const values = chartData.map(d => d.value);
-    const max = Math.max(...values);
-    return [0, Math.ceil(max / 100) * 100 + 100];
+    const validValues = chartData.filter(d => d.value !== null).map(d => d.value as number);
+    if (validValues.length === 0) return [0, 600];
+    const max = Math.max(...validValues);
+    return [0, Math.ceil(max / 100) * 100 + 50];
   }, [chartData]);
 
   return (
@@ -49,6 +51,8 @@ export function VolumeChart({ data, targetVt }: VolumeChartProps) {
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
           <XAxis 
             dataKey="index" 
+            type="number"
+            domain={[0, FIXED_BUFFER_SIZE - 1]}
             tick={false} 
             axisLine={{ stroke: '#cbd5e1' }}
             tickLine={false}
@@ -75,6 +79,7 @@ export function VolumeChart({ data, targetVt }: VolumeChartProps) {
             strokeWidth={2}
             dot={false}
             isAnimationActive={false}
+            connectNulls={false}
           />
         </LineChart>
       </ResponsiveContainer>
@@ -83,3 +88,4 @@ export function VolumeChart({ data, targetVt }: VolumeChartProps) {
 }
 
 export default VolumeChart;
+

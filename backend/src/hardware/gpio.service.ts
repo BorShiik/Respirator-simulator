@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
 import { EventEmitter } from 'events';
 
 export interface EncoderEvent {
@@ -12,36 +12,209 @@ export interface ButtonEvent {
   action: 'press' | 'release' | 'longPress';
 }
 
+// Конфигурация пинов для HW-040 энкодера
+interface EncoderPins {
+  clk: number;  // CLK пин
+  dt: number;   // DT пин
+  sw: number;   // SW (кнопка) пин
+}
+
+// Настройки по умолчанию для одного энкодера
+const DEFAULT_ENCODER_PINS: EncoderPins = {
+  clk: 17,  // GPIO17 (физ. пин 11)
+  dt: 18,   // GPIO18 (физ. пин 12)
+  sw: 27,   // GPIO27 (физ. пин 13)
+};
+
 /**
- * Mock GPIO Service for development on PC.
- * In production on Raspberry Pi, this would interface with real GPIO pins.
+ * GPIO Service для работы с энкодером HW-040.
+ * Автоматически определяет режим: mock (PC) или реальный GPIO (Raspberry Pi).
  */
 @Injectable()
-export class GpioService extends EventEmitter {
+export class GpioService extends EventEmitter implements OnModuleDestroy {
+  private readonly logger = new Logger(GpioService.name);
+  
   private encoderValues: Map<string, number> = new Map();
   private mockInterval: NodeJS.Timeout | null = null;
+  private isRealGpio = false;
+  
+  // Для реального GPIO (pigpio)
+  private gpio: any = null;
+  private encoderClk: any = null;
+  private encoderDt: any = null;
+  private encoderSw: any = null;
+  private lastClkState: number = 1;
+  private buttonPressed = false;
+  private buttonPressTime = 0;
+  
+  // Текущий выбранный параметр (для изменения энкодером)
+  private selectedParameter: string = 'trigger';
 
   constructor() {
     super();
-    this.initMockEncoders();
+    this.initGpio();
   }
 
   /**
-   * Initialize mock encoders for development
+   * Инициализация GPIO - автоматический выбор режима
    */
-  private initMockEncoders() {
-    // Define which parameters each encoder controls
-    const encoders = [
-      { id: 'encoder-peep', parameter: 'peep', min: 0, max: 20, step: 1 },
-      { id: 'encoder-pinsp', parameter: 'pinsp', min: 5, max: 40, step: 1 },
-      { id: 'encoder-rr', parameter: 'rr', min: 6, max: 35, step: 1 },
-      { id: 'encoder-ti', parameter: 'ti', min: 0.3, max: 2.5, step: 0.1 },
-      { id: 'encoder-trigger', parameter: 'trigger', min: 1, max: 10, step: 0.5 },
-    ];
-
-    for (const enc of encoders) {
-      this.encoderValues.set(enc.id, 0);
+  private async initGpio() {
+    // Пробуем инициализировать реальный GPIO
+    try {
+      // Проверяем, доступен ли pigpio (только на Raspberry Pi)
+      const Gpio = await this.loadPigpio();
+      
+      if (Gpio) {
+        this.initRealEncoder(Gpio);
+        this.isRealGpio = true;
+        this.logger.log('GPIO: Реальный энкодер подключен (Raspberry Pi)');
+      } else {
+        this.initMockMode();
+        this.logger.log('GPIO: Mock режим (разработка на PC)');
+      }
+    } catch (error) {
+      this.initMockMode();
+      this.logger.log('GPIO: Mock режим (pigpio недоступен)');
     }
+  }
+
+  /**
+   * Загрузка библиотеки pigpio
+   */
+  private async loadPigpio(): Promise<any> {
+    try {
+      // Динамический импорт pigpio
+      const pigpio = await import('pigpio');
+      return pigpio.Gpio;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Инициализация реального энкодера на Raspberry Pi
+   */
+  private initRealEncoder(Gpio: any) {
+    const pins = DEFAULT_ENCODER_PINS;
+    
+    // Создаём GPIO объекты
+    this.encoderClk = new Gpio(pins.clk, {
+      mode: Gpio.INPUT,
+      pullUpDown: Gpio.PUD_UP,
+      edge: Gpio.EITHER_EDGE,
+    });
+    
+    this.encoderDt = new Gpio(pins.dt, {
+      mode: Gpio.INPUT,
+      pullUpDown: Gpio.PUD_UP,
+    });
+    
+    this.encoderSw = new Gpio(pins.sw, {
+      mode: Gpio.INPUT,
+      pullUpDown: Gpio.PUD_UP,
+      edge: Gpio.FALLING_EDGE,
+    });
+    
+    // Читаем начальное состояние
+    this.lastClkState = this.encoderClk.digitalRead();
+    
+    // Обработчик вращения энкодера
+    this.encoderClk.on('interrupt', (level: number) => {
+      const dtState = this.encoderDt.digitalRead();
+      
+      if (level !== this.lastClkState) {
+        if (dtState !== level) {
+          // По часовой стрелке (CW)
+          this.emitEncoderEvent('cw');
+        } else {
+          // Против часовой стрелки (CCW)
+          this.emitEncoderEvent('ccw');
+        }
+        this.lastClkState = level;
+      }
+    });
+    
+    // Обработчик нажатия кнопки
+    this.encoderSw.on('interrupt', () => {
+      const now = Date.now();
+      
+      if (!this.buttonPressed) {
+        this.buttonPressed = true;
+        this.buttonPressTime = now;
+        
+        // Сбрасываем флаг через 300ms (защита от дребезга)
+        setTimeout(() => {
+          this.buttonPressed = false;
+          
+          // Проверяем длинное нажатие (>1 сек)
+          const pressDuration = Date.now() - this.buttonPressTime;
+          if (pressDuration > 1000) {
+            this.emitButtonEvent('longPress');
+          } else {
+            this.emitButtonEvent('press');
+          }
+        }, 300);
+      }
+    });
+    
+    this.logger.log(`Энкодер подключен: CLK=GPIO${pins.clk}, DT=GPIO${pins.dt}, SW=GPIO${pins.sw}`);
+  }
+
+  /**
+   * Инициализация mock режима для разработки
+   */
+  private initMockMode() {
+    // Определяем какие параметры контролирует энкодер
+    this.encoderValues.set('encoder-main', 0);
+  }
+
+  /**
+   * Отправка события вращения энкодера
+   */
+  private emitEncoderEvent(direction: 'cw' | 'ccw') {
+    const event: EncoderEvent = {
+      encoderId: 'encoder-main',
+      direction,
+      clicks: 1,
+    };
+    
+    this.logger.debug(`Энкодер: ${direction === 'cw' ? '→ CW' : '← CCW'}`);
+    this.emit('encoder', event);
+  }
+
+  /**
+   * Отправка события кнопки
+   */
+  private emitButtonEvent(action: 'press' | 'release' | 'longPress') {
+    const event: ButtonEvent = {
+      encoderId: 'encoder-main',
+      action,
+    };
+    
+    this.logger.debug(`Кнопка: ${action}`);
+    this.emit('button', event);
+  }
+
+  /**
+   * Установка текущего выбранного параметра
+   */
+  setSelectedParameter(parameter: string) {
+    this.selectedParameter = parameter;
+    this.logger.log(`Выбран параметр: ${parameter}`);
+  }
+
+  /**
+   * Получение текущего выбранного параметра
+   */
+  getSelectedParameter(): string {
+    return this.selectedParameter;
+  }
+
+  /**
+   * Проверка режима работы
+   */
+  isRealGpioMode(): boolean {
+    return this.isRealGpio;
   }
 
   /**
@@ -49,12 +222,22 @@ export class GpioService extends EventEmitter {
    */
   getEncoderConfig() {
     return [
-      { id: 'encoder-peep', parameter: 'peep', min: 0, max: 20, step: 1, label: 'PEEP' },
-      { id: 'encoder-pinsp', parameter: 'pinsp', min: 5, max: 40, step: 1, label: 'Pinsp' },
-      { id: 'encoder-rr', parameter: 'rr', min: 6, max: 35, step: 1, label: 'RR' },
-      { id: 'encoder-ti', parameter: 'ti', min: 0.3, max: 2.5, step: 0.1, label: 'Ti' },
-      { id: 'encoder-trigger', parameter: 'trigger', min: 1, max: 10, step: 0.5, label: 'Trigger' },
+      { id: 'encoder-main', parameter: 'selected', min: 0, max: 100, step: 1, label: 'Main Encoder' },
     ];
+  }
+
+  /**
+   * Получение конфигурации параметров
+   */
+  getParameterConfig() {
+    return {
+      ipap: { min: 5, max: 30, step: 1, label: 'IPAP / Pinsp', unit: 'cmH₂O' },
+      epap: { min: 0, max: 15, step: 1, label: 'EPAP / PEEP', unit: 'cmH₂O' },
+      rr: { min: 5, max: 40, step: 1, label: 'Częstość (RR)', unit: '/min' },
+      ti: { min: 0.3, max: 3.0, step: 0.1, label: 'Czas wdechu (Ti)', unit: 's' },
+      trigger: { min: 0.5, max: 10, step: 0.5, label: 'Wyzwalacz', unit: 'cmH₂O' },
+      vt: { min: 200, max: 1000, step: 50, label: 'Obj. oddechowa (VT)', unit: 'mL' },
+    };
   }
 
   /**
@@ -82,11 +265,9 @@ export class GpioService extends EventEmitter {
     if (this.mockInterval) return;
 
     this.mockInterval = setInterval(() => {
-      const encoders = this.getEncoderConfig();
-      const randomEncoder = encoders[Math.floor(Math.random() * encoders.length)];
       const direction = Math.random() > 0.5 ? 'cw' : 'ccw';
-      this.simulateEncoderRotation(randomEncoder.id, direction, 1);
-    }, 2000); // Random input every 2 seconds
+      this.simulateEncoderRotation('encoder-main', direction, 1);
+    }, 2000);
   }
 
   /**
@@ -111,23 +292,24 @@ export class GpioService extends EventEmitter {
     const delta = config.step * clicks * (direction === 'cw' ? 1 : -1);
     let newValue = currentValue + delta;
     newValue = Math.max(config.min, Math.min(config.max, newValue));
-    return Math.round(newValue * 100) / 100; // Round to 2 decimal places
+    return Math.round(newValue * 100) / 100;
   }
 
   /**
-   * Production: Initialize real GPIO (Raspberry Pi)
-   * This would use a library like 'onoff' or 'pigpio'
+   * Очистка при завершении
    */
-  initRealGpio() {
-    // Example of what this would look like:
-    // const Gpio = require('onoff').Gpio;
-    // const encoderA = new Gpio(17, 'in', 'both');
-    // const encoderB = new Gpio(27, 'in', 'both');
-    // ... set up interrupt handlers
-    console.log('GPIO: Running in mock mode (no real hardware)');
-  }
-
-  onDestroy() {
+  onModuleDestroy() {
     this.stopMockMode();
+    
+    // Освобождаем GPIO ресурсы
+    if (this.encoderClk) {
+      this.encoderClk.disableInterrupt();
+    }
+    if (this.encoderSw) {
+      this.encoderSw.disableInterrupt();
+    }
+    
+    this.logger.log('GPIO ресурсы освобождены');
   }
 }
+
