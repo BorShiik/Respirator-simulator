@@ -115,7 +115,15 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
   const [selectedParameter, setSelectedParameter] = useState<ParameterKey | null>(null);
   const [localSettings, setLocalSettings] = useState<VentilatorSettings>(DEFAULT_SETTINGS);
   
-  const { telemetry, connectionStatus, isRegistered, logout } = useStudentWebSocket(studentName, localSettings);
+  const {
+    telemetry,
+    connectionStatus,
+    isRegistered,
+    logout,
+    sendParameterSelect,
+    encoderButtonAction,
+    acknowledgeEncoderButton,
+  } = useStudentWebSocket(studentName, localSettings);
 
   // Синхронизация с настройками от сервера (если не в mock режиме)
   useEffect(() => {
@@ -139,6 +147,7 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
         delta = -config.step;
       } else if (e.key === 'Escape') {
         setSelectedParameter(null);
+        sendParameterSelect(null);
         return;
       } else {
         return;
@@ -167,7 +176,16 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedParameter]);
+  }, [selectedParameter, sendParameterSelect]);
+
+  useEffect(() => {
+    if (!encoderButtonAction) return;
+    if (selectedParameter) {
+      setSelectedParameter(null);
+      sendParameterSelect(null);
+    }
+    acknowledgeEncoderButton();
+  }, [encoderButtonAction, selectedParameter, sendParameterSelect, acknowledgeEncoderButton]);
 
   const pressure = telemetry?.pressure || [];
   const flow = telemetry?.flow || [];
@@ -187,7 +205,10 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
         <SettingsPanel 
           settings={localSettings} 
           selectedParameter={selectedParameter}
-          onParameterSelect={setSelectedParameter}
+          onParameterSelect={(parameter) => {
+            setSelectedParameter(parameter);
+            sendParameterSelect(parameter);
+          }}
         />
       }
       centerTop={

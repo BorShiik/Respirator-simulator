@@ -4,9 +4,10 @@ import { StudentsController } from './stations.controller';
 import { SimulationModule } from '../simulation/simulation.module';
 import { SessionsModule } from '../sessions/sessions.module';
 import { ScenariosModule } from '../scenarios/scenarios.module';
+import { HardwareModule } from '../hardware/hardware.module';
 
 @Module({
-  imports: [SimulationModule, SessionsModule, ScenariosModule],
+  imports: [SimulationModule, SessionsModule, ScenariosModule, HardwareModule],
   controllers: [StudentsController],
   providers: [StationsGateway],
   exports: [StationsGateway],

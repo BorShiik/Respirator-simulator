@@ -16,6 +16,9 @@ interface UseStudentWebSocketReturn {
   reconnect: () => void;
   logout: () => void;
   updateSettings: (settings: VentilatorSettings) => void;
+  sendParameterSelect: (parameter: string | null) => void;
+  encoderButtonAction: 'press' | 'release' | 'longPress' | null;
+  acknowledgeEncoderButton: () => void;
 }
 
 const RECONNECT_DELAY = 3000;
@@ -268,6 +271,7 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [isRegistered, setIsRegistered] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [encoderButtonAction, setEncoderButtonAction] = useState<'press' | 'release' | 'longPress' | null>(null);
   
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -386,6 +390,10 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
                 settings: message.settings,
               } : null);
               break;
+              
+            case 'encoderButton':
+              setEncoderButtonAction(message.action);
+              break;
           }
         } catch (parseError) {
           console.error('Failed to parse WebSocket message:', parseError);
@@ -448,6 +456,16 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
     settingsRef.current = newSettings;
   }, []);
 
+  const sendParameterSelect = useCallback((parameter: string | null) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'parameterSelect', data: { parameter } }));
+    }
+  }, []);
+
+  const acknowledgeEncoderButton = useCallback(() => {
+    setEncoderButtonAction(null);
+  }, []);
+
   return {
     telemetry,
     connectionStatus,
@@ -456,6 +474,9 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
     reconnect,
     logout,
     updateSettings,
+    sendParameterSelect,
+    encoderButtonAction,
+    acknowledgeEncoderButton,
   };
 }
 
