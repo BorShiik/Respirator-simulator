@@ -80,6 +80,13 @@ export interface ConnectedMessage {
   status: string;
 }
 
+export type EncoderButtonAction = 'press' | 'release' | 'longPress';
+
+export interface EncoderButtonMessage {
+  type: 'encoderButton';
+  action: EncoderButtonAction;
+}
+
 export type WebSocketMessage = 
   | TelemetryMessage 
   | SettingsUpdateMessage 
@@ -87,7 +94,8 @@ export type WebSocketMessage =
   | LoggedOutMessage 
   | ErrorMessage 
   | StatusMessage
-  | ConnectedMessage;
+  | ConnectedMessage
+  | EncoderButtonMessage;
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 

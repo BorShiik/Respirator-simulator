@@ -1,6 +1,7 @@
 import { CommandRequest, CommandResponse, CommandType } from '../types/student';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const DEFAULT_BACKEND_HOST = `${window.location.hostname}:8080`;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `http://${DEFAULT_BACKEND_HOST}`;
 
 export async function sendCommand(studentName: string, command: CommandType): Promise<CommandResponse> {
   const url = `${API_BASE_URL}/api/students/${encodeURIComponent(studentName)}/command`;
@@ -37,7 +38,7 @@ export async function sendCommand(studentName: string, command: CommandType): Pr
 
 export function getWebSocketUrl(): string {
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsHost = import.meta.env.VITE_WS_HOST || 'localhost:8080';
+  const wsHost = import.meta.env.VITE_WS_HOST || DEFAULT_BACKEND_HOST;
   return `${wsProtocol}//${wsHost}/api/stations/ws`;
 }
 

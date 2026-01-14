@@ -37,7 +37,6 @@ export class GpioService extends EventEmitter implements OnModuleDestroy {
   private encoderValues: Map<string, number> = new Map();
   private mockInterval: NodeJS.Timeout | null = null;
   private isRealGpio = false;
-  
   // Для реального GPIO (pigpio)
   private gpio: any = null;
   private encoderClk: any = null;
@@ -82,13 +81,8 @@ export class GpioService extends EventEmitter implements OnModuleDestroy {
    * Загрузка библиотеки pigpio
    */
   private async loadPigpio(): Promise<any> {
-    try {
-      // Динамический импорт pigpio
-      const pigpio = await import('pigpio');
-      return pigpio.Gpio;
-    } catch {
-      return null;
-    }
+    const pigpio = await import('pigpio').catch(() => null);
+    return pigpio?.Gpio ?? null;
   }
 
   /**
@@ -308,8 +302,6 @@ export class GpioService extends EventEmitter implements OnModuleDestroy {
     if (this.encoderSw) {
       this.encoderSw.disableInterrupt();
     }
-    
     this.logger.log('GPIO ресурсы освобождены');
   }
 }
-
