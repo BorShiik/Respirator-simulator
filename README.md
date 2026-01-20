@@ -4,7 +4,7 @@ Edukacyjny symulator wentylacji mechanicznej do nauki rozpoznawania i eliminacji
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Node](https://img.shields.io/badge/node-18+-green.svg)
-![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi%204-red.svg)
+![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi%205-red.svg)
 
 ## 🎯 Cel projektu
 
