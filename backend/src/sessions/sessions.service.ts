@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SessionEntity, SessionLogEntity } from './session.entity';
-import { VentilatorSettings, AsynchronyType } from '../common/dto';
+import { VentilatorSettings, AsynchronyType } from '../common/dto/ventilator.dto';
 
 @Injectable()
 export class SessionsService {

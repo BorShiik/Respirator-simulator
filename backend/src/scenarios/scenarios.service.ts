@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ScenarioEntity, ScenarioEvent } from './scenario.entity';
-import { AsynchronyType } from '../common/dto';
+import { AsynchronyType } from '../common/dto/ventilator.dto';
 
 @Injectable()
 export class ScenariosService {

@@ -55,6 +55,12 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const mockIntervalRef = useRef<number | null>(null);
+  const stationsMapRef = useRef<Map<string, StationLiveStatus>>(new Map());
+
+  // Keep ref in sync
+  useEffect(() => {
+    stationsMapRef.current = stationsMap;
+  }, [stationsMap]);
 
   const cleanup = useCallback(() => {
     if (wsRef.current) {
@@ -128,6 +134,9 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
         setConnectionStatus('connected');
         setError(null);
         reconnectAttemptsRef.current = 0;
+        
+        // Register as a trainer to receive telemetry updates
+        ws.send(JSON.stringify({ type: 'trainer_register' }));
       };
 
       ws.onmessage = (event) => {
@@ -136,12 +145,36 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
           
           if (message.type === 'stationsSnapshot' && message.stations) {
             const newMap = new Map<string, StationLiveStatus>();
-            message.stations.forEach(s => newMap.set(s.stationId, s));
+            
+            message.stations.forEach(s => {
+              const existing = stationsMapRef.current.get(s.stationId);
+              let pressureHistory = existing ? existing.pressure : [];
+              
+              const newPressure = Array.isArray(s.pressure) ? s.pressure[0] : s.pressure;
+              if (newPressure !== undefined && newPressure !== null) {
+                pressureHistory = [...pressureHistory, newPressure as number].slice(-20);
+              }
+              
+              s.pressure = pressureHistory;
+              newMap.set(s.stationId, s);
+            });
+            
             setStationsMap(newMap);
           } else if (message.type === 'stationUpdate' && message.station) {
             setStationsMap(prev => {
               const newMap = new Map(prev);
-              newMap.set(message.station!.stationId, message.station!);
+              const s = message.station!;
+              const existing = newMap.get(s.stationId);
+              
+              let pressureHistory = existing ? existing.pressure : [];
+              const newPressure = Array.isArray(s.pressure) ? s.pressure[0] : s.pressure;
+              
+              if (newPressure !== undefined && newPressure !== null) {
+                pressureHistory = [...pressureHistory, newPressure as number].slice(-20);
+              }
+              
+              s.pressure = pressureHistory;
+              newMap.set(s.stationId, s);
               return newMap;
             });
           }
@@ -157,6 +190,7 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
       };
 
       ws.onclose = (event) => {
+        if (wsRef.current !== ws) return; // Prevent cleanup reconnect loop
         console.log('Trainer WebSocket closed:', event.code, event.reason);
         setConnectionStatus('disconnected');
         

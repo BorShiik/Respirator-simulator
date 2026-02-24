@@ -263,6 +263,11 @@ function generateMockTelemetry(_prevTelemetry: TelemetryData | null, settings: V
   };
 }
 
+// Реальные буферы данных
+let realPressureBuffer: (number | null)[] = new Array(BUFFER_SIZE).fill(null);
+let realFlowBuffer: (number | null)[] = new Array(BUFFER_SIZE).fill(null);
+let realVolumeBuffer: (number | null)[] = new Array(BUFFER_SIZE).fill(null);
+
 export function useStudentWebSocket(studentName: string | null, externalSettings?: VentilatorSettings): UseStudentWebSocketReturn {
   const [telemetry, setTelemetry] = useState<TelemetryData | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
@@ -368,17 +373,32 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
               setError(message.message || 'Błąd serwera');
               break;
               
-            case 'telemetry':
+            case 'telemetry': {
+              const pres = Array.isArray(message.pressure) ? message.pressure[0] : message.pressure;
+              const flo = Array.isArray(message.flow) ? message.flow[0] : message.flow;
+              const vol = Array.isArray(message.volume) ? message.volume[0] : message.volume;
+              
+              realPressureBuffer.push(pres);
+              realFlowBuffer.push(flo);
+              realVolumeBuffer.push(vol);
+              
+              if (realPressureBuffer.length > BUFFER_SIZE) {
+                realPressureBuffer.shift();
+                realFlowBuffer.shift();
+                realVolumeBuffer.shift();
+              }
+
               setTelemetry({
                 timestamp: message.timestamp,
-                pressure: message.pressure,
-                flow: message.flow,
-                volume: message.volume,
+                pressure: [...realPressureBuffer] as number[],
+                flow: [...realFlowBuffer] as number[],
+                volume: [...realVolumeBuffer] as number[],
                 settings: message.settings,
                 asynchrony: message.asynchrony,
                 scenarioName: message.scenarioName,
               });
               break;
+            }
               
             case 'settingsUpdate':
               setTelemetry(prev => prev ? {
@@ -399,6 +419,8 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
       };
 
       ws.onclose = (event) => {
+        if (wsRef.current !== ws) return; // Prevent StrictMode cleanup loop
+        
         console.log('WebSocket closed:', event.code, event.reason);
         setConnectionStatus('disconnected');
         setIsRegistered(false);
@@ -446,6 +468,12 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
 
   const updateSettings = useCallback((newSettings: VentilatorSettings) => {
     settingsRef.current = newSettings;
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'settingsUpdate',
+        settings: newSettings
+      }));
+    }
   }, []);
 
   return {

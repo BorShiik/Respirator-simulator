@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
-import { AsynchronyType } from '../common/dto';
+import { AsynchronyType } from '../common/dto/ventilator.dto';
 
 // Event types in a scenario
 export interface ScenarioEvent {

@@ -115,7 +115,7 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
   const [selectedParameter, setSelectedParameter] = useState<ParameterKey | null>(null);
   const [localSettings, setLocalSettings] = useState<VentilatorSettings>(DEFAULT_SETTINGS);
   
-  const { telemetry, connectionStatus, isRegistered, logout } = useStudentWebSocket(studentName, localSettings);
+  const { telemetry, connectionStatus, isRegistered, logout, updateSettings } = useStudentWebSocket(studentName, localSettings);
 
   // Синхронизация с настройками от сервера (если не в mock режиме)
   useEffect(() => {
@@ -146,28 +146,27 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
       
       e.preventDefault();
       
-      setLocalSettings(prev => {
-        const currentValue = prev[selectedParameter];
-        const newValue = Math.min(config.max, Math.max(config.min, currentValue + delta));
-        // Округляем до нужного количества знаков
-        const roundedValue = Math.round(newValue * Math.pow(10, config.decimals)) / Math.pow(10, config.decimals);
-        
-        const newSettings = { ...prev, [selectedParameter]: roundedValue };
-        
-        // Синхронизируем связанные параметры
-        if (selectedParameter === 'ipap') {
-          newSettings.pinsp = roundedValue;
-        } else if (selectedParameter === 'epap') {
-          newSettings.peep = roundedValue;
-        }
-        
-        return newSettings;
-      });
+      const currentValue = localSettings[selectedParameter] as number;
+      const newValue = Math.min(config.max, Math.max(config.min, currentValue + delta));
+      // Округляем до нужного количества знаков
+      const roundedValue = Math.round(newValue * Math.pow(10, config.decimals)) / Math.pow(10, config.decimals);
+      
+      const newSettings = { ...localSettings, [selectedParameter]: roundedValue };
+      
+      // Синхронизируем связанные параметры
+      if (selectedParameter === 'ipap') {
+        newSettings.pinsp = roundedValue;
+      } else if (selectedParameter === 'epap') {
+        newSettings.peep = roundedValue;
+      }
+      
+      setLocalSettings(newSettings);
+      updateSettings(newSettings);
     };
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedParameter]);
+  }, [selectedParameter, localSettings, updateSettings]);
 
   const pressure = telemetry?.pressure || [];
   const flow = telemetry?.flow || [];

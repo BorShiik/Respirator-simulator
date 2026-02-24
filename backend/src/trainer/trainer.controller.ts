@@ -1,8 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Param, Body, HttpCode } from '@nestjs/common';
 import { ScenariosService } from '../scenarios/scenarios.service';
 import { SessionsService } from '../sessions/sessions.service';
-import { StationsGateway } from '../stations/stations.gateway';
-import { SimulationService } from '../simulation/simulation.service';
+import { TrainerGateway } from './trainer.gateway';
 import { ScenarioEvent } from '../scenarios/scenario.entity';
 
 @Controller('trainer')
@@ -10,28 +9,13 @@ export class TrainerController {
   constructor(
     private readonly scenariosService: ScenariosService,
     private readonly sessionsService: SessionsService,
-    private readonly stationsGateway: StationsGateway,
-    private readonly simulationService: SimulationService,
+    private readonly trainerGateway: TrainerGateway,
   ) {}
 
   // === Students (formerly Stations) ===
   @Get('students')
   getStudents() {
-    const studentNames = this.stationsGateway.getConnectedStudents();
-    return studentNames.map((studentName) => {
-      const studentInfo = this.stationsGateway.getStudentInfo(studentName);
-      const simState = this.simulationService.getState(studentName);
-      return {
-        studentName,
-        isRegistered: studentInfo?.isRegistered || false,
-        status: studentInfo?.isRunning ? 'running' : 'idle',
-        scenarioId: studentInfo?.scenarioId || null,
-        scenarioName: simState?.scenarioName || null,
-        sessionId: studentInfo?.sessionId || null,
-        settings: simState?.settings || null,
-        asynchrony: simState?.asynchrony || null,
-      };
-    });
+    return this.trainerGateway.getStudentList();
   }
 
   @Post('students/:studentName/command')
@@ -40,14 +24,28 @@ export class TrainerController {
     @Param('studentName') studentName: string,
     @Body() body: { command: 'start' | 'stop' | 'reset'; scenarioId?: string },
   ) {
-    const success = await this.stationsGateway.commandStudent(
-      studentName,
-      body.command,
-      body.scenarioId,
-    );
+    // Send command to remote student via websocket
+    this.trainerGateway.sendCommandToStudent(studentName, body.command, { scenarioId: body.scenarioId });
+    
+    // Also if starting a scenario, we might want to log it in SessionsService
+    if (body.command === 'start' && body.scenarioId) {
+        // The trainer UI assigned a scenario
+        const scenario = await this.scenariosService.findById(body.scenarioId);
+        if (scenario) {
+            await this.sessionsService.create({
+              stationId: studentName,
+              studentName,
+              scenarioId: body.scenarioId,
+              scenarioName: scenario.name,
+            });
+        }
+    } else if (body.command === 'stop') {
+        // Handle stopping logic if necessary (session closure)
+    }
+
     return {
-      success,
-      message: success ? `Command ${body.command} executed` : 'Student not found',
+      success: true,
+      message: `Command ${body.command} sent to ${studentName}`,
     };
   }
 

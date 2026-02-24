@@ -8,7 +8,7 @@ import { Server } from 'ws';
 import { SimulationService } from '../simulation/simulation.service';
 import { SessionsService } from '../sessions/sessions.service';
 import { ScenariosService } from '../scenarios/scenarios.service';
-import { VentilatorSettings, DEFAULT_SETTINGS } from '../common/dto';
+import { VentilatorSettings, DEFAULT_SETTINGS } from '../common/dto/ventilator.dto';
 
 interface ExtendedWebSocket extends WebSocket {
   clientId?: string;           // Internal unique ID (UUID)

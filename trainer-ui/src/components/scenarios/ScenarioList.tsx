@@ -15,7 +15,8 @@ export function ScenarioList({ scenarios, selectedId, onSelect, onDelete }: Scen
 
   const getAsynchronyTypes = (scenario: Scenario): string[] => {
     const types = new Set<string>();
-    scenario.blocks.forEach((block) => {
+    const blocks = scenario.blocks || [];
+    blocks.forEach((block) => {
       if (block.type === 'ASYNCHRONY' && block.asynchronyType) {
         types.add(ASYNCHRONY_LABELS[block.asynchronyType]);
       }
@@ -79,7 +80,7 @@ export function ScenarioList({ scenarios, selectedId, onSelect, onDelete }: Scen
                           d="M4 6h16M4 10h16M4 14h16M4 18h16"
                         />
                       </svg>
-                      {scenario.blocks.length} bloków
+                      {(scenario.blocks || []).length} bloków
                     </span>
                   </div>
                   {asyncTypes.length > 0 && (

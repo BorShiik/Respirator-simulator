@@ -5,45 +5,61 @@ import {
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server } from 'ws';
-import { StationsGateway } from '../stations/stations.gateway';
-import { SimulationService } from '../simulation/simulation.service';
+import * as WebSocketLib from 'ws';
+
+// In the new architecture, TrainerGateway handles both Trainer UI clients 
+// AND incoming data from remote Student Pi's.
 
 interface ExtendedWebSocket extends WebSocket {
   isTrainer?: boolean;
+  isRemoteStudent?: boolean;
+  studentName?: string;
+  on: (event: string, listener: (data: Buffer | string) => void) => void;
+  send: (data: string | Buffer) => void;
+  readyState: number;
 }
 
 @WebSocketGateway({
-  path: '/api/trainer/ws',
+  path: '/api/trainer/ws', // Trainer UI and Remote students both connect here for now
 })
 export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
   private trainerClients: Set<ExtendedWebSocket> = new Set();
+  private studentClients: Map<string, ExtendedWebSocket> = new Map();
+  
+  // Cache of latest student states received via telemetry
+  private studentStates: Map<string, any> = new Map();
+  
   private broadcastInterval: NodeJS.Timeout | null = null;
 
-  constructor(
-    private readonly stationsGateway: StationsGateway,
-    private readonly simulationService: SimulationService,
-  ) {}
+  constructor() {}
 
   handleConnection(client: ExtendedWebSocket) {
-    console.log('Trainer connected');
-    client.isTrainer = true;
-    this.trainerClients.add(client);
+    console.log('Client connected to Trainer Gateway');
 
-    // Start broadcasting if not already
-    if (!this.broadcastInterval) {
-      this.startBroadcasting();
-    }
-
-    // Send initial student list
-    this.sendStudentList(client);
+    client.on('message', (data: Buffer | string) => {
+      this.handleMessage(client, data.toString());
+    });
   }
 
   handleDisconnect(client: ExtendedWebSocket) {
-    console.log('Trainer disconnected');
-    this.trainerClients.delete(client);
+    if (client.isTrainer) {
+      console.log('Trainer disconnected');
+      this.trainerClients.delete(client);
+    }
+
+    if (client.isRemoteStudent && client.studentName) {
+      console.log(`Remote Student disconnected: ${client.studentName}`);
+      this.studentClients.delete(client.studentName);
+      // Mark as disconnected in state but keep last known state maybe?
+      const state = this.studentStates.get(client.studentName);
+      if (state) {
+        state.status = 'offline';
+        this.notifyStudentChange();
+      }
+    }
 
     // Stop broadcasting if no trainers connected
     if (this.trainerClients.size === 0 && this.broadcastInterval) {
@@ -52,67 +68,117 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
     }
   }
 
+  private handleMessage(client: ExtendedWebSocket, rawData: string) {
+    try {
+      const msg = JSON.parse(rawData);
+
+      // 1. Differentiate Client Type
+      if (msg.type === 'trainer_register') {
+         client.isTrainer = true;
+         this.trainerClients.add(client);
+         if (!this.broadcastInterval) this.startBroadcasting();
+         this.sendStudentList(client);
+         return;
+      }
+
+      if (msg.type === 'remote_student_register') {
+         client.isRemoteStudent = true;
+         client.studentName = msg.studentName;
+         this.studentClients.set(msg.studentName, client);
+         
+         // Initialize state
+         this.studentStates.set(msg.studentName, {
+            studentName: msg.studentName,
+            status: 'online',
+            lastUpdate: Date.now(),
+            telemetry: null
+         });
+         
+         console.log(`Registered remote student: ${msg.studentName}`);
+         this.notifyStudentChange();
+         return;
+      }
+
+      // 2. Handle Student Telemetry
+      if (msg.type === 'remote_student_telemetry' && client.isRemoteStudent) {
+         const state = this.studentStates.get(client.studentName!);
+         if (state) {
+            state.telemetry = msg.telemetry;
+            state.status = 'online'; // (running)
+            state.lastUpdate = Date.now();
+         }
+         return;
+      }
+
+      // 3. Handle Trainer Commands (to be forwarded to Student)
+      if (client.isTrainer && msg.type === 'trainer_command') {
+         // Forward command to specific student
+         const targetStudent = this.studentClients.get(msg.targetStudent);
+         if (targetStudent && targetStudent.readyState === 1) { // 1 = OPEN
+            targetStudent.send(JSON.stringify(msg.payload)); // e.g., set_asynchrony
+         }
+      }
+
+    } catch (e) {
+      console.error('Failed to parse WS message', e);
+    }
+  }
+
   private startBroadcasting() {
-    // Broadcast student states every 500ms
     this.broadcastInterval = setInterval(() => {
       this.broadcastStudentStates();
     }, 500);
   }
 
   private sendStudentList(client: ExtendedWebSocket) {
-    const students = this.getStudentList();
-    this.sendToClient(client, { type: 'studentsSnapshot', students });
+    const stations = this.getStudentList();
+    this.sendToClient(client, { type: 'stationsSnapshot', stations });
   }
 
   private broadcastStudentStates() {
-    const studentNames = this.stationsGateway.getConnectedStudents();
-
-    for (const studentName of studentNames) {
-      const studentClient = this.stationsGateway.getStudentClient(studentName);
-      const simState = this.simulationService.getState(studentName);
-
-      if (studentClient && simState) {
-        const studentData = {
-          studentName,
-          status: studentClient.isRunning ? 'running' : 'idle',
-          scenarioName: simState.scenarioName,
-          settings: simState.settings,
-          asynchrony: simState.asynchrony,
-          pressure: [simState.currentPressure],
-          flow: [simState.currentFlow],
-          volume: [simState.currentVolume],
-          breathCount: simState.breathCount,
-          lastUpdate: Date.now(),
-        };
-
-        this.broadcast({ type: 'studentUpdate', student: studentData });
+    const studentsUpdate: any[] = [];
+    
+    for (const [studentName, state] of this.studentStates.entries()) {
+      if (state.telemetry) {
+         studentsUpdate.push({
+           stationId: studentName, // frontend expects stationId
+           studentName: studentName,
+           status: state.status,
+           scenarioName: state.telemetry.scenarioName,
+           settings: state.telemetry.settings,
+           asynchrony: state.telemetry.asynchrony,
+           pressure: state.telemetry.pressure,
+           flow: state.telemetry.flow,
+           volume: state.telemetry.volume,
+           lastUpdate: state.lastUpdate,
+         });
       }
+    }
+
+    if (studentsUpdate.length > 0) {
+       for (const station of studentsUpdate) {
+         this.broadcast({ type: 'stationUpdate', station });
+       }
     }
   }
 
-  private getStudentList() {
-    const studentNames = this.stationsGateway.getConnectedStudents();
-    return studentNames.map((studentName) => {
-      const studentInfo = this.stationsGateway.getStudentInfo(studentName);
-      const simState = this.simulationService.getState(studentName);
-      return {
-        studentName,
-        isRegistered: studentInfo?.isRegistered || false,
-        isRunning: studentInfo?.isRunning || false,
-        status: studentInfo?.isRunning ? 'running' : 'idle',
-        scenarioName: simState?.scenarioName || null,
-        sessionId: studentInfo?.sessionId || null,
-        scenarioId: studentInfo?.scenarioId || null,
-        settings: simState?.settings || null,
-        asynchrony: simState?.asynchrony || null,
-        pressure: simState ? [simState.currentPressure] : [],
-        lastUpdate: Date.now(),
-      };
-    });
+  public getStudentList() {
+    return Array.from(this.studentStates.values()).map(state => ({
+        stationId: state.studentName, // frontend expects stationId
+        studentName: state.studentName,
+        isRegistered: true,
+        isRunning: state.status === 'online', // simplification
+        status: state.status,
+        scenarioName: state.telemetry?.scenarioName || null,
+        settings: state.telemetry?.settings || null,
+        asynchrony: state.telemetry?.asynchrony || null,
+        pressure: state.telemetry?.pressure || [],
+        lastUpdate: state.lastUpdate,
+    }));
   }
 
   private sendToClient(client: ExtendedWebSocket, data: any) {
-    if (client.readyState === 1) { // WebSocket.OPEN
+    if (client.readyState === 1) { // 1 = OPEN
       client.send(JSON.stringify(data));
     }
   }
@@ -120,15 +186,26 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
   private broadcast(data: any) {
     const message = JSON.stringify(data);
     for (const client of this.trainerClients) {
-      if (client.readyState === 1) { // WebSocket.OPEN
+      if (client.readyState === 1) { // 1 = OPEN
         client.send(message);
       }
     }
   }
 
-  // Called when student list changes
   notifyStudentChange() {
-    const students = this.getStudentList();
-    this.broadcast({ type: 'studentsSnapshot', students });
+    const stations = this.getStudentList();
+    this.broadcast({ type: 'stationsSnapshot', stations });
+  }
+
+  // Called locally by ScenariosService or SessionsService when Trainer initiates a scenario change etc.
+  public sendCommandToStudent(studentName: string, command: string, payload: any) {
+      const target = this.studentClients.get(studentName);
+      if (target && target.readyState === 1) { // 1 = OPEN
+          target.send(JSON.stringify({
+              type: 'trainer_command',
+              command,
+              ...payload
+          }));
+      }
   }
 }
