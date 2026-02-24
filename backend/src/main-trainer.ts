@@ -26,8 +26,8 @@ async function bootstrap() {
   
   // Trainer usually on 8081 if running on same machine for dev, or 8080 if dedicated
   const port = process.env.PORT || 8081;
-  await app.listen(port);
-  console.log(`🚀 Trainer Backend (Master) running on http://localhost:${port}`);
+  await app.listen(port, '0.0.0.0');
+  console.log(`🚀 Trainer Backend (Master) running on http://0.0.0.0:${port}`);
 }
 
 bootstrap();
