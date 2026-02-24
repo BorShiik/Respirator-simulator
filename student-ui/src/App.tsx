@@ -115,7 +115,7 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
   const [selectedParameter, setSelectedParameter] = useState<ParameterKey | null>(null);
   const [localSettings, setLocalSettings] = useState<VentilatorSettings>(DEFAULT_SETTINGS);
   
-  const { telemetry, connectionStatus, isRegistered, logout, updateSettings } = useStudentWebSocket(studentName, localSettings);
+  const { telemetry, connectionStatus, isRegistered, logout, updateSettings, selectParameter, externalSelectedParameter } = useStudentWebSocket(studentName, localSettings);
 
   // Синхронизация с настройками от сервера (если не в mock режиме)
   useEffect(() => {
@@ -123,6 +123,13 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
       setLocalSettings(telemetry.settings);
     }
   }, [telemetry?.settings]);
+
+  // Синхронизация фокуса с энкодером Raspberry Pi
+  useEffect(() => {
+    if (externalSelectedParameter !== undefined && !import.meta.env.VITE_USE_MOCK) {
+      setSelectedParameter(externalSelectedParameter as ParameterKey | null);
+    }
+  }, [externalSelectedParameter]);
 
   // Обработка клавиш ↑↓ для изменения параметров
   useEffect(() => {
@@ -139,6 +146,7 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
         delta = -config.step;
       } else if (e.key === 'Escape') {
         setSelectedParameter(null);
+        selectParameter(null);
         return;
       } else {
         return;
@@ -166,7 +174,7 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedParameter, localSettings, updateSettings]);
+  }, [selectedParameter, localSettings, updateSettings, selectParameter]);
 
   const pressure = telemetry?.pressure || [];
   const flow = telemetry?.flow || [];
@@ -186,7 +194,10 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
         <SettingsPanel 
           settings={localSettings} 
           selectedParameter={selectedParameter}
-          onParameterSelect={setSelectedParameter}
+          onParameterSelect={(param) => {
+            setSelectedParameter(param);
+            selectParameter(param);
+          }}
         />
       }
       centerTop={

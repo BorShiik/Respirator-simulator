@@ -60,7 +60,16 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
     this.gpioService.on('button', (event) => {
         // Handle button logic
         if (event.action === 'press') {
-           // Toggle parameter maybe?
+           this.gpioService.selectNextParameter();
+        }
+    });
+
+    this.gpioService.on('parameterChanged', (param) => {
+        if (this.localUiClient && this.localUiClient.readyState === 1) {
+            this.localUiClient.send(JSON.stringify({
+                type: 'parameterSelected',
+                parameter: param
+            }));
         }
     });
   }

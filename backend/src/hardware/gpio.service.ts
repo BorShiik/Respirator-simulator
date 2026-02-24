@@ -199,8 +199,22 @@ export class GpioService extends EventEmitter implements OnModuleDestroy {
    * Установка текущего выбранного параметра
    */
   setSelectedParameter(parameter: string) {
-    this.selectedParameter = parameter;
-    this.logger.log(`Выбран параметр: ${parameter}`);
+    // Validate parameter against config
+    if (this.getParameterConfig().hasOwnProperty(parameter)) {
+        this.selectedParameter = parameter;
+        this.logger.log(`Выбран параметр: ${parameter}`);
+        this.emit('parameterChanged', parameter);
+    }
+  }
+
+  /**
+   * Выбор следующего параметра (циклически)
+   */
+  selectNextParameter() {
+    const params = Object.keys(this.getParameterConfig());
+    const currentIndex = params.indexOf(this.selectedParameter);
+    const nextIndex = (currentIndex + 1) % params.length;
+    this.setSelectedParameter(params[nextIndex]);
   }
 
   /**

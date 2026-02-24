@@ -80,9 +80,15 @@ export interface ConnectedMessage {
   status: string;
 }
 
+export interface ParameterSelectedMessage {
+  type: 'parameterSelected';
+  parameter: string;
+}
+
 export type WebSocketMessage = 
   | TelemetryMessage 
   | SettingsUpdateMessage 
+  | ParameterSelectedMessage
   | RegisteredMessage 
   | LoggedOutMessage 
   | ErrorMessage 

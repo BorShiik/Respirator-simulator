@@ -16,6 +16,8 @@ interface UseStudentWebSocketReturn {
   reconnect: () => void;
   logout: () => void;
   updateSettings: (settings: VentilatorSettings) => void;
+  selectParameter: (param: string | null) => void;
+  externalSelectedParameter: string | null;
 }
 
 const RECONNECT_DELAY = 3000;
@@ -273,6 +275,7 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [isRegistered, setIsRegistered] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [externalSelectedParameter, setExternalSelectedParameter] = useState<string | null>(null);
   
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -406,6 +409,11 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
                 settings: message.settings,
               } : null);
               break;
+              
+            case 'parameterSelected':
+              console.log('Backend selected parameter:', message.parameter);
+              setExternalSelectedParameter(message.parameter);
+              break;
           }
         } catch (parseError) {
           console.error('Failed to parse WebSocket message:', parseError);
@@ -476,6 +484,15 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
     }
   }, []);
 
+  const selectParameter = useCallback((param: string | null) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'selectParameter',
+        parameter: param
+      }));
+    }
+  }, []);
+
   return {
     telemetry,
     connectionStatus,
@@ -484,6 +501,8 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
     reconnect,
     logout,
     updateSettings,
+    selectParameter,
+    externalSelectedParameter,
   };
 }
 
