@@ -36,12 +36,24 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
         // For now, let's just send the event to the UI so it can handle it, or update backend directly.
         // If the backend handles it via GpioService selectedParameter:
         const param = this.gpioService.getSelectedParameter();
-        const config = this.gpioService.getParameterConfig()[param];
+        const config = (this.gpioService.getParameterConfig() as any)[param];
         if (config) {
             const currentValue = (currentSimState.settings as any)[param] || 0;
             const newValue = this.gpioService.calculateNewValue(currentValue, config, event.direction, event.clicks);
             
-            this.simulationService.updateSettings(this.currentStudentName, { [param]: newValue } as any);
+            const updatedSettings = { ...currentSimState.settings, [param]: newValue };
+            if (param === 'ipap') updatedSettings.pinsp = newValue;
+            if (param === 'epap') updatedSettings.peep = newValue;
+
+            this.simulationService.updateSettings(this.currentStudentName, updatedSettings as any);
+
+            // Send back to UI immediately
+            if (this.localUiClient && this.localUiClient.readyState === 1) {
+                this.localUiClient.send(JSON.stringify({
+                    type: 'settingsUpdate',
+                    settings: updatedSettings
+                }));
+            }
         }
     });
 
@@ -115,6 +127,12 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
       case 'settingsUpdate':
         if (this.currentStudentName && message.settings) {
           this.simulationService.updateSettings(this.currentStudentName, message.settings);
+        }
+        break;
+
+      case 'selectParameter':
+        if (message.parameter) {
+          this.gpioService.setSelectedParameter(message.parameter);
         }
         break;
 
