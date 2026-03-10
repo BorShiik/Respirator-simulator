@@ -81,6 +81,7 @@ export function StationDetailsPage() {
     setIsAssigning(true);
     try {
       await trainerApi.assignScenario(stationId, selectedScenarioId);
+      alert('Scenariusz przypisany pomyślnie. Parametry zostały zaktualizowane na symulatorze.');
     } catch (error) {
       console.error('Failed to assign scenario:', error);
     } finally {

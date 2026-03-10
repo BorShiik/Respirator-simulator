@@ -68,6 +68,14 @@ export class TrainerController {
       scenarioName: scenario.name,
     });
 
+    // Notify the remote student to apply the scenario settings
+    if (scenario.initialSettings) {
+      this.trainerGateway.sendCommandToStudent(studentName, 'update_settings', {
+         settings: scenario.initialSettings,
+         scenarioName: scenario.name
+      });
+    }
+
     return {
       success: true,
       sessionId: session.id,

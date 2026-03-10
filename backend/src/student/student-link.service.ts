@@ -69,6 +69,14 @@ export class StudentLinkService implements OnModuleInit, OnModuleDestroy {
         case 'trainer_command':
           if (msg.command === 'stop') {
              this.simulationService.stopSimulation(this.currentStudentName);
+          } else if (msg.command === 'update_settings') {
+             if (msg.settings) {
+                this.simulationService.updateSettings(this.currentStudentName, msg.settings);
+             }
+             if (msg.scenarioName) {
+                const state = this.simulationService.getState(this.currentStudentName);
+                if (state) state.scenarioName = msg.scenarioName;
+             }
           } else if (msg.command === 'reset') {
              // Reset logic...
           }
