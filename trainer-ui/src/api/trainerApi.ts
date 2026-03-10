@@ -8,7 +8,15 @@ import {
   AssignScenarioRequest,
 } from '../types/trainer';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+function getApiBaseUrl(): string {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && envUrl.includes('localhost') && window.location.hostname !== 'localhost') {
+    return envUrl.replace('localhost', window.location.hostname);
+  }
+  return envUrl || `http://${window.location.hostname}:8081`;
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 async function fetchApi<T>(
   endpoint: string,
@@ -93,7 +101,12 @@ export async function getTraineeSessions(traineeId: string): Promise<Session[]> 
 
 export function getTrainerWebSocketUrl(): string {
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsHost = import.meta.env.VITE_WS_HOST || window.location.host;
+  let wsHost = import.meta.env.VITE_WS_HOST;
+  if (wsHost && wsHost.includes('localhost') && window.location.hostname !== 'localhost') {
+    wsHost = wsHost.replace('localhost', window.location.hostname);
+  } else if (!wsHost) {
+    wsHost = `${window.location.hostname}:8081`;
+  }
   return `${wsProtocol}//${wsHost}/api/trainer/ws`;
 }
 

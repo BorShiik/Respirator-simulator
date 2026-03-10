@@ -1,6 +1,14 @@
 import { CommandRequest, CommandResponse, CommandType } from '../types/student';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+function getApiBaseUrl(): string {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && envUrl.includes('localhost') && window.location.hostname !== 'localhost') {
+    return envUrl.replace('localhost', window.location.hostname);
+  }
+  return envUrl || `http://${window.location.hostname}:8080`;
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 export async function sendCommand(studentName: string, command: CommandType): Promise<CommandResponse> {
   const url = `${API_BASE_URL}/api/students/${encodeURIComponent(studentName)}/command`;
@@ -37,7 +45,12 @@ export async function sendCommand(studentName: string, command: CommandType): Pr
 
 export function getWebSocketUrl(): string {
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsHost = import.meta.env.VITE_WS_HOST || 'localhost:8080';
+  let wsHost = import.meta.env.VITE_WS_HOST;
+  if (wsHost && wsHost.includes('localhost') && window.location.hostname !== 'localhost') {
+    wsHost = wsHost.replace('localhost', window.location.hostname);
+  } else if (!wsHost) {
+    wsHost = `${window.location.hostname}:8080`;
+  }
   return `${wsProtocol}//${wsHost}/api/stations/ws`;
 }
 
