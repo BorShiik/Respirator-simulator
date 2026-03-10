@@ -41,7 +41,7 @@ async function fetchApi<T>(
 }
 
 export async function getStations(): Promise<Station[]> {
-  return fetchApi<Station[]>('/api/trainer/stations');
+  return fetchApi<Station[]>('/api/trainer/students');
 }
 
 export async function getScenarios(): Promise<Scenario[]> {
@@ -74,21 +74,21 @@ export async function deleteScenario(scenarioId: string): Promise<void> {
 
 export async function assignScenario(stationId: string, scenarioId: string): Promise<CommandResponse> {
   const body: AssignScenarioRequest = { scenarioId };
-  return fetchApi<CommandResponse>(`/api/trainer/stations/${stationId}/assign`, {
+  return fetchApi<CommandResponse>(`/api/trainer/students/${stationId}/assign`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
 }
 
 export async function sendCommand(stationId: string, command: CommandType): Promise<CommandResponse> {
-  return fetchApi<CommandResponse>(`/api/trainer/stations/${stationId}/command`, {
+  return fetchApi<CommandResponse>(`/api/trainer/students/${stationId}/command`, {
     method: 'POST',
     body: JSON.stringify({ command }),
   });
 }
 
 export async function getStationSessions(stationId: string): Promise<Session[]> {
-  return fetchApi<Session[]>(`/api/trainer/stations/${stationId}/sessions`);
+  return fetchApi<Session[]>(`/api/trainer/students/${stationId}/sessions`);
 }
 
 export async function getSessionDetails(sessionId: string): Promise<SessionDetails> {
