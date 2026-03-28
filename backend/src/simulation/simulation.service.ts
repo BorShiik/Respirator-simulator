@@ -25,6 +25,12 @@ interface SimulationState {
   patient: PatientModel;
   asynchrony: AsynchronyStatus;
   scenarioName: string;
+  scenarioEvents?: any[]; // Keep any to avoid circular import for now
+  
+  // Telemetry Buffers for batching (10Hz)
+  pressureBuffer: number[];
+  flowBuffer: number[];
+  volumeBuffer: number[];
 }
 
 @Injectable()
@@ -60,6 +66,10 @@ export class SimulationService {
       patient: { ...DEFAULT_PATIENT },
       asynchrony: { active: false, type: null },
       scenarioName,
+      scenarioEvents: [],
+      pressureBuffer: [],
+      flowBuffer: [],
+      volumeBuffer: [],
     };
 
     this.states.set(stationId, state);
@@ -141,6 +151,16 @@ export class SimulationService {
   }
 
   /**
+   * Apply scenario events scheduled timeline
+   */
+  applyScenarioEvents(stationId: string, events: any[]): void {
+     const state = this.states.get(stationId);
+     if (state) {
+        state.scenarioEvents = [...events];
+     }
+  }
+
+  /**
    * Get current state
    */
   getState(stationId: string): SimulationState | undefined {
@@ -175,25 +195,42 @@ export class SimulationService {
     // 3. Calculate Physics (RC Model)
     this.calculatePhysics(state);
 
-    // 4. Apply Asynchrony Effects
+    // 4. Process Scheduled Scenario Events
+    this.processScheduledEvents(state);
+
+    // 5. Apply Asynchrony Effects
     this.applyAsynchrony(state);
 
-    // 5. Send Telemetry
+    // 6. Send Telemetry (Batched)
     // Convert units for frontend:
     // Pressure: cmH2O (no conversion)
     // Flow: L/s -> L/min (x60)
     // Volume: L -> mL (x1000)
-    const telemetry: TelemetryData = {
-      timestamp: Date.now(),
-      pressure: [Math.round(state.currentPressure * 10) / 10], // Sending single point array for compatibility
-      flow: [Math.round(state.currentFlow * 60 * 10) / 10],
-      volume: [Math.round(state.currentVolume * 1000)],
-      settings: state.settings,
-      asynchrony: state.asynchrony,
-      scenarioName: state.scenarioName,
-    };
+    
+    // Add current points to batch buffers
+    state.pressureBuffer.push(Math.round(state.currentPressure * 10) / 10);
+    state.flowBuffer.push(Math.round(state.currentFlow * 60 * 10) / 10);
+    state.volumeBuffer.push(Math.round(state.currentVolume * 1000));
 
-    callback(telemetry);
+    // Send payload every 5 ticks (100ms / 10Hz)
+    if (state.pressureBuffer.length >= 5) {
+      const telemetry: TelemetryData = {
+        timestamp: Date.now(),
+        pressure: [...state.pressureBuffer],
+        flow: [...state.flowBuffer],
+        volume: [...state.volumeBuffer],
+        settings: state.settings,
+        asynchrony: state.asynchrony,
+        scenarioName: state.scenarioName,
+      };
+
+      callback(telemetry);
+
+      // Clear batch buffers
+      state.pressureBuffer = [];
+      state.flowBuffer = [];
+      state.volumeBuffer = [];
+    }
   }
 
   /**
@@ -341,5 +378,43 @@ export class SimulationService {
           state.currentPressure += 5 * Math.random();
        }
     }
+  }
+
+  private processScheduledEvents(state: SimulationState): void {
+     if (!state.scenarioEvents || state.scenarioEvents.length === 0) return;
+
+     const currentTime = state.time;
+     
+     // Find events that should be active right now
+     // Scenario events have `time` (start time) and optionally `duration`
+     for (const iterEvent of state.scenarioEvents) {
+         if (iterEvent.type === 'asynchrony' && iterEvent.asynchronyType) {
+             const startTime = iterEvent.time;
+             const duration = iterEvent.duration || 30; // 30s default
+             const endTime = startTime + duration;
+
+             if (currentTime >= startTime && currentTime <= endTime) {
+                 if (state.asynchrony.type !== iterEvent.asynchronyType) {
+                     state.asynchrony = { active: true, type: iterEvent.asynchronyType };
+                 }
+             } else if (currentTime > endTime && state.asynchrony.type === iterEvent.asynchronyType) {
+                 // Stop the asynchrony when duration is over
+                 state.asynchrony = { active: false, type: null };
+             }
+         }
+         
+         if (iterEvent.type === 'setting_change' && iterEvent.settingChange) {
+             const startTime = iterEvent.time;
+             // Settings changes happen once at exact time
+             // To prevent continuous triggering, we remove the event after applying or mark it done
+             if (currentTime >= startTime && !iterEvent._applied) {
+                 state.settings = {
+                    ...state.settings,
+                    [iterEvent.settingChange.parameter]: iterEvent.settingChange.value
+                 };
+                 iterEvent._applied = true;
+             }
+         }
+     }
   }
 }

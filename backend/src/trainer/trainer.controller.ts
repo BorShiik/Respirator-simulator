@@ -76,6 +76,28 @@ export class TrainerController {
       });
     }
 
+    // Notify to apply patient physics
+    if (scenario.initialSettings && (scenario.initialSettings.compliance !== undefined || scenario.initialSettings.resistance !== undefined)) {
+      this.trainerGateway.sendCommandToStudent(studentName, 'update_patient', {
+         parameters: {
+            compliance: scenario.initialSettings.compliance,
+            resistance: scenario.initialSettings.resistance,
+         }
+      });
+    }
+
+    // Check if there are immediate events (like asynchrony starting at time 0)
+    if (scenario.events && scenario.events.length > 0) {
+      const immediateEvents = scenario.events.filter(e => e.time === 0);
+      for (const event of immediateEvents) {
+        if (event.type === 'asynchrony') {
+          this.trainerGateway.sendCommandToStudent(studentName, 'set_asynchrony', {
+             asynchronyType: event.asynchronyType
+          });
+        }
+      }
+    }
+
     return {
       success: true,
       sessionId: session.id,

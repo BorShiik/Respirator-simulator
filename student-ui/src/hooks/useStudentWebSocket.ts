@@ -269,6 +269,7 @@ function generateMockTelemetry(_prevTelemetry: TelemetryData | null, settings: V
 let realPressureBuffer: (number | null)[] = new Array(BUFFER_SIZE).fill(null);
 let realFlowBuffer: (number | null)[] = new Array(BUFFER_SIZE).fill(null);
 let realVolumeBuffer: (number | null)[] = new Array(BUFFER_SIZE).fill(null);
+let realCurrentIndex = 0;
 
 export function useStudentWebSocket(studentName: string | null, externalSettings?: VentilatorSettings): UseStudentWebSocketReturn {
   const [telemetry, setTelemetry] = useState<TelemetryData | null>(null);
@@ -377,18 +378,27 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
               break;
               
             case 'telemetry': {
-              const pres = Array.isArray(message.pressure) ? message.pressure[0] : message.pressure;
-              const flo = Array.isArray(message.flow) ? message.flow[0] : message.flow;
-              const vol = Array.isArray(message.volume) ? message.volume[0] : message.volume;
+              const pressures = Array.isArray(message.pressure) ? message.pressure : [message.pressure];
+              const flows = Array.isArray(message.flow) ? message.flow : [message.flow];
+              const volumes = Array.isArray(message.volume) ? message.volume : [message.volume];
               
-              realPressureBuffer.push(pres);
-              realFlowBuffer.push(flo);
-              realVolumeBuffer.push(vol);
-              
-              if (realPressureBuffer.length > BUFFER_SIZE) {
-                realPressureBuffer.shift();
-                realFlowBuffer.shift();
-                realVolumeBuffer.shift();
+              const pointsCount = Math.max(pressures.length, flows.length, volumes.length);
+
+              // Добавляем точки по механике "sweep"
+              for (let i = 0; i < pointsCount; i++) {
+                 realPressureBuffer[realCurrentIndex] = pressures[i] ?? null;
+                 realFlowBuffer[realCurrentIndex] = flows[i] ?? null;
+                 realVolumeBuffer[realCurrentIndex] = volumes[i] ?? null;
+                 
+                 realCurrentIndex++;
+                 
+                 // Если дошли до конца — очищаем ВСЁ и начинаем сначала
+                 if (realCurrentIndex >= BUFFER_SIZE) {
+                    realPressureBuffer = new Array(BUFFER_SIZE).fill(null);
+                    realFlowBuffer = new Array(BUFFER_SIZE).fill(null);
+                    realVolumeBuffer = new Array(BUFFER_SIZE).fill(null);
+                    realCurrentIndex = 0;
+                 }
               }
 
               setTelemetry({

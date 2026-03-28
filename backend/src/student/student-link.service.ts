@@ -73,9 +73,12 @@ export class StudentLinkService implements OnModuleInit, OnModuleDestroy {
              if (msg.settings) {
                 this.simulationService.updateSettings(this.currentStudentName, msg.settings);
              }
-             if (msg.scenarioName) {
+             if (msg.scenario) {
                 const state = this.simulationService.getState(this.currentStudentName);
-                if (state) state.scenarioName = msg.scenarioName;
+                if (state) {
+                   state.scenarioName = msg.scenario.name;
+                   this.simulationService.applyScenarioEvents(this.currentStudentName, msg.scenario.events);
+                }
              }
           } else if (msg.command === 'reset') {
              // Reset logic...
