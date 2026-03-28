@@ -3,7 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { SimulationModule } from './simulation/simulation.module';
 import { ScenariosModule } from './scenarios/scenarios.module';
 import { SessionsModule } from './sessions/sessions.module';
-import { StationsModule } from './stations/stations.module';
+
 import { TrainerModule } from './trainer/trainer.module';
 import { HardwareModule } from './hardware/hardware.module';
 
@@ -18,7 +18,7 @@ import { HardwareModule } from './hardware/hardware.module';
     SimulationModule,
     ScenariosModule,
     SessionsModule,
-    StationsModule,
+
     TrainerModule,
     HardwareModule,
   ],

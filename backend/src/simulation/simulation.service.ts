@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { EventEmitter } from 'events';
 import {
   VentilatorSettings,
   PatientModel,
@@ -27,6 +28,10 @@ interface SimulationState {
   scenarioName: string;
   scenarioEvents?: any[]; // Keep any to avoid circular import for now
   
+  // Asynchrony resolution tracking
+  baselineSettings: VentilatorSettings | null;
+  currentAsynchronyEvent: any | null;
+  
   // Telemetry Buffers for batching (10Hz)
   pressureBuffer: number[];
   flowBuffer: number[];
@@ -34,7 +39,7 @@ interface SimulationState {
 }
 
 @Injectable()
-export class SimulationService {
+export class SimulationService extends EventEmitter {
   private states: Map<string, SimulationState> = new Map();
   private intervals: Map<string, NodeJS.Timeout> = new Map();
   private callbacks: Map<string, (data: TelemetryData) => void> = new Map();
@@ -67,6 +72,8 @@ export class SimulationService {
       asynchrony: { active: false, type: null },
       scenarioName,
       scenarioEvents: [],
+      baselineSettings: null,
+      currentAsynchronyEvent: null,
       pressureBuffer: [],
       flowBuffer: [],
       volumeBuffer: [],
@@ -100,9 +107,18 @@ export class SimulationService {
    */
   updateSettings(stationId: string, settings: Partial<VentilatorSettings>): void {
     const state = this.states.get(stationId);
-    if (state) {
-      state.settings = { ...state.settings, ...settings };
+    if (!state) return;
+
+    for (const key of Object.keys(settings)) {
+       const typedKey = key as keyof VentilatorSettings;
+       if (state.settings[typedKey] !== settings[typedKey]) {
+           const prev = state.settings[typedKey] as number;
+           const curr = settings[typedKey] as number;
+           this.emit('setting_changed', stationId, typedKey, prev, curr, state.asynchrony.active, state.asynchrony.type);
+       }
     }
+
+    state.settings = { ...state.settings, ...settings };
   }
 
   /**
@@ -157,6 +173,11 @@ export class SimulationService {
      const state = this.states.get(stationId);
      if (state) {
         state.scenarioEvents = [...events];
+        // Reset timers so that relative timestamps (e.g. at 30s) trigger properly!
+        state.time = 0;
+        state.phaseTime = 0;
+        state.breathCount = 0;
+        state.phase = 'expiration';
      }
   }
 
@@ -173,7 +194,44 @@ export class SimulationService {
   injectAsynchrony(stationId: string, type: AsynchronyType | null): void {
     const state = this.states.get(stationId);
     if (state) {
-      state.asynchrony = { active: type !== null, type };
+      if (type !== null && state.asynchrony.type !== type) {
+         state.asynchrony = { active: true, type };
+         state.baselineSettings = { ...state.settings };
+         state.currentAsynchronyEvent = null; // Manual injection
+      } else if (type === null) {
+         state.asynchrony = { active: false, type: null };
+         state.baselineSettings = null;
+         state.currentAsynchronyEvent = null;
+      }
+    }
+  }
+
+  /**
+   * Check if student fixed the asynchrony by adjusting settings
+   */
+  private checkIfAsynchronyFixed(state: SimulationState): boolean {
+    if (!state.asynchrony.active || !state.asynchrony.type || !state.baselineSettings) return false;
+    
+    const current = state.settings;
+    const base = state.baselineSettings;
+
+    switch (state.asynchrony.type) {
+      case 'INEFFECTIVE_TRIGGER':
+        // Student fixed if they reduced trigger threshold by at least 1.0
+        // OR reduced IPAP by at least 2.0 (reducing over-assistance)
+        return (current.trigger <= base.trigger - 1.0) || (current.ipap <= base.ipap - 2);
+
+      case 'DOUBLE_TRIGGER':
+      case 'PREMATURE_CYCLING':
+        // Student fixed if they lengthened inspiration time (Ti) by at least 0.2s
+        return current.ti >= base.ti + 0.2;
+
+      case 'FLOW_MISMATCH':
+        // Fixed if they increased IPAP by 2 (augmenting flow/pressure support)
+        return current.ipap >= base.ipap + 2;
+
+      default:
+        return false;
     }
   }
 
@@ -197,6 +255,18 @@ export class SimulationService {
 
     // 4. Process Scheduled Scenario Events
     this.processScheduledEvents(state);
+
+    // 4.5. Check if the user fixed the currently active asynchrony
+    if (this.checkIfAsynchronyFixed(state)) {
+       const resolvedType = state.asynchrony.type;
+       state.asynchrony = { active: false, type: null };
+       state.baselineSettings = null;
+       if (state.currentAsynchronyEvent) {
+          state.currentAsynchronyEvent._resolved = true;
+          state.currentAsynchronyEvent = null;
+       }
+       this.emit('asynchrony_resolved', stationId, resolvedType);
+    }
 
     // 5. Apply Asynchrony Effects
     this.applyAsynchrony(state);
@@ -248,9 +318,24 @@ export class SimulationService {
     } else {
       const expiratoryTime = breathPeriod - settings.ti;
       if (state.phaseTime >= expiratoryTime) {
-        state.phase = 'inspiration';
-        state.phaseTime = 0;
-        state.breathCount++;
+        let isFailedTrigger = false;
+
+        // INEFFECTIVE_TRIGGER logic: Every 3rd breath fails to switch to inspiration
+        if (state.asynchrony.active && state.asynchrony.type === 'INEFFECTIVE_TRIGGER') {
+           if (state.breathCount % 3 === 2) {
+              isFailedTrigger = true;
+           }
+        }
+
+        if (isFailedTrigger) {
+           // Skip inspiration. Machine stays in expiration waiting for the NEXT triggering event
+           state.phaseTime = 0;
+           state.breathCount++; // count the failed attempt
+        } else {
+           state.phase = 'inspiration';
+           state.phaseTime = 0;
+           state.breathCount++;
+        }
       }
     }
   }
@@ -371,11 +456,47 @@ export class SimulationService {
   private applyAsynchrony(state: SimulationState): void {
     if (!state.asynchrony.active) return;
     
-    // Simple implementations for visual feedback
     if (state.asynchrony.type === 'FLOW_MISMATCH') {
        if (state.phase === 'inspiration' && state.settings.mode.startsWith('VC')) {
           // Turbulence increases resistance reading
           state.currentPressure += 5 * Math.random();
+       }
+    }
+    else if (state.asynchrony.type === 'INEFFECTIVE_TRIGGER') {
+       // Visual representation of patient effort that ventilator ignored.
+       // The breath was dropped (phase stayed 'expiration') 
+       // When breathCount was incremented, previous '2' became '0' % 3.
+       if (state.phase === 'expiration' && state.phaseTime < 0.25 && (state.breathCount % 3 === 0)) {
+           const t = state.phaseTime / 0.25;
+           const patientEffort = Math.sin(t * Math.PI) * 2.5; // Up to 2.5 cmH2O dip in circuit pressure
+           
+           state.currentPressure -= patientEffort;
+           // Slight inward flow due to effort against closed expiratory valve bias flow
+           state.currentFlow += patientEffort * 0.1; 
+       }
+    }
+    else if (state.asynchrony.type === 'DOUBLE_TRIGGER') {
+       // Patient wants more volume, immediately triggering a SECOND strong artificial breath 
+       // during early expiration. This yields a second pressure peak.
+       if (state.phase === 'expiration' && state.phaseTime < 0.4) {
+           const t = state.phaseTime / 0.4;
+           const peakPressure = (state.settings.pinsp || (state.settings.ipap - state.settings.peep));
+           state.currentPressure += peakPressure * Math.sin(t * Math.PI) * 0.8;
+           
+           // Limit stacking volume to realistic TLC (ex. 1500ml total) to prevent infinite accumulation
+           if (state.currentVolume < 1.5) {
+               state.currentVolume += 0.02 * Math.sin(t * Math.PI); 
+           }
+           state.currentFlow += 0.5 * Math.sin(t * Math.PI); // Positive inspiratory flow
+       }
+    }
+    else if (state.asynchrony.type === 'PREMATURE_CYCLING') {
+       // Ventilator cycles to expiration BEFORE patient finishes inspiration.
+       // Patient still pulls air, leading to positive flow despite expiration mode, and negative pressure.
+       if (state.phase === 'expiration' && state.phaseTime < 0.3) {
+           const t = state.phaseTime / 0.3;
+           state.currentFlow += 0.8 * (1 - t);
+           state.currentPressure -= 2 * (1 - t);
        }
     }
   }
@@ -394,12 +515,16 @@ export class SimulationService {
              const endTime = startTime + duration;
 
              if (currentTime >= startTime && currentTime <= endTime) {
-                 if (state.asynchrony.type !== iterEvent.asynchronyType) {
+                 if (state.asynchrony.type !== iterEvent.asynchronyType && !iterEvent._resolved) {
                      state.asynchrony = { active: true, type: iterEvent.asynchronyType };
+                     state.baselineSettings = { ...state.settings };
+                     state.currentAsynchronyEvent = iterEvent;
                  }
              } else if (currentTime > endTime && state.asynchrony.type === iterEvent.asynchronyType) {
                  // Stop the asynchrony when duration is over
                  state.asynchrony = { active: false, type: null };
+                 state.baselineSettings = null;
+                 state.currentAsynchronyEvent = null;
              }
          }
          

@@ -150,9 +150,11 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
               const existing = stationsMapRef.current.get(s.stationId);
               let pressureHistory = existing ? existing.pressure : [];
               
-              const newPressure = Array.isArray(s.pressure) ? s.pressure[0] : s.pressure;
-              if (newPressure !== undefined && newPressure !== null) {
-                pressureHistory = [...pressureHistory, newPressure as number].slice(-20);
+              const newPressures = Array.isArray(s.pressure) ? s.pressure : [s.pressure];
+              const validPressures = newPressures.filter(p => p !== undefined && p !== null) as number[];
+              
+              if (validPressures.length > 0) {
+                pressureHistory = [...pressureHistory, ...validPressures].slice(-100);
               }
               
               s.pressure = pressureHistory;
@@ -167,10 +169,11 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
               const existing = newMap.get(s.stationId);
               
               let pressureHistory = existing ? existing.pressure : [];
-              const newPressure = Array.isArray(s.pressure) ? s.pressure[0] : s.pressure;
+              const newPressures = Array.isArray(s.pressure) ? s.pressure : [s.pressure];
+              const validPressures = newPressures.filter(p => p !== undefined && p !== null) as number[];
               
-              if (newPressure !== undefined && newPressure !== null) {
-                pressureHistory = [...pressureHistory, newPressure as number].slice(-20);
+              if (validPressures.length > 0) {
+                pressureHistory = [...pressureHistory, ...validPressures].slice(-100);
               }
               
               s.pressure = pressureHistory;

@@ -15,9 +15,33 @@ export class StudentLinkService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly simulationService: SimulationService) {}
 
   onModuleInit() {
-    // We don't connect immediately unless we have a trainer URL, and typically we might wait for the student to "register" locally first.
-    // Actually, connecting to the master immediately is good, we wait to send 'register' until local UI provides a name.
     this.connect();
+
+    this.simulationService.on('setting_changed', (stationId, param, prev, curr, wasAsync, asyncType) => {
+       if (stationId === this.currentStudentName && this.ws?.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify({
+             type: 'student_event',
+             studentName: this.currentStudentName,
+             event: 'setting_change',
+             parameter: param,
+             previousValue: prev,
+             newValue: curr,
+             wasAsynchronyActive: wasAsync,
+             asynchronyType: asyncType
+          }));
+       }
+    });
+
+    this.simulationService.on('asynchrony_resolved', (stationId, type) => {
+       if (stationId === this.currentStudentName && this.ws?.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify({
+             type: 'student_event',
+             studentName: this.currentStudentName,
+             event: 'asynchrony_resolved',
+             asynchronyType: type
+          }));
+       }
+    });
   }
 
   onModuleDestroy() {

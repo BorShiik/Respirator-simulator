@@ -6,6 +6,7 @@ import {
 } from '@nestjs/websockets';
 import { Server } from 'ws';
 import * as WebSocketLib from 'ws';
+import { SessionsService } from '../sessions/sessions.service';
 
 // In the new architecture, TrainerGateway handles both Trainer UI clients 
 // AND incoming data from remote Student Pi's.
@@ -34,7 +35,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
   
   private broadcastInterval: NodeJS.Timeout | null = null;
 
-  constructor() {}
+  constructor(private readonly sessionsService: SessionsService) {}
 
   handleConnection(client: ExtendedWebSocket) {
     console.log('Client connected to Trainer Gateway');
@@ -112,11 +113,45 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
       // 3. Handle Trainer Commands (to be forwarded to Student)
       if (client.isTrainer && msg.type === 'trainer_command') {
+         // Intercept asynchrony commands to log them into Analytics
+         if (msg.payload && msg.payload.type === 'set_asynchrony') {
+             const act = async () => {
+                 const activeSession = await this.sessionsService.findActiveSession(msg.targetStudent);
+                 if (activeSession) {
+                     await this.sessionsService.logAsynchronyStart(activeSession.id, msg.payload.asynchronyType);
+                 }
+             };
+             act().catch(e => console.error('Failed to log asynchrony start', e));
+         }
+
          // Forward command to specific student
          const targetStudent = this.studentClients.get(msg.targetStudent);
          if (targetStudent && targetStudent.readyState === 1) { // 1 = OPEN
             targetStudent.send(JSON.stringify(msg.payload)); // e.g., set_asynchrony
          }
+      }
+
+      // 4. Handle Analytics Events from Student
+      if (msg.type === 'student_event' && client.isRemoteStudent) {
+         const act = async () => {
+             const activeSession = await this.sessionsService.findActiveSession(msg.studentName);
+             if (activeSession) {
+                 if (msg.event === 'setting_change') {
+                     await this.sessionsService.logSettingChange(
+                         activeSession.id,
+                         msg.parameter,
+                         msg.previousValue,
+                         msg.newValue,
+                         msg.wasAsynchronyActive,
+                         msg.asynchronyType
+                     );
+                 } else if (msg.event === 'asynchrony_resolved') {
+                     await this.sessionsService.logAsynchronyEnd(activeSession.id, msg.asynchronyType);
+                 }
+             }
+         };
+         act().catch(e => console.error('Failed to log student event', e));
+         return;
       }
 
     } catch (e) {
@@ -199,6 +234,16 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
   // Called locally by ScenariosService or SessionsService when Trainer initiates a scenario change etc.
   public sendCommandToStudent(studentName: string, command: string, payload: any) {
+      if (command === 'set_asynchrony') {
+          const act = async () => {
+              const activeSession = await this.sessionsService.findActiveSession(studentName);
+              if (activeSession) {
+                  await this.sessionsService.logAsynchronyStart(activeSession.id, payload.asynchronyType);
+              }
+          };
+          act().catch();
+      }
+
       const target = this.studentClients.get(studentName);
       if (target && target.readyState === 1) { // 1 = OPEN
           target.send(JSON.stringify({

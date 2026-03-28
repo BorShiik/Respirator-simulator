@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { ScenarioList } from '../components/scenarios/ScenarioList';
 import { ScenarioEditor } from '../components/scenarios/ScenarioEditor';
 import { trainerApi } from '../api/trainerApi';
-import { Scenario, DEFAULT_SCENARIO } from '../types/trainer';
+import { Scenario } from '../types/trainer';
 
 export function ScenariosPage() {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
