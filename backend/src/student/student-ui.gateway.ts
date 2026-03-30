@@ -4,6 +4,7 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
+import { Logger } from '@nestjs/common';
 import { Server, WebSocket } from 'ws';
 import { SimulationService } from '../simulation/simulation.service';
 import { StudentLinkService } from './student-link.service';
@@ -17,6 +18,7 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
   @WebSocketServer()
   server: Server;
 
+  private readonly logger = new Logger(StudentUiGateway.name);
   private localUiClient: WebSocket | null = null;
   private currentStudentName: string | null = null;
 
@@ -48,7 +50,7 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
             this.simulationService.updateSettings(this.currentStudentName, updatedSettings as any);
 
             // Send back to UI immediately
-            if (this.localUiClient && this.localUiClient.readyState === 1) {
+            if (this.localUiClient && this.localUiClient.readyState === WebSocket.OPEN) {
                 this.localUiClient.send(JSON.stringify({
                     type: 'settingsUpdate',
                     settings: updatedSettings
@@ -65,7 +67,7 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
     });
 
     this.gpioService.on('parameterChanged', (param) => {
-        if (this.localUiClient && this.localUiClient.readyState === 1) {
+        if (this.localUiClient && this.localUiClient.readyState === WebSocket.OPEN) {
             this.localUiClient.send(JSON.stringify({
                 type: 'parameterSelected',
                 parameter: param
@@ -75,7 +77,7 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
   }
 
   handleConnection(client: WebSocket) {
-    console.log('Local UI connected');
+    this.logger.log('Local UI connected');
     this.localUiClient = client;
 
     // Awaiting registration by default
@@ -86,13 +88,13 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
         const msg = JSON.parse(data.toString());
         this.handleMessage(client, msg);
       } catch (e) {
-        console.error('Failed to parse UI message', e);
+        this.logger.error('Failed to parse UI message', e instanceof Error ? e.stack : e);
       }
     });
   }
 
   handleDisconnect(client: WebSocket) {
-    console.log('Local UI disconnected');
+    this.logger.log('Local UI disconnected');
     if (this.currentStudentName) {
       this.simulationService.stopSimulation(this.currentStudentName);
     }
@@ -149,6 +151,30 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
         if (this.currentStudentName) {
           this.simulationService.stopSimulation(this.currentStudentName);
           client.send(JSON.stringify({ type: 'status', status: 'stopped' }));
+        }
+        break;
+
+      case 'reset':
+        if (this.currentStudentName) {
+          // Stop simulation, then restart with default settings
+          this.simulationService.stopSimulation(this.currentStudentName);
+          const name = this.currentStudentName;
+          this.simulationService.startSimulation(name, 'Free Practice', (telemetry) => {
+            if (this.localUiClient && this.localUiClient.readyState === WebSocket.OPEN) {
+              this.localUiClient.send(JSON.stringify({
+                type: 'telemetry',
+                timestamp: telemetry.timestamp,
+                pressure: telemetry.pressure,
+                flow: telemetry.flow,
+                volume: telemetry.volume,
+                settings: telemetry.settings,
+                asynchrony: telemetry.asynchrony,
+                scenarioName: telemetry.scenarioName,
+              }));
+            }
+            this.linkService.sendTelemetryToMaster(telemetry);
+          });
+          client.send(JSON.stringify({ type: 'status', status: 'running', scenarioName: 'Free Practice' }));
         }
         break;
     }

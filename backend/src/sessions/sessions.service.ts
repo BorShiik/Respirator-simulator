@@ -76,6 +76,13 @@ export class SessionsService {
     });
   }
 
+  async findPendingSession(stationId: string): Promise<SessionEntity | null> {
+    return this.sessionRepo.findOne({
+      where: { stationId, status: 'pending' },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
   // Logging methods
   async logSettingChange(
     sessionId: string,
@@ -176,6 +183,80 @@ export class SessionsService {
       changesPerMinute: session.totalSettingChanges / duration,
       timeToFirstCorrection,
       settingChangesByParameter: byParameter,
+    };
+  }
+
+  // === Full session list with computed metrics for Analytics dashboard ===
+
+  async findAll(): Promise<SessionEntity[]> {
+    return this.sessionRepo.find({
+      relations: ['logs'],
+      order: { createdAt: 'DESC' },
+      take: 200,
+    });
+  }
+
+  /**
+   * Map a raw SessionEntity (with logs) into the shape the frontend analytics expects.
+   */
+  mapSessionToFrontend(session: SessionEntity): Record<string, unknown> {
+    const logs = session.logs || [];
+
+    // Duration
+    let totalDuration = 0;
+    if (session.startedAt && session.endedAt) {
+      totalDuration = Math.round((session.endedAt.getTime() - session.startedAt.getTime()) / 1000);
+    }
+
+    // Setting changes
+    const settingChanges = logs.filter(l => l.eventType === 'setting_change');
+    const numberOfSettingChanges = settingChanges.length;
+
+    // Asynchrony types encountered
+    const asynchronyStartLogs = logs.filter(l => l.eventType === 'asynchrony_start');
+    const asynchronyEndLogs = logs.filter(l => l.eventType === 'asynchrony_end');
+    const asynchronyTypes = [...new Set(asynchronyStartLogs.map(l => l.asynchronyType).filter(Boolean))];
+
+    // Time to resolve: time between first asynchrony_start and first asynchrony_end
+    let timeToResolveAsynchrony: number | null = null;
+    if (asynchronyStartLogs.length > 0 && asynchronyEndLogs.length > 0) {
+      timeToResolveAsynchrony = Math.round(
+        (asynchronyEndLogs[0].timestamp - asynchronyStartLogs[0].timestamp) / 1000,
+      );
+    }
+
+    // Successful resolution: at least one asynchrony was resolved
+    const successfulResolution = asynchronyEndLogs.length > 0;
+
+    // Chaos index = (setting changes / duration in minutes). Capped at 1.0
+    const durationMinutes = totalDuration > 0 ? totalDuration / 60 : 1;
+    const chaosIndex = Math.min(1, Math.round((numberOfSettingChanges / durationMinutes) * 100) / 100);
+
+    return {
+      id: session.id,
+      stationId: session.stationId,
+      traineeId: session.studentName || session.stationId,
+      traineeName: session.studentName || session.stationId,
+      scenarioId: session.scenarioId || null,
+      scenarioName: session.scenarioName || 'Free Practice',
+      startTime: session.startedAt ? session.startedAt.getTime() : session.createdAt.getTime(),
+      endTime: session.endedAt ? session.endedAt.getTime() : null,
+      status: session.status === 'completed'
+        ? 'COMPLETED'
+        : session.status === 'running'
+        ? 'IN_PROGRESS'
+        : session.status === 'aborted'
+        ? 'ABORTED'
+        : 'PENDING',
+      metrics: {
+        totalDuration,
+        timeToResolveAsynchrony,
+        numberOfSettingChanges,
+        chaosIndex,
+        asynchronyDetected: asynchronyStartLogs.length > 0,
+        asynchronyTypes,
+        successfulResolution,
+      },
     };
   }
 }

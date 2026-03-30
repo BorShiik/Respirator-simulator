@@ -39,6 +39,9 @@ function generateMockStations(): StationLiveStatus[] {
         type: hasAsynchrony ? 'INEFFECTIVE_TRIGGER' : null,
       } : null,
       pressure: isOnline ? Array.from({ length: 20 }, () => 5 + Math.random() * 15) : [],
+      flow: isOnline ? Array.from({ length: 20 }, () => -10 + Math.random() * 50) : [],
+      volume: isOnline ? Array.from({ length: 20 }, () => Math.random() * 500) : [],
+      scenarioName: isOnline ? 'Mock Scenario' : undefined,
       lastUpdate: Date.now(),
     });
   }
@@ -101,6 +104,8 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
                 type: hasAsynchrony ? 'INEFFECTIVE_TRIGGER' : null,
               },
               pressure: Array.from({ length: 20 }, () => 5 + Math.random() * 15),
+              flow: Array.from({ length: 20 }, () => -10 + Math.random() * 50),
+              volume: Array.from({ length: 20 }, () => Math.random() * 500),
               lastUpdate: Date.now(),
             });
           }
@@ -149,15 +154,30 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
             message.stations.forEach(s => {
               const existing = stationsMapRef.current.get(s.stationId);
               let pressureHistory = existing ? existing.pressure : [];
+              let flowHistory = existing ? existing.flow : [];
+              let volumeHistory = existing ? existing.volume : [];
               
               const newPressures = Array.isArray(s.pressure) ? s.pressure : [s.pressure];
               const validPressures = newPressures.filter(p => p !== undefined && p !== null) as number[];
-              
               if (validPressures.length > 0) {
                 pressureHistory = [...pressureHistory, ...validPressures].slice(-100);
               }
-              
+
+              const newFlows = Array.isArray(s.flow) ? s.flow : (s.flow !== undefined ? [s.flow] : []);
+              const validFlows = newFlows.filter((f: number) => f !== undefined && f !== null) as number[];
+              if (validFlows.length > 0) {
+                flowHistory = [...flowHistory, ...validFlows].slice(-100);
+              }
+
+              const newVolumes = Array.isArray(s.volume) ? s.volume : (s.volume !== undefined ? [s.volume] : []);
+              const validVolumes = newVolumes.filter((v: number) => v !== undefined && v !== null) as number[];
+              if (validVolumes.length > 0) {
+                volumeHistory = [...volumeHistory, ...validVolumes].slice(-100);
+              }
+
               s.pressure = pressureHistory;
+              s.flow = flowHistory;
+              s.volume = volumeHistory;
               newMap.set(s.stationId, s);
             });
             
@@ -169,14 +189,30 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
               const existing = newMap.get(s.stationId);
               
               let pressureHistory = existing ? existing.pressure : [];
+              let flowHistory = existing ? existing.flow : [];
+              let volumeHistory = existing ? existing.volume : [];
+
               const newPressures = Array.isArray(s.pressure) ? s.pressure : [s.pressure];
               const validPressures = newPressures.filter(p => p !== undefined && p !== null) as number[];
-              
               if (validPressures.length > 0) {
                 pressureHistory = [...pressureHistory, ...validPressures].slice(-100);
               }
-              
+
+              const newFlows = Array.isArray(s.flow) ? s.flow : (s.flow !== undefined ? [s.flow] : []);
+              const validFlows = newFlows.filter((f: number) => f !== undefined && f !== null) as number[];
+              if (validFlows.length > 0) {
+                flowHistory = [...flowHistory, ...validFlows].slice(-100);
+              }
+
+              const newVolumes = Array.isArray(s.volume) ? s.volume : (s.volume !== undefined ? [s.volume] : []);
+              const validVolumes = newVolumes.filter((v: number) => v !== undefined && v !== null) as number[];
+              if (validVolumes.length > 0) {
+                volumeHistory = [...volumeHistory, ...validVolumes].slice(-100);
+              }
+
               s.pressure = pressureHistory;
+              s.flow = flowHistory;
+              s.volume = volumeHistory;
               newMap.set(s.stationId, s);
               return newMap;
             });

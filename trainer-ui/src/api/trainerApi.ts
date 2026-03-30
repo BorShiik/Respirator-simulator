@@ -99,6 +99,10 @@ export async function getTraineeSessions(traineeId: string): Promise<Session[]> 
   return fetchApi<Session[]>(`/api/trainer/trainees/${traineeId}/sessions`);
 }
 
+export async function getAllSessions(): Promise<Session[]> {
+  return fetchApi<Session[]>('/api/trainer/sessions');
+}
+
 export function getTrainerWebSocketUrl(): string {
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   let wsHost = import.meta.env.VITE_WS_HOST;
@@ -122,6 +126,7 @@ export const trainerApi = {
   getStationSessions,
   getSessionDetails,
   getTraineeSessions,
+  getAllSessions,
   getTrainerWebSocketUrl,
   
   startStation: (stationId: string) => sendCommand(stationId, 'start'),

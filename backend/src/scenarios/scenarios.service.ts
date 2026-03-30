@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ScenarioEntity, ScenarioEvent } from './scenario.entity';
+import { ScenarioEntity, ScenarioBlock } from './scenario.entity';
 import { AsynchronyType } from '../common/dto/ventilator.dto';
 
 @Injectable()
@@ -22,16 +22,20 @@ export class ScenariosService {
   async create(data: {
     name: string;
     description?: string;
-    events: ScenarioEvent[];
+    blocks: ScenarioBlock[];
     durationSeconds?: number;
     initialSettings?: Record<string, number>;
+    initialResistance?: number;
+    initialCompliance?: number;
   }): Promise<ScenarioEntity> {
     const scenario = this.scenarioRepo.create({
       name: data.name,
       description: data.description || '',
-      events: data.events,
+      blocks: data.blocks,
       durationSeconds: data.durationSeconds || 300,
       initialSettings: data.initialSettings || {},
+      initialResistance: data.initialResistance !== undefined ? data.initialResistance : 10,
+      initialCompliance: data.initialCompliance !== undefined ? data.initialCompliance : 50,
     });
     return this.scenarioRepo.save(scenario);
   }
@@ -46,24 +50,14 @@ export class ScenariosService {
   }
 
   /**
-   * Get events that should trigger at a given time
-   */
-  getEventsAtTime(scenario: ScenarioEntity, timeSeconds: number): ScenarioEvent[] {
-    return scenario.events.filter(event => {
-      const eventEnd = event.time + (event.duration || 0);
-      return timeSeconds >= event.time && timeSeconds <= eventEnd;
-    });
-  }
-
-  /**
    * Get active asynchrony at a given time
    */
   getActiveAsynchrony(scenario: ScenarioEntity, timeSeconds: number): AsynchronyType | null {
-    for (const event of scenario.events) {
-      if (event.type === 'asynchrony' && event.asynchronyType) {
-        const eventEnd = event.time + (event.duration || 30); // Default 30 seconds
-        if (timeSeconds >= event.time && timeSeconds <= eventEnd) {
-          return event.asynchronyType;
+    for (const block of scenario.blocks) {
+      if (block.type === 'ASYNCHRONY' && block.asynchronyType) {
+        const blockEnd = block.startTime + (block.duration || 30);
+        if (timeSeconds >= block.startTime && timeSeconds <= blockEnd) {
+          return block.asynchronyType;
         }
       }
     }
@@ -81,27 +75,33 @@ export class ScenariosService {
       {
         name: 'Basic Training - Ineffective Trigger',
         description: 'Practice identifying and correcting ineffective trigger asynchrony',
-        events: [
-          { time: 30, type: 'asynchrony' as const, asynchronyType: 'INEFFECTIVE_TRIGGER' as AsynchronyType, duration: 120 },
+        initialResistance: 12,
+        initialCompliance: 40,
+        blocks: [
+          { id: 'b1', type: 'ASYNCHRONY' as const, startTime: 30, duration: 120, asynchronyType: 'INEFFECTIVE_TRIGGER' as AsynchronyType, description: '', parameterChanges: {} },
         ],
         durationSeconds: 180,
       },
       {
         name: 'Double Trigger Challenge',
         description: 'Identify and resolve double triggering',
-        events: [
-          { time: 20, type: 'asynchrony' as const, asynchronyType: 'DOUBLE_TRIGGER' as AsynchronyType, duration: 60 },
-          { time: 100, type: 'asynchrony' as const, asynchronyType: 'DOUBLE_TRIGGER' as AsynchronyType, duration: 60 },
+        initialResistance: 15,
+        initialCompliance: 30,
+        blocks: [
+          { id: 'b1', type: 'ASYNCHRONY' as const, startTime: 20, duration: 60, asynchronyType: 'DOUBLE_TRIGGER' as AsynchronyType, description: '', parameterChanges: {} },
+          { id: 'b2', type: 'ASYNCHRONY' as const, startTime: 100, duration: 60, asynchronyType: 'DOUBLE_TRIGGER' as AsynchronyType, description: '', parameterChanges: {} },
         ],
         durationSeconds: 180,
       },
       {
         name: 'Mixed Asynchrony Scenario',
         description: 'Handle multiple types of asynchrony',
-        events: [
-          { time: 30, type: 'asynchrony' as const, asynchronyType: 'INEFFECTIVE_TRIGGER' as AsynchronyType, duration: 45 },
-          { time: 90, type: 'asynchrony' as const, asynchronyType: 'PREMATURE_CYCLING' as AsynchronyType, duration: 45 },
-          { time: 150, type: 'asynchrony' as const, asynchronyType: 'FLOW_MISMATCH' as AsynchronyType, duration: 45 },
+        initialResistance: 10,
+        initialCompliance: 50,
+        blocks: [
+          { id: 'b1', type: 'ASYNCHRONY' as const, startTime: 30, duration: 45, asynchronyType: 'INEFFECTIVE_TRIGGER' as AsynchronyType, description: '', parameterChanges: {} },
+          { id: 'b2', type: 'ASYNCHRONY' as const, startTime: 90, duration: 45, asynchronyType: 'PREMATURE_CYCLING' as AsynchronyType, description: '', parameterChanges: {} },
+          { id: 'b3', type: 'ASYNCHRONY' as const, startTime: 150, duration: 45, asynchronyType: 'FLOW_MISMATCH' as AsynchronyType, description: '', parameterChanges: {} },
         ],
         durationSeconds: 240,
       },

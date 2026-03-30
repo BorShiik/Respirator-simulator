@@ -93,6 +93,13 @@ export class StudentLinkService implements OnModuleInit, OnModuleDestroy {
         case 'trainer_command':
           if (msg.command === 'stop') {
              this.simulationService.stopSimulation(this.currentStudentName);
+          } else if (msg.command === 'start') {
+             const state = this.simulationService.getState(this.currentStudentName);
+             this.simulationService.startSimulation(
+               this.currentStudentName,
+               state?.scenarioName || 'Free Practice',
+               (telemetry) => this.sendTelemetryToMaster(telemetry)
+             );
           } else if (msg.command === 'update_settings') {
              if (msg.settings) {
                 this.simulationService.updateSettings(this.currentStudentName, msg.settings);
@@ -101,11 +108,17 @@ export class StudentLinkService implements OnModuleInit, OnModuleDestroy {
                 const state = this.simulationService.getState(this.currentStudentName);
                 if (state) {
                    state.scenarioName = msg.scenario.name;
-                   this.simulationService.applyScenarioEvents(this.currentStudentName, msg.scenario.events);
+                   this.simulationService.applyScenarioEvents(this.currentStudentName, msg.scenario.blocks || []);
                 }
              }
           } else if (msg.command === 'reset') {
-             // Reset logic...
+             // Stop and immediately restart simulation with clean state
+             this.simulationService.stopSimulation(this.currentStudentName);
+             this.simulationService.startSimulation(
+               this.currentStudentName,
+               'Free Practice',
+               (telemetry) => this.sendTelemetryToMaster(telemetry),
+             );
           }
           break;
       }

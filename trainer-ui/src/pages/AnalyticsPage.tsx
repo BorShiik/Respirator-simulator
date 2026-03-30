@@ -1,11 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { LearningCurveChart } from '../components/analytics/LearningCurveChart';
 import { Session, LearningCurveDataPoint, ASYNCHRONY_LABELS } from '../types/trainer';
+import { trainerApi } from '../api/trainerApi';
 
 export function AnalyticsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedTrainee, setSelectedTrainee] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadSessions();
@@ -13,154 +15,17 @@ export function AnalyticsPage() {
 
   const loadSessions = async () => {
     setIsLoading(true);
-    
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const mockSessions: Session[] = [
-      {
-        id: 'session-1',
-        stationId: 'station-01',
-        traineeId: 'trainee-1',
-        traineeName: 'Jan Kowalski',
-        scenarioId: 'scenario-1',
-        scenarioName: 'Podstawowy trening',
-        startTime: Date.now() - 86400000 * 7,
-        endTime: Date.now() - 86400000 * 7 + 420000,
-        status: 'COMPLETED',
-        metrics: {
-          totalDuration: 420,
-          timeToResolveAsynchrony: 180,
-          numberOfSettingChanges: 12,
-          chaosIndex: 0.45,
-          asynchronyDetected: true,
-          asynchronyTypes: ['INEFFECTIVE_TRIGGER'],
-          successfulResolution: true,
-        },
-      },
-      {
-        id: 'session-2',
-        stationId: 'station-01',
-        traineeId: 'trainee-1',
-        traineeName: 'Jan Kowalski',
-        scenarioId: 'scenario-1',
-        scenarioName: 'Podstawowy trening',
-        startTime: Date.now() - 86400000 * 6,
-        endTime: Date.now() - 86400000 * 6 + 350000,
-        status: 'COMPLETED',
-        metrics: {
-          totalDuration: 350,
-          timeToResolveAsynchrony: 145,
-          numberOfSettingChanges: 9,
-          chaosIndex: 0.35,
-          asynchronyDetected: true,
-          asynchronyTypes: ['INEFFECTIVE_TRIGGER'],
-          successfulResolution: true,
-        },
-      },
-      {
-        id: 'session-3',
-        stationId: 'station-02',
-        traineeId: 'trainee-1',
-        traineeName: 'Jan Kowalski',
-        scenarioId: 'scenario-2',
-        scenarioName: 'Nieefektywny wyzwalacz',
-        startTime: Date.now() - 86400000 * 5,
-        endTime: Date.now() - 86400000 * 5 + 520000,
-        status: 'COMPLETED',
-        metrics: {
-          totalDuration: 520,
-          timeToResolveAsynchrony: 210,
-          numberOfSettingChanges: 15,
-          chaosIndex: 0.52,
-          asynchronyDetected: true,
-          asynchronyTypes: ['INEFFECTIVE_TRIGGER', 'DOUBLE_TRIGGER'],
-          successfulResolution: true,
-        },
-      },
-      {
-        id: 'session-4',
-        stationId: 'station-01',
-        traineeId: 'trainee-1',
-        traineeName: 'Jan Kowalski',
-        scenarioId: 'scenario-2',
-        scenarioName: 'Nieefektywny wyzwalacz',
-        startTime: Date.now() - 86400000 * 4,
-        endTime: Date.now() - 86400000 * 4 + 380000,
-        status: 'COMPLETED',
-        metrics: {
-          totalDuration: 380,
-          timeToResolveAsynchrony: 120,
-          numberOfSettingChanges: 7,
-          chaosIndex: 0.28,
-          asynchronyDetected: true,
-          asynchronyTypes: ['INEFFECTIVE_TRIGGER', 'DOUBLE_TRIGGER'],
-          successfulResolution: true,
-        },
-      },
-      {
-        id: 'session-5',
-        stationId: 'station-03',
-        traineeId: 'trainee-2',
-        traineeName: 'Anna Nowak',
-        scenarioId: 'scenario-1',
-        scenarioName: 'Podstawowy trening',
-        startTime: Date.now() - 86400000 * 3,
-        endTime: Date.now() - 86400000 * 3 + 480000,
-        status: 'COMPLETED',
-        metrics: {
-          totalDuration: 480,
-          timeToResolveAsynchrony: 220,
-          numberOfSettingChanges: 14,
-          chaosIndex: 0.55,
-          asynchronyDetected: true,
-          asynchronyTypes: ['INEFFECTIVE_TRIGGER'],
-          successfulResolution: true,
-        },
-      },
-      {
-        id: 'session-6',
-        stationId: 'station-01',
-        traineeId: 'trainee-1',
-        traineeName: 'Jan Kowalski',
-        scenarioId: 'scenario-3',
-        scenarioName: 'Problemy z cyklicznością',
-        startTime: Date.now() - 86400000 * 2,
-        endTime: Date.now() - 86400000 * 2 + 650000,
-        status: 'COMPLETED',
-        metrics: {
-          totalDuration: 650,
-          timeToResolveAsynchrony: 280,
-          numberOfSettingChanges: 18,
-          chaosIndex: 0.62,
-          asynchronyDetected: true,
-          asynchronyTypes: ['DELAYED_CYCLING', 'PREMATURE_CYCLING'],
-          successfulResolution: true,
-        },
-      },
-      {
-        id: 'session-7',
-        stationId: 'station-02',
-        traineeId: 'trainee-2',
-        traineeName: 'Anna Nowak',
-        scenarioId: 'scenario-1',
-        scenarioName: 'Podstawowy trening',
-        startTime: Date.now() - 86400000,
-        endTime: Date.now() - 86400000 + 320000,
-        status: 'COMPLETED',
-        metrics: {
-          totalDuration: 320,
-          timeToResolveAsynchrony: 95,
-          numberOfSettingChanges: 6,
-          chaosIndex: 0.22,
-          asynchronyDetected: true,
-          asynchronyTypes: ['INEFFECTIVE_TRIGGER'],
-          successfulResolution: true,
-        },
-      },
-    ];
-
-    setSessions(mockSessions);
-    setIsLoading(false);
+    setError(null);
+    try {
+      const data = await trainerApi.getAllSessions();
+      setSessions(data);
+    } catch (err) {
+      console.error('Failed to load sessions:', err);
+      setError('Nie udało się pobrać danych sesji z serwera. Upewnij się, że backend jest uruchomiony.');
+      setSessions([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const trainees = useMemo(() => {
@@ -223,6 +88,40 @@ export function AnalyticsPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-admin-accent"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <svg className="w-12 h-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+        </svg>
+        <p className="text-admin-muted text-center max-w-md">{error}</p>
+        <button onClick={loadSessions} className="admin-btn admin-btn-primary">
+          Spróbuj ponownie
+        </button>
+      </div>
+    );
+  }
+
+  if (sessions.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-admin-text">Analityka</h1>
+          <p className="text-admin-muted mt-1">Analiza postępów i wyników kursantów</p>
+        </div>
+        <div className="admin-card flex flex-col items-center justify-center py-16 gap-4">
+          <svg className="w-16 h-16 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+          <p className="text-lg font-medium text-admin-text">Brak danych analitycznych</p>
+          <p className="text-admin-muted text-center max-w-md">
+            Jeszcze nie przeprowadzono żadnych sesji treningowych. Przypisz scenariusz do stanowiska i uruchom symulację, aby zobaczyć wyniki tutaj.
+          </p>
+        </div>
       </div>
     );
   }

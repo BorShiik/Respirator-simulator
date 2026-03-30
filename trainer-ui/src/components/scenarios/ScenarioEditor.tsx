@@ -354,7 +354,7 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
                   </button>
                 </div>
 
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-6 gap-3">
                   <div>
                     <label className="admin-label">Typ</label>
                     <select
@@ -395,6 +395,36 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
                     />
                   </div>
 
+                  <div>
+                    <label className="admin-label">Opór (R) opcjonalnie</label>
+                    <input
+                      type="number"
+                      value={block.resistance || ''}
+                      onChange={(e) =>
+                        updateBlock(index, { resistance: e.target.value ? parseInt(e.target.value) : undefined })
+                      }
+                      className="admin-input"
+                      min="1"
+                      max="50"
+                      placeholder="bez zmian"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="admin-label">Podatność (C) opcjonalnie</label>
+                    <input
+                      type="number"
+                      value={block.compliance || ''}
+                      onChange={(e) =>
+                        updateBlock(index, { compliance: e.target.value ? parseInt(e.target.value) : undefined })
+                      }
+                      className="admin-input"
+                      min="10"
+                      max="100"
+                      placeholder="bez zmian"
+                    />
+                  </div>
+
                   {block.type === 'ASYNCHRONY' && (
                     <div>
                       <label className="admin-label">Typ asynchronii</label>
@@ -415,7 +445,7 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
                     </div>
                   )}
 
-                  <div className="col-span-4">
+                  <div className="col-span-6">
                     <label className="admin-label">Opis bloku</label>
                     <input
                       type="text"

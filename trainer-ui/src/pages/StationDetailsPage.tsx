@@ -76,6 +76,22 @@ export function StationDetailsPage() {
     }));
   }, [station?.pressure]);
 
+  const flowData = useMemo(() => {
+    if (!station?.flow) return [];
+    return station.flow.map((value, index) => ({
+      index,
+      value: value !== null && value !== undefined ? value : 0,
+    }));
+  }, [station?.flow]);
+
+  const volumeData = useMemo(() => {
+    if (!station?.volume) return [];
+    return station.volume.map((value, index) => ({
+      index,
+      value: value !== null && value !== undefined ? value : 0,
+    }));
+  }, [station?.volume]);
+
   const handleAssign = async () => {
     if (!stationId || !selectedScenarioId) return;
     setIsAssigning(true);
@@ -203,24 +219,66 @@ export function StationDetailsPage() {
             )}
 
             {chartData.length > 0 && (
-              <div className="h-48 border-t border-admin-border pt-4">
-                <h3 className="text-sm font-medium text-admin-muted mb-2">Ciśnienie w czasie rzeczywistym</h3>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="index" tick={false} />
-                    <YAxis domain={[0, 30]} tick={{ fontSize: 11, fill: '#64748b' }} />
-                    <ReferenceLine y={station?.settings?.peep || 5} stroke="#059669" strokeDasharray="5 5" />
-                    <Line
-                      type="monotone"
-                      dataKey="value"
-                      stroke={station?.asynchrony?.active ? '#dc2626' : '#0066cc'}
-                      strokeWidth={2}
-                      dot={false}
-                      isAnimationActive={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+              <div className="space-y-4 border-t border-admin-border pt-4">
+                <div className="h-48">
+                  <h3 className="text-sm font-medium text-admin-muted mb-2">Ciśnienie w czasie rzeczywistym (cmH₂O)</h3>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis dataKey="index" tick={false} />
+                      <YAxis domain={[0, 40]} tick={{ fontSize: 11, fill: '#64748b' }} />
+                      <ReferenceLine y={station?.settings?.peep || 5} stroke="#059669" strokeDasharray="5 5" />
+                      <Line
+                        type="monotone"
+                        dataKey="value"
+                        stroke={station?.asynchrony?.active ? '#dc2626' : '#0066cc'}
+                        strokeWidth={2}
+                        dot={false}
+                        isAnimationActive={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="h-48">
+                  <h3 className="text-sm font-medium text-admin-muted mb-2">Przepływ (L/min)</h3>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={flowData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis dataKey="index" tick={false} />
+                      <YAxis domain={[-100, 100]} tick={{ fontSize: 11, fill: '#64748b' }} />
+                      <ReferenceLine y={0} stroke="#94a3b8" />
+                      <Line
+                        type="monotone"
+                        dataKey="value"
+                        stroke={station?.asynchrony?.active ? '#dc2626' : '#f59e0b'}
+                        strokeWidth={2}
+                        dot={false}
+                        isAnimationActive={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="h-48">
+                  <h3 className="text-sm font-medium text-admin-muted mb-2">Objętość (mL)</h3>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={volumeData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis dataKey="index" tick={false} />
+                      <YAxis domain={[0, 1000]} tick={{ fontSize: 11, fill: '#64748b' }} />
+                      <ReferenceLine y={station?.settings?.vt || 500} stroke="#059669" strokeDasharray="5 5" />
+                      <Line
+                        type="monotone"
+                        dataKey="value"
+                        stroke={station?.asynchrony?.active ? '#dc2626' : '#10b981'}
+                        strokeWidth={2}
+                        dot={false}
+                        isAnimationActive={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             )}
           </div>

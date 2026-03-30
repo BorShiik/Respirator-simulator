@@ -2,7 +2,7 @@ import { Controller, Get, Post, Put, Delete, Param, Body, HttpCode } from '@nest
 import { ScenariosService } from '../scenarios/scenarios.service';
 import { SessionsService } from '../sessions/sessions.service';
 import { TrainerGateway } from './trainer.gateway';
-import { ScenarioEvent } from '../scenarios/scenario.entity';
+import { ScenarioBlock } from '../scenarios/scenario.entity';
 
 @Controller('trainer')
 export class TrainerController {
@@ -27,20 +27,29 @@ export class TrainerController {
     // Send command to remote student via websocket
     this.trainerGateway.sendCommandToStudent(studentName, body.command, { scenarioId: body.scenarioId });
     
-    // Also if starting a scenario, we might want to log it in SessionsService
-    if (body.command === 'start' && body.scenarioId) {
-        // The trainer UI assigned a scenario
-        const scenario = await this.scenariosService.findById(body.scenarioId);
-        if (scenario) {
-            await this.sessionsService.create({
-              stationId: studentName,
-              studentName,
-              scenarioId: body.scenarioId,
-              scenarioName: scenario.name,
-            });
+    // If starting a simulation, change the pending session for this station to running to start analytics logic
+    if (body.command === 'start') {
+        const pendingSession = await this.sessionsService.findPendingSession(studentName);
+        if (pendingSession) {
+            await this.sessionsService.start(pendingSession.id);
+        } else {
+            // Free Practice Mode: No pending session exists, so we create one dynamically and start it immediately
+            const activeSession = await this.sessionsService.findActiveSession(studentName);
+            if (!activeSession) {
+                const newSession = await this.sessionsService.create({
+                    stationId: studentName,
+                    studentName: studentName,
+                    scenarioId: undefined, // Not tied to a scenario
+                    scenarioName: 'Free Practice',
+                });
+                await this.sessionsService.start(newSession.id);
+            }
         }
     } else if (body.command === 'stop') {
-        // Handle stopping logic if necessary (session closure)
+        const activeSession = await this.sessionsService.findActiveSession(studentName);
+        if (activeSession) {
+            await this.sessionsService.complete(activeSession.id, activeSession.initialSettings);
+        }
     }
 
     return {
@@ -72,27 +81,33 @@ export class TrainerController {
     if (scenario.initialSettings) {
       this.trainerGateway.sendCommandToStudent(studentName, 'update_settings', {
          settings: scenario.initialSettings,
-         scenarioName: scenario.name
+         scenarioName: scenario.name,
+         scenario: scenario // Add the full scenario object so the student node can schedule events
+      });
+    } else {
+      this.trainerGateway.sendCommandToStudent(studentName, 'update_settings', {
+         scenarioName: scenario.name,
+         scenario: scenario // Send scenario even without initial settings
       });
     }
 
     // Notify to apply patient physics
-    if (scenario.initialSettings && (scenario.initialSettings.compliance !== undefined || scenario.initialSettings.resistance !== undefined)) {
+    if (scenario.initialCompliance !== undefined || scenario.initialResistance !== undefined) {
       this.trainerGateway.sendCommandToStudent(studentName, 'update_patient', {
          parameters: {
-            compliance: scenario.initialSettings.compliance,
-            resistance: scenario.initialSettings.resistance,
+            compliance: scenario.initialCompliance,
+            resistance: scenario.initialResistance,
          }
       });
     }
 
-    // Check if there are immediate events (like asynchrony starting at time 0)
-    if (scenario.events && scenario.events.length > 0) {
-      const immediateEvents = scenario.events.filter(e => e.time === 0);
-      for (const event of immediateEvents) {
-        if (event.type === 'asynchrony') {
+    // Check if there are immediate blocks (like asynchrony starting at time 0)
+    if (scenario.blocks && scenario.blocks.length > 0) {
+      const immediateBlocks = scenario.blocks.filter(b => b.startTime === 0);
+      for (const block of immediateBlocks) {
+        if (block.type === 'ASYNCHRONY') {
           this.trainerGateway.sendCommandToStudent(studentName, 'set_asynchrony', {
-             asynchronyType: event.asynchronyType
+             asynchronyType: block.asynchronyType
           });
         }
       }
@@ -110,6 +125,12 @@ export class TrainerController {
   async getStudentSessions(@Param('studentName') studentName: string) {
     // Find sessions by studentName (stored in stationId for backward compatibility)
     return this.sessionsService.findByStation(studentName);
+  }
+
+  @Get('sessions')
+  async getAllSessions() {
+    const sessions = await this.sessionsService.findAll();
+    return sessions.map(s => this.sessionsService.mapSessionToFrontend(s));
   }
 
   @Get('sessions/:id')
@@ -143,9 +164,11 @@ export class TrainerController {
     @Body() body: {
       name: string;
       description?: string;
-      events: ScenarioEvent[];
+      blocks: ScenarioBlock[];
       durationSeconds?: number;
       initialSettings?: Record<string, number>;
+      initialResistance?: number;
+      initialCompliance?: number;
     },
   ) {
     return this.scenariosService.create(body);
@@ -157,9 +180,11 @@ export class TrainerController {
     @Body() body: Partial<{
       name: string;
       description: string;
-      events: ScenarioEvent[];
+      blocks: ScenarioBlock[];
       durationSeconds: number;
       initialSettings: Record<string, number>;
+      initialResistance: number;
+      initialCompliance: number;
     }>,
   ) {
     return this.scenariosService.update(id, body);

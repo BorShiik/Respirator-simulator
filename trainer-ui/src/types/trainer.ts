@@ -47,6 +47,9 @@ export interface StationLiveStatus {
   settings: VentilatorSettings | null;
   asynchrony: AsynchronyStatus | null;
   pressure: number[];
+  flow: number[];
+  volume: number[];
+  scenarioName?: string;
   lastUpdate: number;
 }
 

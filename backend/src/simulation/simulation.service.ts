@@ -26,7 +26,7 @@ interface SimulationState {
   patient: PatientModel;
   asynchrony: AsynchronyStatus;
   scenarioName: string;
-  scenarioEvents?: any[]; // Keep any to avoid circular import for now
+  scenarioBlocks?: any[];
   
   // Asynchrony resolution tracking
   baselineSettings: VentilatorSettings | null;
@@ -71,7 +71,7 @@ export class SimulationService extends EventEmitter {
       patient: { ...DEFAULT_PATIENT },
       asynchrony: { active: false, type: null },
       scenarioName,
-      scenarioEvents: [],
+      scenarioBlocks: [],
       baselineSettings: null,
       currentAsynchronyEvent: null,
       pressureBuffer: [],
@@ -134,31 +134,7 @@ export class SimulationService extends EventEmitter {
     }
     
     if (parameters.compliance !== undefined) {
-      // Input is mL/cmH2O, convert to L/cmH2O if needed? 
-      // Requirement: "Konwertować jednostki: Nauczyciel wysyła Compliance w `mL/cmH2O`, ale fizyka używa `L/cmH2O`. Podziel wartość przez 1000."
-      // BUT SimulationState.patient usually holds raw values from DTO? 
-      // Let's check DTO. DTO usually has mL/cmH2O.
-      // So in internal state we store PatientModel which is DTO.
-      // So we store mL/cmH2O. Physical calc converts it.
-      // Wait, "fizyka używa L/cmH2O". 
-      // If `state.patient` is `PatientModel` (DTO), then it stores mL/cmH2O.
-      // So here we should just store it as is (or sanitized), and `calculatePhysics` does the divide by 1000.
-      // OR does the user want us to convert it HERE?
-      // "Nauczyciel wysyła Compliance w mL/cmH2O... Podziel wartość przez 1000"
-      // If I divide here, then `state.patient.compliance` will be in L/cmH2O.
-      // But `PatientModel` type suggests it matches DTO which usually implies standard units (mL).
-      // If I change it to L, then it might mismatch type expectation elsewhere.
-      // However, `SimulationState` has `patient: PatientModel`.
-      // Let's assume we store it as is (mL) to keep DTO consistent, so I will NOT divide here, 
-      // but ensure I divide in `calculatePhysics`.
-      // WAIT. "Nauczyciel wysyła... Podziel wartość przez 1000".
-      // Maybe the user implies the input `parameters` is from JSON/API and I should save it.
-      // Let's assume the user wants me to handle the conversion logic in `calculatePhysics` effectively,
-      // or if they want `state.patient.compliance` to be L/cmH2O, I should probably check if I refactored `PatientModel`? 
-      // I did NOT refactor `PatientModel` in DTO. It says comments: "mL/cmH2O".
-      // So I should keep it mL/cmH2O in state, and divide in physics.
-      
-      // Let's just ensure positive value.
+      // Store as mL/cmH2O (DTO units). Physics converts to L/cmH2O via /1000.
       state.patient.compliance = Math.max(1, parameters.compliance); 
     }
 
@@ -169,10 +145,10 @@ export class SimulationService extends EventEmitter {
   /**
    * Apply scenario events scheduled timeline
    */
-  applyScenarioEvents(stationId: string, events: any[]): void {
+  applyScenarioEvents(stationId: string, blocks: any[]): void {
      const state = this.states.get(stationId);
      if (state) {
-        state.scenarioEvents = [...events];
+        state.scenarioBlocks = [...blocks];
         // Reset timers so that relative timestamps (e.g. at 30s) trigger properly!
         state.time = 0;
         state.phaseTime = 0;
@@ -219,16 +195,16 @@ export class SimulationService extends EventEmitter {
       case 'INEFFECTIVE_TRIGGER':
         // Student fixed if they reduced trigger threshold by at least 1.0
         // OR reduced IPAP by at least 2.0 (reducing over-assistance)
-        return (current.trigger <= base.trigger - 1.0) || (current.ipap <= base.ipap - 2);
+        return (current.trigger <= base.trigger - 1.0 + 0.001) || (current.ipap <= base.ipap - 2 + 0.001);
 
       case 'DOUBLE_TRIGGER':
       case 'PREMATURE_CYCLING':
         // Student fixed if they lengthened inspiration time (Ti) by at least 0.2s
-        return current.ti >= base.ti + 0.2;
+        return current.ti >= base.ti + 0.2 - 0.001;
 
       case 'FLOW_MISMATCH':
         // Fixed if they increased IPAP by 2 (augmenting flow/pressure support)
-        return current.ipap >= base.ipap + 2;
+        return current.ipap >= base.ipap + 2 - 0.001;
 
       default:
         return false;
@@ -254,7 +230,7 @@ export class SimulationService extends EventEmitter {
     this.calculatePhysics(state);
 
     // 4. Process Scheduled Scenario Events
-    this.processScheduledEvents(state);
+    this.processScheduledEvents(stationId, state);
 
     // 4.5. Check if the user fixed the currently active asynchrony
     if (this.checkIfAsynchronyFixed(state)) {
@@ -420,18 +396,8 @@ export class SimulationService extends EventEmitter {
     // P_alv = V / C
     const P_alv = state.currentVolume / C;
     
-    // Calculate Ventilator Pressure (What the machine sees)
-    // If flow is positive (Inspiration), P_vent is pushing.
-    // P_vent_measured = P_alv + Flow * R
-    // However, in PC mode, the ventilator CONTROLS P_vent, so it should be exactly targetPressure.
-    // But let's show the physical interaction.
-    // If P_mus is very strong (negative), it sucks air in, Flow increases.
-    // P_vent should remain constant in PC mode (ideal voltage source).
+    // In PC mode, ventilator controls airway pressure directly (square wave)
     state.currentPressure = P_vent; 
-    // Wait, if I set it to P_vent, I lose the visual of the pressure rise if I had it.
-    // But PC mode IS square wave pressure.
-    // If I want to match reality, P_vent is what sensors measure.
-    // In PC mode, it measures the set pressure.
   }
 
   /**
@@ -501,44 +467,54 @@ export class SimulationService extends EventEmitter {
     }
   }
 
-  private processScheduledEvents(state: SimulationState): void {
-     if (!state.scenarioEvents || state.scenarioEvents.length === 0) return;
+  private processScheduledEvents(stationId: string, state: SimulationState): void {
+     if (!state.scenarioBlocks || state.scenarioBlocks.length === 0) return;
 
      const currentTime = state.time;
      
      // Find events that should be active right now
-     // Scenario events have `time` (start time) and optionally `duration`
-     for (const iterEvent of state.scenarioEvents) {
-         if (iterEvent.type === 'asynchrony' && iterEvent.asynchronyType) {
-             const startTime = iterEvent.time;
-             const duration = iterEvent.duration || 30; // 30s default
+     for (const iterBlock of state.scenarioBlocks) {
+         if (iterBlock.type === 'ASYNCHRONY' && iterBlock.asynchronyType) {
+             const startTime = iterBlock.startTime;
+             const duration = iterBlock.duration || 30; // 30s default
              const endTime = startTime + duration;
 
              if (currentTime >= startTime && currentTime <= endTime) {
-                 if (state.asynchrony.type !== iterEvent.asynchronyType && !iterEvent._resolved) {
-                     state.asynchrony = { active: true, type: iterEvent.asynchronyType };
+                 if (state.asynchrony.type !== iterBlock.asynchronyType && !iterBlock._resolved) {
+                     state.asynchrony = { active: true, type: iterBlock.asynchronyType };
                      state.baselineSettings = { ...state.settings };
-                     state.currentAsynchronyEvent = iterEvent;
+                     state.currentAsynchronyEvent = iterBlock;
                  }
-             } else if (currentTime > endTime && state.asynchrony.type === iterEvent.asynchronyType) {
+             } else if (currentTime > endTime && state.asynchrony.type === iterBlock.asynchronyType) {
                  // Stop the asynchrony when duration is over
+                 const expiredType = state.asynchrony.type;
                  state.asynchrony = { active: false, type: null };
                  state.baselineSettings = null;
                  state.currentAsynchronyEvent = null;
+                 // Notify system that it ended (so analytics stop logging it as active)
+                 this.emit('asynchrony_resolved', stationId, expiredType);
              }
          }
          
-         if (iterEvent.type === 'setting_change' && iterEvent.settingChange) {
-             const startTime = iterEvent.time;
-             // Settings changes happen once at exact time
-             // To prevent continuous triggering, we remove the event after applying or mark it done
-             if (currentTime >= startTime && !iterEvent._applied) {
+         const startTime = iterBlock.startTime;
+         if (currentTime >= startTime && !iterBlock._applied) {
+             // Apply Ventilator Settings changes
+             if (iterBlock.parameterChanges && Object.keys(iterBlock.parameterChanges).length > 0) {
                  state.settings = {
                     ...state.settings,
-                    [iterEvent.settingChange.parameter]: iterEvent.settingChange.value
+                    ...iterBlock.parameterChanges
                  };
-                 iterEvent._applied = true;
              }
+             
+             // Apply Patient Physics changes (Compliance, Resistance, etc.)
+             if (iterBlock.compliance !== undefined) {
+                 state.patient.compliance = Math.max(1, iterBlock.compliance);
+             }
+             if (iterBlock.resistance !== undefined) {
+                 state.patient.resistance = Math.max(0.5, iterBlock.resistance);
+             }
+             
+             iterBlock._applied = true;
          }
      }
   }
