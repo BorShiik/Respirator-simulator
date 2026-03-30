@@ -33,8 +33,8 @@ export function StationDetailsPage() {
         setScenarios([
           {
             id: 'scenario-1',
-            name: 'Podstawowy trening',
-            description: 'Scenariusz dla początkujących',
+            name: 'Basic Training',
+            description: 'Beginner scenario',
             difficulty: 'EASY',
             estimatedDuration: 300,
             initialSettings: {
@@ -48,8 +48,8 @@ export function StationDetailsPage() {
           },
           {
             id: 'scenario-2',
-            name: 'Nieefektywny wyzwalacz',
-            description: 'Rozpoznawanie i eliminacja nieefektywnego wyzwalacza',
+            name: 'Ineffective Trigger',
+            description: 'Detection and elimination of ineffective triggering',
             difficulty: 'MEDIUM',
             estimatedDuration: 600,
             initialSettings: {
@@ -97,7 +97,7 @@ export function StationDetailsPage() {
     setIsAssigning(true);
     try {
       await trainerApi.assignScenario(stationId, selectedScenarioId);
-      alert('Scenariusz przypisany pomyślnie. Parametry zostały zaktualizowane na symulatorze.');
+      alert('Scenario assigned successfully. Parameters updated on simulator.');
     } catch (error) {
       console.error('Failed to assign scenario:', error);
     } finally {
@@ -118,13 +118,13 @@ export function StationDetailsPage() {
   };
 
   const formatStationName = (id: string) => {
-    return id.replace('station-', 'Stanowisko ');
+    return id.replace('station-', 'Station ');
   };
 
   if (!stationId) {
     return (
       <div className="text-center py-12">
-        <p className="text-admin-muted">Nieprawidłowy identyfikator stanowiska</p>
+        <p className="text-admin-muted">Invalid station identifier</p>
       </div>
     );
   }
@@ -141,14 +141,14 @@ export function StationDetailsPage() {
           <h1 className="text-2xl font-bold text-admin-text">
             {formatStationName(stationId)}
           </h1>
-          <p className="text-admin-muted mt-1">Szczegóły i zarządzanie stanowiskiem</p>
+          <p className="text-admin-muted mt-1">Station details and management</p>
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2 space-y-6">
           <div className="admin-card p-6">
-            <h2 className="text-lg font-semibold text-admin-text mb-4">Status stanowiska</h2>
+            <h2 className="text-lg font-semibold text-admin-text mb-4">Station status</h2>
 
             <div className="flex items-center gap-4 mb-6">
               <span
@@ -171,8 +171,8 @@ export function StationDetailsPage() {
                   {station.asynchrony.active
                     ? station.asynchrony.type
                       ? ASYNCHRONY_LABELS[station.asynchrony.type]
-                      : 'Asynchronia'
-                    : 'Synchronia'}
+                      : 'Asynchrony'
+                    : 'Synchrony'}
                 </span>
               )}
             </div>
@@ -180,7 +180,7 @@ export function StationDetailsPage() {
             {station?.settings && (
               <div className="grid grid-cols-6 gap-3 mb-6">
                 <div className="bg-gray-50 rounded-lg p-3 text-center">
-                  <div className="text-xs text-admin-muted mb-1">Tryb</div>
+                  <div className="text-xs text-admin-muted mb-1">Mode</div>
                   <div className="font-semibold text-admin-accent">
                     {MODE_LABELS[station.settings.mode]}
                   </div>
@@ -221,7 +221,7 @@ export function StationDetailsPage() {
             {chartData.length > 0 && (
               <div className="space-y-4 border-t border-admin-border pt-4">
                 <div className="h-48">
-                  <h3 className="text-sm font-medium text-admin-muted mb-2">Ciśnienie w czasie rzeczywistym (cmH₂O)</h3>
+                  <h3 className="text-sm font-medium text-admin-muted mb-2">Real-time Pressure (cmH₂O)</h3>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -241,7 +241,7 @@ export function StationDetailsPage() {
                 </div>
 
                 <div className="h-48">
-                  <h3 className="text-sm font-medium text-admin-muted mb-2">Przepływ (L/min)</h3>
+                  <h3 className="text-sm font-medium text-admin-muted mb-2">Flow (L/min)</h3>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={flowData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -261,7 +261,7 @@ export function StationDetailsPage() {
                 </div>
 
                 <div className="h-48">
-                  <h3 className="text-sm font-medium text-admin-muted mb-2">Objętość (mL)</h3>
+                  <h3 className="text-sm font-medium text-admin-muted mb-2">Volume (mL)</h3>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={volumeData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -286,7 +286,7 @@ export function StationDetailsPage() {
 
         <div className="space-y-6">
           <div className="admin-card p-6">
-            <h2 className="text-lg font-semibold text-admin-text mb-4">Kontrola</h2>
+            <h2 className="text-lg font-semibold text-admin-text mb-4">Control</h2>
 
             <div className="space-y-3">
               <button
@@ -294,27 +294,27 @@ export function StationDetailsPage() {
                 disabled={station?.status !== 'online' || loadingCommand !== null}
                 className="admin-btn admin-btn-success w-full"
               >
-                {loadingCommand === 'start' ? 'Uruchamianie...' : 'Start'}
+                {loadingCommand === 'start' ? 'Starting...' : 'Start'}
               </button>
               <button
                 onClick={() => handleCommand('stop')}
                 disabled={station?.status !== 'online' || loadingCommand !== null}
                 className="admin-btn admin-btn-danger w-full"
               >
-                {loadingCommand === 'stop' ? 'Zatrzymywanie...' : 'Stop'}
+                {loadingCommand === 'stop' ? 'Stopping...' : 'Stop'}
               </button>
               <button
                 onClick={() => handleCommand('reset')}
                 disabled={station?.status !== 'online' || loadingCommand !== null}
                 className="admin-btn admin-btn-warning w-full"
               >
-                {loadingCommand === 'reset' ? 'Resetowanie...' : 'Reset'}
+                {loadingCommand === 'reset' ? 'Resetting...' : 'Reset'}
               </button>
             </div>
           </div>
 
           <div className="admin-card p-6">
-            <h2 className="text-lg font-semibold text-admin-text mb-4">Przypisz scenariusz</h2>
+            <h2 className="text-lg font-semibold text-admin-text mb-4">Assign scenario</h2>
 
             <div className="space-y-3">
               <select
@@ -336,7 +336,7 @@ export function StationDetailsPage() {
                 disabled={!selectedScenarioId || station?.status !== 'online' || isAssigning}
                 className="admin-btn admin-btn-primary w-full"
               >
-                {isAssigning ? 'Przypisywanie...' : 'Przypisz'}
+                {isAssigning ? 'Assigning...' : 'Assign'}
               </button>
             </div>
           </div>
@@ -346,14 +346,14 @@ export function StationDetailsPage() {
 
             <dl className="space-y-3 text-sm">
               <div className="flex justify-between">
-                <dt className="text-admin-muted">ID stanowiska</dt>
+                <dt className="text-admin-muted">Station ID</dt>
                 <dd className="font-mono">{stationId}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-admin-muted">Ostatnia aktualizacja</dt>
+                <dt className="text-admin-muted">Last update</dt>
                 <dd>
                   {station?.lastUpdate
-                    ? new Date(station.lastUpdate).toLocaleTimeString('pl-PL')
+                    ? new Date(station.lastUpdate).toLocaleTimeString('en-US')
                     : '—'}
                 </dd>
               </div>

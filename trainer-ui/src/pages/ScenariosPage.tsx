@@ -24,8 +24,8 @@ export function ScenariosPage() {
       setScenarios([
         {
           id: 'scenario-1',
-          name: 'Podstawowy trening synchronizacji',
-          description: 'Wprowadzenie do rozpoznawania prawidłowej synchronizacji pacjent-respirator. Scenariusz dla początkujących.',
+          name: 'Basic Synchronization Training',
+          description: 'Introduction to recognizing proper patient-ventilator synchronization. Beginner level scenario.',
           difficulty: 'EASY',
           estimatedDuration: 300,
           initialSettings: {
@@ -34,17 +34,17 @@ export function ScenariosPage() {
           initialResistance: 10,
           initialCompliance: 50,
           blocks: [
-            { id: 'b1', type: 'NORMAL', startTime: 0, duration: 120, description: 'Faza początkowa', parameterChanges: {} },
-            { id: 'b2', type: 'ASYNCHRONY', startTime: 120, duration: 60, description: 'Wykrycie asynchronii', parameterChanges: {}, asynchronyType: 'INEFFECTIVE_TRIGGER' },
-            { id: 'b3', type: 'NORMAL', startTime: 180, duration: 120, description: 'Korekta i obserwacja', parameterChanges: {} },
+            { id: 'b1', type: 'NORMAL', startTime: 0, duration: 120, description: 'Initial Phase', parameterChanges: {} },
+            { id: 'b2', type: 'ASYNCHRONY', startTime: 120, duration: 60, description: 'Asynchrony Detection', parameterChanges: {}, asynchronyType: 'INEFFECTIVE_TRIGGER' },
+            { id: 'b3', type: 'NORMAL', startTime: 180, duration: 120, description: 'Adjustment and Observation', parameterChanges: {} },
           ],
           createdAt: Date.now() - 86400000,
           updatedAt: Date.now() - 86400000,
         },
         {
           id: 'scenario-2',
-          name: 'Nieefektywny wyzwalacz - zaawansowany',
-          description: 'Rozpoznawanie i eliminacja nieefektywnego wyzwalacza w różnych warunkach klinicznych.',
+          name: 'Ineffective Trigger - Advanced',
+          description: 'Recognizing and eliminating ineffective triggering across various clinical conditions.',
           difficulty: 'MEDIUM',
           estimatedDuration: 600,
           initialSettings: {
@@ -53,18 +53,18 @@ export function ScenariosPage() {
           initialResistance: 15,
           initialCompliance: 40,
           blocks: [
-            { id: 'b1', type: 'NORMAL', startTime: 0, duration: 60, description: 'Stabilizacja', parameterChanges: {} },
-            { id: 'b2', type: 'ASYNCHRONY', startTime: 60, duration: 120, description: 'Nieefektywny trigger', parameterChanges: {}, asynchronyType: 'INEFFECTIVE_TRIGGER' },
-            { id: 'b3', type: 'NORMAL', startTime: 180, duration: 60, description: 'Przerwa', parameterChanges: {} },
-            { id: 'b4', type: 'ASYNCHRONY', startTime: 240, duration: 120, description: 'Podwójne wyzwalanie', parameterChanges: {}, asynchronyType: 'DOUBLE_TRIGGER' },
+            { id: 'b1', type: 'NORMAL', startTime: 0, duration: 60, description: 'Stabilization', parameterChanges: {} },
+            { id: 'b2', type: 'ASYNCHRONY', startTime: 60, duration: 120, description: 'Ineffective Trigger', parameterChanges: {}, asynchronyType: 'INEFFECTIVE_TRIGGER' },
+            { id: 'b3', type: 'NORMAL', startTime: 180, duration: 60, description: 'Break', parameterChanges: {} },
+            { id: 'b4', type: 'ASYNCHRONY', startTime: 240, duration: 120, description: 'Double Triggering', parameterChanges: {}, asynchronyType: 'DOUBLE_TRIGGER' },
           ],
           createdAt: Date.now() - 172800000,
           updatedAt: Date.now() - 172800000,
         },
         {
           id: 'scenario-3',
-          name: 'Problemy z cyklicznością',
-          description: 'Trening rozpoznawania przedwczesnej i opóźnionej cykliczności respiratora.',
+          name: 'Cycling Problems',
+          description: 'Training in recognizing premature and delayed ventilator cycling.',
           difficulty: 'HARD',
           estimatedDuration: 900,
           initialSettings: {
@@ -73,9 +73,9 @@ export function ScenariosPage() {
           initialResistance: 20,
           initialCompliance: 35,
           blocks: [
-            { id: 'b1', type: 'NORMAL', startTime: 0, duration: 60, description: 'Kalibracja', parameterChanges: {} },
-            { id: 'b2', type: 'ASYNCHRONY', startTime: 60, duration: 180, description: 'Opóźniona cykliczność', parameterChanges: {}, asynchronyType: 'DELAYED_CYCLING' },
-            { id: 'b3', type: 'ASYNCHRONY', startTime: 240, duration: 180, description: 'Przedwczesna cykliczność', parameterChanges: {}, asynchronyType: 'PREMATURE_CYCLING' },
+            { id: 'b1', type: 'NORMAL', startTime: 0, duration: 60, description: 'Calibration', parameterChanges: {} },
+            { id: 'b2', type: 'ASYNCHRONY', startTime: 60, duration: 180, description: 'Delayed Cycling', parameterChanges: {}, asynchronyType: 'DELAYED_CYCLING' },
+            { id: 'b3', type: 'ASYNCHRONY', startTime: 240, duration: 180, description: 'Premature Cycling', parameterChanges: {}, asynchronyType: 'PREMATURE_CYCLING' },
           ],
           createdAt: Date.now() - 259200000,
           updatedAt: Date.now() - 259200000,
@@ -129,7 +129,7 @@ export function ScenariosPage() {
   };
 
   const handleDelete = async (scenarioId: string) => {
-    if (!confirm('Czy na pewno chcesz usunąć ten scenariusz?')) return;
+    if (!confirm('Are you sure you want to delete this scenario?')) return;
     
     try {
       await trainerApi.deleteScenario(scenarioId);
@@ -151,13 +151,13 @@ export function ScenariosPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-admin-text">Scenariusze</h1>
+          <h1 className="text-2xl font-bold text-admin-text">Scenarios</h1>
           <p className="text-admin-muted mt-1">
             {isEditing
               ? selectedScenario
-                ? 'Edycja scenariusza'
-                : 'Nowy scenariusz'
-              : 'Zarządzaj scenariuszami treningowymi'}
+                ? 'Edit scenario'
+                : 'New scenario'
+              : 'Manage training scenarios'}
           </p>
         </div>
         {!isEditing && (
@@ -165,7 +165,7 @@ export function ScenariosPage() {
             <svg className="w-5 h-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Nowy scenariusz
+            New scenario
           </button>
         )}
       </div>

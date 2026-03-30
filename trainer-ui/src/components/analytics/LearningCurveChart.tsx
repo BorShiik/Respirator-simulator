@@ -43,7 +43,7 @@ export function LearningCurveChart({ data }: LearningCurveChartProps) {
         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
         <XAxis
           dataKey="index"
-          label={{ value: 'Numer sesji', position: 'insideBottom', offset: -10, fill: '#64748b' }}
+          label={{ value: 'Nr sesji', position: 'insideBottom', offset: -10, fill: '#64748b' }}
           tick={{ fontSize: 12, fill: '#64748b' }}
         />
         <YAxis
@@ -75,7 +75,7 @@ export function LearningCurveChart({ data }: LearningCurveChartProps) {
             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
           }}
           formatter={(value: number, name: string) => {
-            if (name === 'timeToResolve') return [`${value}s`, 'Czas rozwiązania'];
+            if (name === 'timeToResolve') return [`${value}s`, 'Czas reakcji'];
             if (name === 'settingChanges') return [value, 'Liczba zmian'];
             return [value, name];
           }}
@@ -88,8 +88,8 @@ export function LearningCurveChart({ data }: LearningCurveChartProps) {
           verticalAlign="top"
           height={36}
           formatter={(value: string) => {
-            if (value === 'timeToResolve') return 'Czas do rozwiązania';
-            if (value === 'settingChanges') return 'Liczba zmian nastaw';
+            if (value === 'timeToResolve') return 'Czas reakcji';
+            if (value === 'settingChanges') return 'Liczba zmian';
             return value;
           }}
         />

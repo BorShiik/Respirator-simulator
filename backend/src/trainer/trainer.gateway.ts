@@ -88,6 +88,13 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
          });
          
          this.logger.log(`Registered remote student: ${msg.studentName}`);
+         
+         // Send confirmation back to student
+         this.sendToClient(client, {
+            type: 'registration_success',
+            studentName: msg.studentName
+         });
+
          this.notifyStudentChange();
          return;
       }

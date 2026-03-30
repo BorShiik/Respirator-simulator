@@ -23,7 +23,7 @@ interface UseStudentWebSocketReturn {
 const RECONNECT_DELAY = 3000;
 const MAX_RECONNECT_ATTEMPTS = 10;
 
-const BUFFER_SIZE = 200; // Меньше точек = крупнее графики на экране
+const BUFFER_SIZE = 200; // Buffer size for charts
 
 let mockInitialized = false;
 let mockPressureBuffer: (number | null)[] = [];
@@ -46,8 +46,8 @@ function generateMockTelemetry(_prevTelemetry: TelemetryData | null, settings: V
     initializeMockBuffers();
   }
   
-  // Заглушка: рисуем ровные линии. Настоящая физика теперь живет в бэкенде.
-  // Запустите бэкенд для полноценной работы графиков.
+  // Mock: drawing flat lines. Real physics now lives in the backend.
+  // Run the backend for full chart functionality.
   mockPressureBuffer[mockCurrentIndex] = settings.epap || 5;
   mockFlowBuffer[mockCurrentIndex] = 0;
   mockVolumeBuffer[mockCurrentIndex] = 0;
@@ -68,7 +68,7 @@ function generateMockTelemetry(_prevTelemetry: TelemetryData | null, settings: V
   };
 }
 
-// Реальные буферы данных
+// Real data buffers
 let realPressureBuffer: (number | null)[] = new Array(BUFFER_SIZE).fill(null);
 let realFlowBuffer: (number | null)[] = new Array(BUFFER_SIZE).fill(null);
 let realVolumeBuffer: (number | null)[] = new Array(BUFFER_SIZE).fill(null);
@@ -177,7 +177,7 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
               
             case 'error':
               console.error('Server error:', message.message);
-              setError(message.message || 'Błąd serwera');
+              setError(message.message || 'Server error');
               break;
               
             case 'telemetry': {
@@ -187,7 +187,7 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
               
               const pointsCount = Math.max(pressures.length, flows.length, volumes.length);
 
-              // Добавляем точки по механике "sweep"
+              // Adding points via "sweep" mechanics
               for (let i = 0; i < pointsCount; i++) {
                  realPressureBuffer[realCurrentIndex] = pressures[i] ?? null;
                  realFlowBuffer[realCurrentIndex] = flows[i] ?? null;
@@ -195,7 +195,7 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
                  
                  realCurrentIndex++;
                  
-                 // Если дошли до конца — очищаем ВСЁ и начинаем сначала
+                 // If reached the end — clear EVERYTHING and start over
                  if (realCurrentIndex >= BUFFER_SIZE) {
                     realPressureBuffer = new Array(BUFFER_SIZE).fill(null);
                     realFlowBuffer = new Array(BUFFER_SIZE).fill(null);
@@ -235,7 +235,7 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
 
       ws.onerror = (event) => {
         console.error('WebSocket error:', event);
-        setError('Błąd połączenia WebSocket');
+        setError('WebSocket connection error');
         setConnectionStatus('error');
       };
 
@@ -254,13 +254,13 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
             connect();
           }, RECONNECT_DELAY);
         } else {
-          setError('Przekroczono maksymalną liczbę prób połączenia');
+          setError('Maximum connection attempts exceeded');
           startMockMode();
         }
       };
     } catch (err) {
       console.error('Failed to create WebSocket:', err);
-      setError('Nie można utworzyć połączenia WebSocket');
+      setError('Could not create WebSocket connection');
       setConnectionStatus('error');
       startMockMode();
     }

@@ -32,7 +32,7 @@ export function StatusPanel({
         setMessage(response.message);
       }
     } catch (error) {
-      setMessage('Błąd komunikacji z serwerem');
+      setMessage('Communication error with server');
     } finally {
       setIsLoading(null);
     }
@@ -49,13 +49,13 @@ export function StatusPanel({
 
   const getConnectionStatusText = () => {
     if (connectionStatus === 'connected' && !isRegistered) {
-      return 'Rejestracja...';
+      return 'Registering...';
     }
     switch (connectionStatus) {
-      case 'connected': return 'Połączono';
-      case 'connecting': return 'Łączenie...';
-      case 'disconnected': return 'Rozłączono';
-      case 'error': return 'Błąd';
+      case 'connected': return 'Connected';
+      case 'connecting': return 'Connecting...';
+      case 'disconnected': return 'Disconnected';
+      case 'error': return 'Error';
     }
   };
 
@@ -71,7 +71,7 @@ export function StatusPanel({
           <button
             onClick={onLogout}
             className="text-xs text-clinical-muted hover:text-red-500 transition-colors flex-shrink-0"
-            title="Wyloguj się"
+            title="Log out"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -89,9 +89,9 @@ export function StatusPanel({
       </div>
 
       <div className="parameter-card mb-3">
-        <div className="parameter-label mb-1">Scenariusz</div>
+        <div className="parameter-label mb-1">Scenario</div>
         <div className="text-sm font-semibold text-clinical-text truncate">
-          {scenarioName || 'Brak scenariusza'}
+          {scenarioName || 'No scenario'}
         </div>
       </div>
 
@@ -103,7 +103,7 @@ export function StatusPanel({
         <div className={`text-lg font-bold uppercase tracking-wide mb-2 ${
           asynchrony.active ? 'text-red-700' : 'text-green-700'
         }`}>
-          {asynchrony.active ? 'ASYNCHRONIA' : 'SYNCHRONIA'}
+          {asynchrony.active ? 'ASYNCHRONY' : 'SYNCHRONY'}
         </div>
         
         {asynchrony.active && asynchrony.type && (
@@ -114,7 +114,7 @@ export function StatusPanel({
         
         {!asynchrony.active && (
           <div className="text-sm font-medium text-green-600">
-            Prawidłowa interakcja
+            Correct interaction
           </div>
         )}
 

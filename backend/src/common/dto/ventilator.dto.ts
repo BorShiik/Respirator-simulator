@@ -22,6 +22,7 @@ export interface VentilatorSettings {
   vt: number;        // Tidal Volume (mL)
   pinsp: number;     // Inspiratory Pressure
   mode: VentilatorMode;
+  pressureRaiseT: number; // Pressure rise time (seconds) - NEW
 }
 
 // Asynchrony status
@@ -74,9 +75,12 @@ export type WebSocketMessage =
 // Patient model parameters
 export interface PatientModel {
   compliance: number;    // mL/cmH2O (lung compliance)
-  resistance: number;    // cmH2O/(L/s) (airway resistance)
+  resistance: number;    // cmH2O/(L/s) (airway resistance R)
   spontaneousRate: number; // Spontaneous breathing rate
   effort: number;        // Patient effort (0-100%)
+  rin: number;           // Inspiratory resistance (cmH2O/(L/s)) - NEW
+  rout: number;          // Expiratory resistance (cmH2O/(L/s)) - NEW
+  p01: number;           // Occlusion pressure (cmH2O) - NEW
 }
 
 // Default values
@@ -90,6 +94,7 @@ export const DEFAULT_SETTINGS: VentilatorSettings = {
   vt: 500,
   pinsp: 15,
   mode: 'PC-CMV',
+  pressureRaiseT: 0.1,
 };
 
 export const DEFAULT_PATIENT: PatientModel = {
@@ -97,4 +102,7 @@ export const DEFAULT_PATIENT: PatientModel = {
   resistance: 5,       // Normal: 2-5 cmH2O/(L/s)
   spontaneousRate: 0,  // No spontaneous breathing by default
   effort: 0,
+  rin: 2,              // Normal inspiratory resistance
+  rout: 5,             // Normal expiratory resistance
+  p01: 2,              // Normal occlusion pressure
 };

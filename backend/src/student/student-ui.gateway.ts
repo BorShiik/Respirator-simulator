@@ -19,7 +19,7 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
   server: Server;
 
   private readonly logger = new Logger(StudentUiGateway.name);
-  private localUiClient: WebSocket | null = null;
+  private activeClients: Set<WebSocket> = new Set();
   private currentStudentName: string | null = null;
 
   constructor(
@@ -33,10 +33,6 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
         const currentSimState = this.simulationService.getState(this.currentStudentName);
         if (!currentSimState) return;
 
-        // E.g., change Respiratory Rate on rotation
-        // A real impl needs an active parameter selector like in UI.
-        // For now, let's just send the event to the UI so it can handle it, or update backend directly.
-        // If the backend handles it via GpioService selectedParameter:
         const param = this.gpioService.getSelectedParameter();
         const config = (this.gpioService.getParameterConfig() as any)[param];
         if (config) {
@@ -49,36 +45,31 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
 
             this.simulationService.updateSettings(this.currentStudentName, updatedSettings as any);
 
-            // Send back to UI immediately
-            if (this.localUiClient && this.localUiClient.readyState === WebSocket.OPEN) {
-                this.localUiClient.send(JSON.stringify({
-                    type: 'settingsUpdate',
-                    settings: updatedSettings
-                }));
-            }
+            // Send back to all UIs immediately
+            this.broadcast({
+                type: 'settingsUpdate',
+                settings: updatedSettings
+            });
         }
     });
 
     this.gpioService.on('button', (event) => {
-        // Handle button logic
         if (event.action === 'press') {
            this.gpioService.selectNextParameter();
         }
     });
 
     this.gpioService.on('parameterChanged', (param) => {
-        if (this.localUiClient && this.localUiClient.readyState === WebSocket.OPEN) {
-            this.localUiClient.send(JSON.stringify({
-                type: 'parameterSelected',
-                parameter: param
-            }));
-        }
+        this.broadcast({
+            type: 'parameterSelected',
+            parameter: param
+        });
     });
   }
 
   handleConnection(client: WebSocket) {
     this.logger.log('Local UI connected');
-    this.localUiClient = client;
+    this.activeClients.add(client);
 
     // Awaiting registration by default
     client.send(JSON.stringify({ type: 'connected', status: 'awaiting_registration' }));
@@ -95,10 +86,15 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
 
   handleDisconnect(client: WebSocket) {
     this.logger.log('Local UI disconnected');
-    if (this.currentStudentName) {
+    this.activeClients.delete(client);
+
+    // Only stop simulation if NO clients are connected anymore
+    if (this.activeClients.size === 0 && this.currentStudentName) {
+      this.logger.log(`No active clients left, stopping simulation for ${this.currentStudentName}`);
       this.simulationService.stopSimulation(this.currentStudentName);
+      // We keep currentStudentName so if they reconnect quickly, we know who it was (optional)
+      // but usually the UI will send 'register' anyway.
     }
-    this.localUiClient = null;
   }
 
   private handleMessage(client: WebSocket, message: any) {
@@ -106,32 +102,7 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
       case 'register':
         const name = (message.data?.studentName || message.studentName)?.trim();
         if (name) {
-          this.currentStudentName = name;
-          client.send(JSON.stringify({ type: 'registered', studentName: name, status: 'idle' }));
-          
-          // Register upstream
-          this.linkService.registerWithMaster(name);
-
-          // Start simulation automatically locally
-          this.simulationService.startSimulation(name, 'Free Practice', (telemetry) => {
-             // Send locally to UI
-             if (this.localUiClient && this.localUiClient.readyState === WebSocket.OPEN) {
-               this.localUiClient.send(JSON.stringify({
-                 type: 'telemetry',
-                 timestamp: telemetry.timestamp,
-                 pressure: telemetry.pressure,
-                 flow: telemetry.flow,
-                 volume: telemetry.volume,
-                 settings: telemetry.settings,
-                 asynchrony: telemetry.asynchrony,
-                 scenarioName: telemetry.scenarioName,
-               }));
-             }
-             // Send to master
-             this.linkService.sendTelemetryToMaster(telemetry);
-          });
-          
-          client.send(JSON.stringify({ type: 'status', status: 'running', scenarioName: 'Free Practice', studentName: name }));
+          this.registerStudent(name);
         }
         break;
 
@@ -148,35 +119,72 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
         break;
 
       case 'stop':
-        if (this.currentStudentName) {
-          this.simulationService.stopSimulation(this.currentStudentName);
-          client.send(JSON.stringify({ type: 'status', status: 'stopped' }));
-        }
+        this.stopSimulation();
         break;
 
       case 'reset':
-        if (this.currentStudentName) {
-          // Stop simulation, then restart with default settings
-          this.simulationService.stopSimulation(this.currentStudentName);
-          const name = this.currentStudentName;
-          this.simulationService.startSimulation(name, 'Free Practice', (telemetry) => {
-            if (this.localUiClient && this.localUiClient.readyState === WebSocket.OPEN) {
-              this.localUiClient.send(JSON.stringify({
-                type: 'telemetry',
-                timestamp: telemetry.timestamp,
-                pressure: telemetry.pressure,
-                flow: telemetry.flow,
-                volume: telemetry.volume,
-                settings: telemetry.settings,
-                asynchrony: telemetry.asynchrony,
-                scenarioName: telemetry.scenarioName,
-              }));
-            }
-            this.linkService.sendTelemetryToMaster(telemetry);
-          });
-          client.send(JSON.stringify({ type: 'status', status: 'running', scenarioName: 'Free Practice' }));
-        }
+        this.resetSimulation();
+        break;
+      
+      case 'logout':
+        this.currentStudentName = null;
+        this.broadcast({ type: 'loggedOut', status: 'idle' });
         break;
     }
+  }
+
+  public registerStudent(name: string) {
+    this.currentStudentName = name;
+    
+    this.broadcast({ type: 'registered', studentName: name, status: 'idle' });
+    
+    // Register upstream
+    this.linkService.registerWithMaster(name);
+
+    // Start simulation automatically
+    this.startSimulation('Free Practice');
+  }
+
+  public startSimulation(scenarioName: string = 'Free Practice') {
+    if (!this.currentStudentName) return;
+    const name = this.currentStudentName;
+
+    this.simulationService.startSimulation(name, scenarioName, (telemetry) => {
+      // Send locally to all UIs
+      this.broadcast({
+        type: 'telemetry',
+        ...telemetry
+      });
+      // Send to master
+      this.linkService.sendTelemetryToMaster(telemetry);
+    });
+
+    this.broadcast({ 
+      type: 'status', 
+      status: 'running', 
+      scenarioName, 
+      studentName: name 
+    });
+  }
+
+  public stopSimulation() {
+    if (!this.currentStudentName) return;
+    this.simulationService.stopSimulation(this.currentStudentName);
+    this.broadcast({ type: 'status', status: 'stopped' });
+  }
+
+  public resetSimulation() {
+    if (!this.currentStudentName) return;
+    this.stopSimulation();
+    this.startSimulation('Free Practice');
+  }
+
+  private broadcast(message: any) {
+    const payload = JSON.stringify(message);
+    this.activeClients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(payload);
+      }
+    });
   }
 }

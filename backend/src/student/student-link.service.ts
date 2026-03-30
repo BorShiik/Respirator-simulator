@@ -81,7 +81,17 @@ export class StudentLinkService implements OnModuleInit, OnModuleDestroy {
   private handleMessage(rawData: string) {
     try {
       const msg = JSON.parse(rawData);
-      if (!this.currentStudentName) return;
+      
+      // Handle registration confirmation or heartbeat if added later
+      if (msg.type === 'registration_success') {
+          this.logger.log(`Successfully registered as ${msg.studentName} on Master`);
+          return;
+      }
+
+      if (!this.currentStudentName) {
+          this.logger.warn('Received message from Master but no student name is set locally');
+          return;
+      }
 
       switch (msg.type) {
         case 'set_asynchrony':
@@ -112,7 +122,6 @@ export class StudentLinkService implements OnModuleInit, OnModuleDestroy {
                 }
              }
           } else if (msg.command === 'reset') {
-             // Stop and immediately restart simulation with clean state
              this.simulationService.stopSimulation(this.currentStudentName);
              this.simulationService.startSimulation(
                this.currentStudentName,
@@ -130,10 +139,13 @@ export class StudentLinkService implements OnModuleInit, OnModuleDestroy {
   public registerWithMaster(studentName: string) {
     this.currentStudentName = studentName;
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.logger.log(`Registering student "${studentName}" with Master...`);
       this.ws.send(JSON.stringify({ 
         type: 'remote_student_register', 
         studentName 
       }));
+    } else {
+      this.logger.warn('Cannot register with Master: WebSocket not open. Will retry on connect.');
     }
   }
 

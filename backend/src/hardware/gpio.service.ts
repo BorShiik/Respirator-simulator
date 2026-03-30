@@ -15,8 +15,8 @@ export interface ButtonEvent {
 }
 
 /**
- * GPIO Service для работы с энкодером HW-040.
- * Автоматически определяет режим: mock (PC) или реальный GPIO (Raspberry Pi через Python/gpiozero).
+ * GPIO Service for working with the HW-040 encoder.
+ * Automatically detects mode: mock (PC) or real GPIO (Raspberry Pi via Python/gpiozero).
  */
 @Injectable()
 export class GpioService extends EventEmitter implements OnModuleDestroy {
@@ -50,15 +50,18 @@ export class GpioService extends EventEmitter implements OnModuleDestroy {
         const text = line.trim();
         if (text === 'READY') {
           this.isRealGpio = true;
-          this.logger.log('GPIO: Реальный энкодер подключен (через Python gpiozero)');
+          this.logger.log('GPIO: Real encoder connected (via Python gpiozero)');
         } else if (text === 'ENCODER:CW') {
           this.emitEncoderEvent('cw');
         } else if (text === 'ENCODER:CCW') {
           this.emitEncoderEvent('ccw');
         } else if (text === 'BUTTON:PRESS') {
           this.emitButtonEvent('press');
+        } else if (text.startsWith('ERROR:gpiozero_missing')) {
+          this.logger.log('GPIO: Hardware library missing, switching to mock mode');
+          this.initMockMode();
         } else if (text.startsWith('ERROR:')) {
-          this.logger.warn(`Ошибка Python-скрипта: ${text}`);
+          this.logger.warn(`Python script error: ${text}`);
           if (!this.isRealGpio) {
             this.initMockMode();
           }
@@ -72,22 +75,26 @@ export class GpioService extends EventEmitter implements OnModuleDestroy {
     });
 
     this.pythonProcess.on('close', (code) => {
-      this.logger.warn(`Python процесс завершился с кодом ${code}`);
-      if (!this.isRealGpio) {
+      if (code !== 0 && !this.isRealGpio) {
+        this.logger.log(`GPIO: Hardware process inactive (code ${code}), using mock mode`);
         this.initMockMode();
+      } else {
+        this.logger.debug(`Python process exited with code ${code}`);
       }
     });
 
     this.pythonProcess.on('error', (err) => {
-      this.logger.warn(`Python не найден или ошибка запуска: ${err.message}`);
-      this.initMockMode();
+      if (!this.isRealGpio) {
+        this.logger.log(`GPIO: Python/Hardware not available (${err.message}), using mock mode`);
+        this.initMockMode();
+      }
     });
   }
 
   private initMockMode() {
     if (!this.encoderValues.has('encoder-main')) {
       this.encoderValues.set('encoder-main', 0);
-      this.logger.log('GPIO: Mock режим (разработка на PC)');
+      this.logger.log('GPIO: Mock mode (PC development)');
     }
   }
 
@@ -97,7 +104,7 @@ export class GpioService extends EventEmitter implements OnModuleDestroy {
       direction,
       clicks: 1,
     };
-    this.logger.debug(`Энкодер: ${direction === 'cw' ? '→ CW' : '← CCW'}`);
+    this.logger.debug(`Encoder: ${direction === 'cw' ? '→ CW' : '← CCW'}`);
     this.emit('encoder', event);
   }
 
@@ -106,14 +113,14 @@ export class GpioService extends EventEmitter implements OnModuleDestroy {
       encoderId: 'encoder-main',
       action,
     };
-    this.logger.debug(`Кнопка: ${action}`);
+    this.logger.debug(`Button: ${action}`);
     this.emit('button', event);
   }
 
   setSelectedParameter(parameter: string) {
     if (this.getParameterConfig().hasOwnProperty(parameter)) {
         this.selectedParameter = parameter;
-        this.logger.log(`Выбран параметр: ${parameter}`);
+        this.logger.log(`Selected parameter: ${parameter}`);
         this.emit('parameterChanged', parameter);
     }
   }
@@ -143,10 +150,10 @@ export class GpioService extends EventEmitter implements OnModuleDestroy {
     return {
       ipap: { min: 5, max: 30, step: 1, label: 'IPAP / Pinsp', unit: 'cmH₂O' },
       epap: { min: 0, max: 15, step: 1, label: 'EPAP / PEEP', unit: 'cmH₂O' },
-      rr: { min: 5, max: 40, step: 1, label: 'Częstość (RR)', unit: '/min' },
-      ti: { min: 0.3, max: 3.0, step: 0.1, label: 'Czas wdechu (Ti)', unit: 's' },
-      trigger: { min: 0.5, max: 10, step: 0.5, label: 'Wyzwalacz', unit: 'cmH₂O' },
-      vt: { min: 200, max: 1000, step: 50, label: 'Obj. oddechowa (VT)', unit: 'mL' },
+      rr: { min: 5, max: 40, step: 1, label: 'Respiratory Rate (RR)', unit: '/min' },
+      ti: { min: 0.3, max: 3.0, step: 0.1, label: 'Inspiratory Time (Ti)', unit: 's' },
+      trigger: { min: 0.5, max: 10, step: 0.5, label: 'Trigger', unit: 'cmH₂O' },
+      vt: { min: 200, max: 1000, step: 50, label: 'Tidal Volume (VT)', unit: 'mL' },
     };
   }
 
@@ -194,6 +201,6 @@ export class GpioService extends EventEmitter implements OnModuleDestroy {
     if (this.pythonProcess) {
       this.pythonProcess.kill();
     }
-    this.logger.log('GPIO ресурсы освобождены');
+    this.logger.log('GPIO resources released');
   }
 }

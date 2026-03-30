@@ -22,7 +22,7 @@ export function StationsTable({ stations }: StationsTableProps) {
   };
 
   const formatStationName = (stationId: string) => {
-    return stationId.replace('station-', 'Stanowisko ');
+    return stationId.replace('station-', 'Station ');
   };
 
   return (
@@ -30,19 +30,19 @@ export function StationsTable({ stations }: StationsTableProps) {
       <table className="admin-table">
         <thead>
           <tr>
-            <th>Stanowisko</th>
+            <th>Station</th>
             <th>Status</th>
-            <th>Kursant</th>
-            <th>Scenariusz</th>
-            <th>Asynchronia</th>
-            <th>Akcje</th>
+            <th>Student</th>
+            <th>Scenario</th>
+            <th>Asynchrony</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {stations.length === 0 ? (
             <tr>
               <td colSpan={6} className="text-center py-8 text-admin-muted">
-                Brak dostępnych stanowisk
+                No stations available
               </td>
             </tr>
           ) : (
@@ -68,14 +68,14 @@ export function StationsTable({ stations }: StationsTableProps) {
                         : 'bg-gray-100 text-gray-800'
                     }`}
                   >
-                    {station.status === 'online' ? 'Online' : station.status === 'error' ? 'Błąd' : 'Offline'}
+                    {station.status === 'online' ? 'Online' : station.status === 'error' ? 'Error' : 'Offline'}
                   </span>
                 </td>
                 <td>
-                  <span className="text-admin-muted">Nie przypisano</span>
+                  <span className="text-admin-muted">Not assigned</span>
                 </td>
                 <td>
-                  <span className="text-admin-muted">Brak scenariusza</span>
+                  <span className="text-admin-muted">No scenario</span>
                 </td>
                 <td>
                   {station.status === 'online' && station.asynchrony ? (
@@ -93,8 +93,8 @@ export function StationsTable({ stations }: StationsTableProps) {
                         {station.asynchrony.active && station.asynchrony.type
                           ? ASYNCHRONY_LABELS[station.asynchrony.type]
                           : station.asynchrony.active
-                          ? 'Wykryto'
-                          : 'Synchronia'}
+                          ? 'Detected'
+                          : 'Synchrony'}
                       </span>
                     </div>
                   ) : (
@@ -107,7 +107,7 @@ export function StationsTable({ stations }: StationsTableProps) {
                       to={`/stations/${station.stationId}`}
                       className="admin-btn admin-btn-secondary admin-btn-sm"
                     >
-                      Szczegóły
+                      Details
                     </Link>
                     {station.status === 'online' && (
                       <>

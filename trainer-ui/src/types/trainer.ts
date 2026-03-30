@@ -146,12 +146,12 @@ export interface LearningCurveDataPoint {
 
 export const ASYNCHRONY_LABELS: Record<AsynchronyType, string> = {
   INEFFECTIVE_TRIGGER: 'Nieefektywny wyzwalacz',
-  DOUBLE_TRIGGER: 'Podwójne wyzwalanie',
-  AUTO_TRIGGER: 'Automatyczne wyzwalanie',
-  DELAYED_CYCLING: 'Opóźniona cykliczność',
-  PREMATURE_CYCLING: 'Przedwczesna cykliczność',
+  DOUBLE_TRIGGER: 'Podwójny wyzwalacz',
+  AUTO_TRIGGER: 'Autowyzwalacz',
+  DELAYED_CYCLING: 'Opóźnione przełączenie',
+  PREMATURE_CYCLING: 'Przedwczesne przełączenie',
   FLOW_MISMATCH: 'Niedopasowanie przepływu',
-  REVERSE_TRIGGER: 'Odwrócone wyzwalanie',
+  REVERSE_TRIGGER: 'Odwrócony wyzwalacz',
 };
 
 export const MODE_LABELS: Record<VentilatorMode, string> = {

@@ -25,7 +25,7 @@ export function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-admin-text">Dashboard</h1>
-          <p className="text-admin-muted mt-1">Przegląd wszystkich stanowisk treningowych</p>
+          <p className="text-admin-muted mt-1">Overview of all training stations</p>
         </div>
         <div className="flex items-center gap-2">
           <span
@@ -39,10 +39,10 @@ export function DashboardPage() {
           />
           <span className="text-sm text-admin-muted">
             {connectionStatus === 'connected'
-              ? 'Połączono'
+              ? 'Connected'
               : connectionStatus === 'connecting'
-              ? 'Łączenie...'
-              : 'Rozłączono'}
+              ? 'Connecting...'
+              : 'Disconnected'}
           </span>
         </div>
       </div>
@@ -62,7 +62,7 @@ export function DashboardPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-admin-text">{stats.total}</p>
-              <p className="text-sm text-admin-muted">Wszystkie stanowiska</p>
+              <p className="text-sm text-admin-muted">Total stations</p>
             </div>
           </div>
         </div>
@@ -119,14 +119,14 @@ export function DashboardPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-admin-text">{stats.async}</p>
-              <p className="text-sm text-admin-muted">Z asynchronią</p>
+              <p className="text-sm text-admin-muted">With asynchrony</p>
             </div>
           </div>
         </div>
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold text-admin-text mb-4">Podgląd stanowisk</h2>
+        <h2 className="text-lg font-semibold text-admin-text mb-4">Stations preview</h2>
         <div className="grid grid-cols-3 gap-4">
           {stations.slice(0, 6).map((station) => (
             <StationCard key={station.stationId} station={station} />
@@ -135,7 +135,7 @@ export function DashboardPage() {
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold text-admin-text mb-4">Wszystkie stanowiska</h2>
+        <h2 className="text-lg font-semibold text-admin-text mb-4">All stations</h2>
         <StationsTable stations={stations} />
       </div>
     </div>

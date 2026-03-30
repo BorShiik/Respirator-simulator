@@ -21,7 +21,7 @@ export function AnalyticsPage() {
       setSessions(data);
     } catch (err) {
       console.error('Failed to load sessions:', err);
-      setError('Nie udało się pobrać danych sesji z serwera. Upewnij się, że backend jest uruchomiony.');
+      setError('Failed to fetch session data from server. Ensure the backend is running.');
       setSessions([]);
     } finally {
       setIsLoading(false);
@@ -50,7 +50,7 @@ export function AnalyticsPage() {
       .map((session, index) => ({
         sessionIndex: index + 1,
         scenarioName: session.scenarioName,
-        date: new Date(session.startTime).toLocaleDateString('pl-PL'),
+        date: new Date(session.startTime).toLocaleDateString('en-US'),
         timeToResolve: session.metrics?.timeToResolveAsynchrony || null,
         settingChanges: session.metrics?.numberOfSettingChanges || 0,
         successful: session.metrics?.successfulResolution || false,
@@ -100,7 +100,7 @@ export function AnalyticsPage() {
         </svg>
         <p className="text-admin-muted text-center max-w-md">{error}</p>
         <button onClick={loadSessions} className="admin-btn admin-btn-primary">
-          Spróbuj ponownie
+          Try again
         </button>
       </div>
     );
@@ -111,7 +111,7 @@ export function AnalyticsPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-admin-text">Analityka</h1>
-          <p className="text-admin-muted mt-1">Analiza postępów i wyników kursantów</p>
+          <p className="text-admin-muted mt-1">Analiza postępów i wyników studentów</p>
         </div>
         <div className="admin-card flex flex-col items-center justify-center py-16 gap-4">
           <svg className="w-16 h-16 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -119,7 +119,7 @@ export function AnalyticsPage() {
           </svg>
           <p className="text-lg font-medium text-admin-text">Brak danych analitycznych</p>
           <p className="text-admin-muted text-center max-w-md">
-            Jeszcze nie przeprowadzono żadnych sesji treningowych. Przypisz scenariusz do stanowiska i uruchom symulację, aby zobaczyć wyniki tutaj.
+            Nie przeprowadzono jeszcze żadnych sesji treningowych. Przypisz scenariusz do stanowiska i rozpocznij symulację, aby zobaczyć wyniki.
           </p>
         </div>
       </div>
@@ -130,8 +130,8 @@ export function AnalyticsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-admin-text">Analityka</h1>
-          <p className="text-admin-muted mt-1">Analiza postępów i wyników kursantów</p>
+          <h1 className="text-2xl font-bold text-admin-text">Analytics</h1>
+          <p className="text-admin-muted mt-1">Analysis of trainee progress and results</p>
         </div>
         <div>
           <select
@@ -139,7 +139,7 @@ export function AnalyticsPage() {
             onChange={(e) => setSelectedTrainee(e.target.value)}
             className="admin-input"
           >
-            <option value="all">Wszyscy kursanci</option>
+            <option value="all">Wszyscy studenci</option>
             {trainees.map((trainee) => (
               <option key={trainee.id} value={trainee.id}>
                 {trainee.name}
@@ -151,15 +151,15 @@ export function AnalyticsPage() {
 
       <div className="grid grid-cols-5 gap-4">
         <div className="admin-card p-4">
-          <div className="text-sm text-admin-muted mb-1">Sesje ogółem</div>
+          <div className="text-sm text-admin-muted mb-1">Wszystkie sesje</div>
           <div className="text-2xl font-bold text-admin-text">{stats.totalSessions}</div>
         </div>
         <div className="admin-card p-4">
-          <div className="text-sm text-admin-muted mb-1">Ukończone</div>
+          <div className="text-sm text-admin-muted mb-1">Zakończone</div>
           <div className="text-2xl font-bold text-admin-success">{stats.completedSessions}</div>
         </div>
         <div className="admin-card p-4">
-          <div className="text-sm text-admin-muted mb-1">Śr. czas rozwiązania</div>
+          <div className="text-sm text-admin-muted mb-1">Śr. czas reakcji</div>
           <div className="text-2xl font-bold text-admin-accent">{formatDuration(stats.avgTimeToResolve)}</div>
         </div>
         <div className="admin-card p-4">
@@ -187,10 +187,10 @@ export function AnalyticsPage() {
           <thead>
             <tr>
               <th>Data</th>
-              <th>Kursant</th>
+              <th>Student</th>
               <th>Scenariusz</th>
               <th>Czas trwania</th>
-              <th>Czas do rozwiązania</th>
+              <th>Czas reakcji</th>
               <th>Liczba zmian</th>
               <th>Typy asynchronii</th>
               <th>Status</th>
@@ -209,7 +209,7 @@ export function AnalyticsPage() {
                 .map((session) => (
                   <tr key={session.id}>
                     <td className="font-mono text-sm">
-                      {new Date(session.startTime).toLocaleDateString('pl-PL')}
+                      {new Date(session.startTime).toLocaleDateString('en-US')}
                     </td>
                     <td>{session.traineeName}</td>
                     <td>{session.scenarioName}</td>
@@ -251,10 +251,10 @@ export function AnalyticsPage() {
                         {session.status === 'COMPLETED'
                           ? session.metrics?.successfulResolution
                             ? 'Sukces'
-                            : 'Zakończono'
+                            : 'Zakończona'
                           : session.status === 'IN_PROGRESS'
-                          ? 'W trakcie'
-                          : 'Przerwano'}
+                          ? 'W toku'
+                          : 'Przerwana'}
                       </span>
                     </td>
                   </tr>

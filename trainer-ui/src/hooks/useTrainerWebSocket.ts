@@ -224,7 +224,7 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
 
       ws.onerror = (event) => {
         console.error('Trainer WebSocket error:', event);
-        setError('Błąd połączenia WebSocket');
+        setError('WebSocket connection error');
         setConnectionStatus('error');
       };
 
@@ -241,13 +241,13 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
             connect();
           }, RECONNECT_DELAY);
         } else {
-          setError('Przekroczono maksymalną liczbę prób połączenia');
+          setError('Maximum reconnection attempts exceeded');
           startMockMode();
         }
       };
     } catch (err) {
       console.error('Failed to create Trainer WebSocket:', err);
-      setError('Nie można utworzyć połączenia WebSocket');
+      setError('Cannot create WebSocket connection');
       setConnectionStatus('error');
       startMockMode();
     }

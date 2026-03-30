@@ -26,7 +26,7 @@ export class ScenarioEntity {
   @Column({ nullable: true })
   description: string;
 
-  @Column({ type: 'simple-json' })
+  @Column({ type: 'simple-json', nullable: true })
   blocks: ScenarioBlock[];
 
   @Column({ default: 300 }) // 5 minutes default

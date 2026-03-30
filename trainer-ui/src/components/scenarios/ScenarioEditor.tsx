@@ -140,7 +140,7 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
           </div>
 
           <div>
-            <label className="admin-label">Szacowany czas (sekundy)</label>
+            <label className="admin-label">Szacowany czas trwania (sekundy)</label>
             <input
               type="number"
               value={formData.estimatedDuration}
