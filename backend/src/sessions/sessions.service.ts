@@ -200,7 +200,7 @@ export class SessionsService {
    * Map a raw SessionEntity (with logs) into the shape the frontend analytics expects.
    */
   mapSessionToFrontend(session: SessionEntity): Record<string, unknown> {
-    const logs = session.logs || [];
+    const logs = (session.logs || []).sort((a, b) => a.timestamp - b.timestamp);
 
     // Duration
     let totalDuration = 0;

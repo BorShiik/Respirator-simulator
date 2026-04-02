@@ -60,6 +60,11 @@ export class SimulationService extends EventEmitter {
   ): void {
     this.stopSimulation(stationId);
 
+    const existingState = this.states.get(stationId);
+    const preservedBlocks = (existingState && existingState.scenarioName === scenarioName) 
+      ? existingState.scenarioBlocks 
+      : [];
+
     const state: SimulationState = {
       time: 0,
       phase: 'inspiration',
@@ -76,7 +81,7 @@ export class SimulationService extends EventEmitter {
       patient: { ...DEFAULT_PATIENT },
       asynchrony: { active: false, type: null },
       scenarioName,
-      scenarioBlocks: [],
+      scenarioBlocks: preservedBlocks,
       baselineSettings: null,
       currentAsynchronyEvent: null,
       pressureBuffer: [],
@@ -179,6 +184,8 @@ export class SimulationService extends EventEmitter {
          state.asynchrony = { active: true, type };
          state.baselineSettings = { ...state.settings };
          state.currentAsynchronyEvent = null; // Manual injection
+         // Notify for analytics logging
+         this.emit('asynchrony_injected', stationId, type);
       } else if (type === null) {
          state.asynchrony = { active: false, type: null };
          state.baselineSettings = null;
@@ -478,29 +485,41 @@ export class SimulationService extends EventEmitter {
 
      const currentTime = state.time;
      
-     // Find events that should be active right now
+     // Determine what the state SHOULD be right now based on scenario blocks
+     let expectedAsynchronyType: AsynchronyType | null = null;
+     let activeBlock: any = null;
+
      for (const iterBlock of state.scenarioBlocks) {
-         if (iterBlock.type === 'ASYNCHRONY' && iterBlock.asynchronyType) {
+         if (iterBlock.type === 'ASYNCHRONY' && iterBlock.asynchronyType && !iterBlock._resolved) {
              const startTime = iterBlock.startTime;
-             const duration = iterBlock.duration || 30; // 30s default
+             const duration = iterBlock.duration || 30;
              const endTime = startTime + duration;
 
              if (currentTime >= startTime && currentTime <= endTime) {
-                 if (state.asynchrony.type !== iterBlock.asynchronyType && !iterBlock._resolved) {
-                     state.asynchrony = { active: true, type: iterBlock.asynchronyType };
-                     state.baselineSettings = { ...state.settings };
-                     state.currentAsynchronyEvent = iterBlock;
-                 }
-             } else if (currentTime > endTime && state.asynchrony.type === iterBlock.asynchronyType) {
-                 // Stop the asynchrony when duration is over
-                 const expiredType = state.asynchrony.type;
-                 state.asynchrony = { active: false, type: null };
-                 state.baselineSettings = null;
-                 state.currentAsynchronyEvent = null;
-                 // Notify system that it ended (so analytics stop logging it as active)
-                 this.emit('asynchrony_resolved', stationId, expiredType);
+                 expectedAsynchronyType = iterBlock.asynchronyType;
+                 activeBlock = iterBlock;
+                 break; // Found the active block, no need to check others for this tick
              }
          }
+     }
+
+     // If we found a block that should be active, but it's not currently active
+     if (expectedAsynchronyType && state.asynchrony.type !== expectedAsynchronyType) {
+         state.asynchrony = { active: true, type: expectedAsynchronyType };
+         state.baselineSettings = { ...state.settings };
+         state.currentAsynchronyEvent = activeBlock;
+         this.emit('asynchrony_injected', stationId, expectedAsynchronyType);
+     } 
+     // If no block should be active, but one IS active (and it's tied to a scheduled event)
+     else if (!expectedAsynchronyType && state.asynchrony.active && state.currentAsynchronyEvent) {
+         const expiredType = state.asynchrony.type;
+         state.asynchrony = { active: false, type: null };
+         state.baselineSettings = null;
+         state.currentAsynchronyEvent = null;
+         this.emit('asynchrony_resolved', stationId, expiredType);
+     }
+
+     for (const iterBlock of state.scenarioBlocks) {
          
          const startTime = iterBlock.startTime;
          if (currentTime >= startTime && !iterBlock._applied) {

@@ -36,6 +36,17 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
              newValue: curr,
              wasAsynchronyActive: wasAsync,
              asynchronyType: asyncType
+           }));
+        }
+    });
+
+    this.simulationService.on('asynchrony_injected', (stationId, type) => {
+       if (stationId === this.currentStudentName && this.ws?.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify({
+             type: 'student_event',
+             studentName: this.currentStudentName,
+             event: 'asynchrony_injected',
+             asynchronyType: type
           }));
        }
     });

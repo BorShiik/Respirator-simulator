@@ -51,24 +51,24 @@ export function FlowChart({ data }: FlowChartProps) {
       <ResponsiveContainer width="100%" height="90%">
         <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-          <XAxis 
-            dataKey="index" 
+          <XAxis
+            dataKey="index"
             type="number"
             domain={[0, FIXED_BUFFER_SIZE - 1]}
-            tick={false} 
+            tick={false}
             axisLine={{ stroke: '#cbd5e1' }}
             tickLine={false}
           />
-          <YAxis 
+          <YAxis
             domain={yDomain}
             tick={{ fontSize: 10, fill: '#64748b' }}
             axisLine={{ stroke: '#cbd5e1' }}
             tickLine={{ stroke: '#cbd5e1' }}
             width={35}
           />
-          <ReferenceLine 
-            y={0} 
-            stroke="#94a3b8" 
+          <ReferenceLine
+            y={0}
+            stroke="#94a3b8"
             strokeWidth={1}
           />
           <Line

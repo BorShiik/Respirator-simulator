@@ -49,15 +49,15 @@ export function VolumeChart({ data, targetVt }: VolumeChartProps) {
       <ResponsiveContainer width="100%" height="90%">
         <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-          <XAxis 
-            dataKey="index" 
+          <XAxis
+            dataKey="index"
             type="number"
             domain={[0, FIXED_BUFFER_SIZE - 1]}
-            tick={false} 
+            tick={false}
             axisLine={{ stroke: '#cbd5e1' }}
             tickLine={false}
           />
-          <YAxis 
+          <YAxis
             domain={yDomain}
             tick={{ fontSize: 10, fill: '#64748b' }}
             axisLine={{ stroke: '#cbd5e1' }}
@@ -65,10 +65,10 @@ export function VolumeChart({ data, targetVt }: VolumeChartProps) {
             width={40}
           />
           {targetVt && (
-            <ReferenceLine 
-              y={targetVt} 
-              stroke="#059669" 
-              strokeDasharray="5 5" 
+            <ReferenceLine
+              y={targetVt}
+              stroke="#059669"
+              strokeDasharray="5 5"
               strokeWidth={1}
             />
           )}

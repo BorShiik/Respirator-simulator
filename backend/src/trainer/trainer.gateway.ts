@@ -175,6 +175,8 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
                      );
                  } else if (msg.event === 'asynchrony_resolved') {
                      await this.sessionsService.logAsynchronyEnd(activeSession.id, msg.asynchronyType);
+                 } else if (msg.event === 'asynchrony_injected') {
+                     await this.sessionsService.logAsynchronyStart(activeSession.id, msg.asynchronyType);
                  }
              }
          };

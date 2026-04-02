@@ -5,7 +5,8 @@ function getApiBaseUrl(): string {
   if (envUrl && envUrl.includes('localhost') && window.location.hostname !== 'localhost') {
     return envUrl.replace('localhost', window.location.hostname);
   }
-  return envUrl || `http://${window.location.hostname}:8080`;
+  const host = window.location.hostname === 'localhost' ? '127.0.0.1' : window.location.hostname;
+  return envUrl || `http://${host}:8080`;
 }
 
 const API_BASE_URL = getApiBaseUrl();
@@ -49,7 +50,8 @@ export function getWebSocketUrl(): string {
   if (wsHost && wsHost.includes('localhost') && window.location.hostname !== 'localhost') {
     wsHost = wsHost.replace('localhost', window.location.hostname);
   } else if (!wsHost) {
-    wsHost = `${window.location.hostname}:8080`;
+    const host = window.location.hostname === 'localhost' ? '127.0.0.1' : window.location.hostname;
+    wsHost = `${host}:8080`;
   }
   return `${wsProtocol}//${wsHost}/api/stations/ws`;
 }

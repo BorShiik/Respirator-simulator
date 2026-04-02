@@ -41,22 +41,22 @@ function initializeMockBuffers() {
 
 function generateMockTelemetry(_prevTelemetry: TelemetryData | null, settings: VentilatorSettings): TelemetryData {
   const timestamp = Date.now();
-  
+
   if (!mockInitialized) {
     initializeMockBuffers();
   }
-  
+
   // Mock: drawing flat lines. Real physics now lives in the backend.
   // Run the backend for full chart functionality.
   mockPressureBuffer[mockCurrentIndex] = settings.epap || 5;
   mockFlowBuffer[mockCurrentIndex] = 0;
   mockVolumeBuffer[mockCurrentIndex] = 0;
-  
+
   mockCurrentIndex++;
   if (mockCurrentIndex >= BUFFER_SIZE) {
     initializeMockBuffers();
   }
-  
+
   return {
     timestamp,
     pressure: [...mockPressureBuffer] as number[],
@@ -74,13 +74,20 @@ let realFlowBuffer: (number | null)[] = new Array(BUFFER_SIZE).fill(null);
 let realVolumeBuffer: (number | null)[] = new Array(BUFFER_SIZE).fill(null);
 let realCurrentIndex = 0;
 
+function resetRealBuffers() {
+  realPressureBuffer = new Array(BUFFER_SIZE).fill(null);
+  realFlowBuffer = new Array(BUFFER_SIZE).fill(null);
+  realVolumeBuffer = new Array(BUFFER_SIZE).fill(null);
+  realCurrentIndex = 0;
+}
+
 export function useStudentWebSocket(studentName: string | null, externalSettings?: VentilatorSettings): UseStudentWebSocketReturn {
   const [telemetry, setTelemetry] = useState<TelemetryData | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [isRegistered, setIsRegistered] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [externalSelectedParameter, setExternalSelectedParameter] = useState<string | null>(null);
-  
+
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<number | null>(null);
@@ -120,7 +127,7 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
     setConnectionStatus('connected');
     setIsRegistered(true);
     setError(null);
-    
+
     mockIntervalRef.current = window.setInterval(() => {
       setTelemetry(prev => generateMockTelemetry(prev, settingsRef.current));
     }, 100);
@@ -128,7 +135,7 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
 
   const connect = useCallback(() => {
     if (!studentName) return;
-    
+
     cleanup();
     setConnectionStatus('connecting');
     setError(null);
@@ -142,7 +149,7 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
     try {
       const url = getWebSocketUrl();
       console.log(`Connecting to WebSocket: ${url}`);
-      
+
       const ws = new WebSocket(url);
       wsRef.current = ws;
 
@@ -151,7 +158,7 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
         setConnectionStatus('connected');
         setError(null);
         reconnectAttemptsRef.current = 0;
-        
+
         // Send registration message with student name
         ws.send(JSON.stringify({
           type: 'register',
@@ -162,46 +169,51 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
       ws.onmessage = (event) => {
         try {
           const message: WebSocketMessage = JSON.parse(event.data);
-          
+
           switch (message.type) {
             case 'registered':
               console.log('Student registered:', message.studentName);
               setIsRegistered(true);
               break;
-              
+
             case 'loggedOut':
               console.log('Student logged out');
               setIsRegistered(false);
               setTelemetry(null);
               break;
-              
+
             case 'error':
               console.error('Server error:', message.message);
               setError(message.message || 'Server error');
               break;
-              
+
+            case 'status':
+              // Reset chart buffers when simulation starts or stops
+              // This prevents stale data from the previous session
+              if (message.status === 'running' || message.status === 'stopped') {
+                resetRealBuffers();
+              }
+              break;
+
             case 'telemetry': {
               const pressures = Array.isArray(message.pressure) ? message.pressure : [message.pressure];
               const flows = Array.isArray(message.flow) ? message.flow : [message.flow];
               const volumes = Array.isArray(message.volume) ? message.volume : [message.volume];
-              
+
               const pointsCount = Math.max(pressures.length, flows.length, volumes.length);
 
               // Adding points via "sweep" mechanics
               for (let i = 0; i < pointsCount; i++) {
-                 realPressureBuffer[realCurrentIndex] = pressures[i] ?? null;
-                 realFlowBuffer[realCurrentIndex] = flows[i] ?? null;
-                 realVolumeBuffer[realCurrentIndex] = volumes[i] ?? null;
-                 
-                 realCurrentIndex++;
-                 
-                 // If reached the end — clear EVERYTHING and start over
-                 if (realCurrentIndex >= BUFFER_SIZE) {
-                    realPressureBuffer = new Array(BUFFER_SIZE).fill(null);
-                    realFlowBuffer = new Array(BUFFER_SIZE).fill(null);
-                    realVolumeBuffer = new Array(BUFFER_SIZE).fill(null);
-                    realCurrentIndex = 0;
-                 }
+                realPressureBuffer[realCurrentIndex] = pressures[i] ?? null;
+                realFlowBuffer[realCurrentIndex] = flows[i] ?? null;
+                realVolumeBuffer[realCurrentIndex] = volumes[i] ?? null;
+
+                realCurrentIndex++;
+
+                // If reached the end — clear EVERYTHING and start over
+                if (realCurrentIndex >= BUFFER_SIZE) {
+                  resetRealBuffers();
+                }
               }
 
               setTelemetry({
@@ -215,14 +227,14 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
               });
               break;
             }
-              
+
             case 'settingsUpdate':
               setTelemetry(prev => prev ? {
                 ...prev,
                 settings: message.settings,
               } : null);
               break;
-              
+
             case 'parameterSelected':
               console.log('Backend selected parameter:', message.parameter);
               setExternalSelectedParameter(message.parameter);
@@ -241,15 +253,15 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
 
       ws.onclose = (event) => {
         if (wsRef.current !== ws) return; // Prevent StrictMode cleanup loop
-        
+
         console.log('WebSocket closed:', event.code, event.reason);
         setConnectionStatus('disconnected');
         setIsRegistered(false);
-        
+
         if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
           reconnectAttemptsRef.current += 1;
           console.log(`Reconnecting attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS}`);
-          
+
           reconnectTimeoutRef.current = window.setTimeout(() => {
             connect();
           }, RECONNECT_DELAY);
@@ -283,7 +295,7 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
     if (studentName) {
       connect();
     }
-    
+
     return cleanup;
   }, [studentName, connect, cleanup]);
 
