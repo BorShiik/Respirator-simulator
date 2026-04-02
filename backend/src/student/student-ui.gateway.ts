@@ -65,6 +65,26 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
             parameter: param
         });
     });
+
+    // Listen to trainer commands forwarded by StudentLinkService
+    // This ensures start/stop/reset always use the unified callback
+    // (which sends telemetry to both UI AND master)
+    this.linkService.on('trainer_start', () => {
+        this.logger.log('Trainer requested START');
+        if (!this.currentStudentName) return;
+        const state = this.simulationService.getState(this.currentStudentName);
+        this.startSimulation(state?.scenarioName || 'Free Practice');
+    });
+
+    this.linkService.on('trainer_stop', () => {
+        this.logger.log('Trainer requested STOP');
+        this.stopSimulation();
+    });
+
+    this.linkService.on('trainer_reset', () => {
+        this.logger.log('Trainer requested RESET');
+        this.resetSimulation();
+    });
   }
 
   handleConnection(client: WebSocket) {
@@ -116,6 +136,10 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
         if (message.parameter) {
           this.gpioService.setSelectedParameter(message.parameter);
         }
+        break;
+
+      case 'start':
+        this.startSimulation();
         break;
 
       case 'stop':

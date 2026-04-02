@@ -37,7 +37,7 @@ export class GpioService extends EventEmitter implements OnModuleDestroy {
   }
 
   private initGpio() {
-    const scriptPath = path.resolve(process.cwd(), 'scripts', 'encoder.py');
+    const scriptPath = path.resolve(__dirname, '..', '..', 'scripts', 'encoder.py');
     
     // Пробуем запустить python-скрипт (python3 на Pi) 
     this.pythonProcess = spawn('python3', ['-u', scriptPath]);
@@ -51,11 +51,11 @@ export class GpioService extends EventEmitter implements OnModuleDestroy {
         if (text === 'READY') {
           this.isRealGpio = true;
           this.logger.log('GPIO: Real encoder connected (via Python gpiozero)');
-        } else if (text === 'ENCODER:CW') {
+        } else if (text.startsWith('ENCODER:CW')) {
           this.emitEncoderEvent('cw');
-        } else if (text === 'ENCODER:CCW') {
+        } else if (text.startsWith('ENCODER:CCW')) {
           this.emitEncoderEvent('ccw');
-        } else if (text === 'BUTTON:PRESS') {
+        } else if (text.startsWith('BUTTON:PRESS')) {
           this.emitButtonEvent('press');
         } else if (text.startsWith('ERROR:gpiozero_missing')) {
           this.logger.log('GPIO: Hardware library missing, switching to mock mode');

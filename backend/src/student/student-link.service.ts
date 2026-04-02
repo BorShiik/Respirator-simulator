@@ -2,9 +2,10 @@ import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/commo
 import * as WebSocket from 'ws';
 import { SimulationService } from '../simulation/simulation.service';
 import { TelemetryData } from '../common/dto/ventilator.dto';
+import { EventEmitter } from 'events';
 
 @Injectable()
-export class StudentLinkService implements OnModuleInit, OnModuleDestroy {
+export class StudentLinkService extends EventEmitter implements OnModuleInit, OnModuleDestroy {
   private ws: WebSocket | null = null;
   private readonly logger = new Logger(StudentLinkService.name);
   private trainerUrl = process.env.TRAINER_URL || 'ws://localhost:8081/api/trainer/ws';
@@ -12,7 +13,9 @@ export class StudentLinkService implements OnModuleInit, OnModuleDestroy {
   
   public currentStudentName: string | null = null;
 
-  constructor(private readonly simulationService: SimulationService) {}
+  constructor(private readonly simulationService: SimulationService) {
+    super();
+  }
 
   onModuleInit() {
     this.connect();
@@ -101,15 +104,15 @@ export class StudentLinkService implements OnModuleInit, OnModuleDestroy {
           this.simulationService.updatePatientParameters(this.currentStudentName, msg.parameters);
           break;
         case 'trainer_command':
+          // Emit events instead of calling SimulationService directly
+          // This allows StudentUiGateway to handle start/stop/reset
+          // with the unified callback (sends to both UI and master)
           if (msg.command === 'stop') {
-             this.simulationService.stopSimulation(this.currentStudentName);
+             this.logger.log('Trainer command: stop');
+             this.emit('trainer_stop');
           } else if (msg.command === 'start') {
-             const state = this.simulationService.getState(this.currentStudentName);
-             this.simulationService.startSimulation(
-               this.currentStudentName,
-               state?.scenarioName || 'Free Practice',
-               (telemetry) => this.sendTelemetryToMaster(telemetry)
-             );
+             this.logger.log('Trainer command: start');
+             this.emit('trainer_start', msg.scenarioId);
           } else if (msg.command === 'update_settings') {
              if (msg.settings) {
                 this.simulationService.updateSettings(this.currentStudentName, msg.settings);
@@ -122,12 +125,8 @@ export class StudentLinkService implements OnModuleInit, OnModuleDestroy {
                 }
              }
           } else if (msg.command === 'reset') {
-             this.simulationService.stopSimulation(this.currentStudentName);
-             this.simulationService.startSimulation(
-               this.currentStudentName,
-               'Free Practice',
-               (telemetry) => this.sendTelemetryToMaster(telemetry),
-             );
+             this.logger.log('Trainer command: reset');
+             this.emit('trainer_reset');
           }
           break;
       }
@@ -159,3 +158,4 @@ export class StudentLinkService implements OnModuleInit, OnModuleDestroy {
     }
   }
 }
+

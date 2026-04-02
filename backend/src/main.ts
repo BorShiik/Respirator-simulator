@@ -11,7 +11,7 @@ async function bootstrap() {
   
   // Enable CORS for frontend
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:3001'],
+    origin: true,
     credentials: true,
   });
   
@@ -25,8 +25,8 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
   
   const port = process.env.PORT || 8080;
-  await app.listen(port);
-  console.log(`🚀 Respirator Backend running on http://localhost:${port}`);
+  await app.listen(port, '0.0.0.0');
+  console.log(`🚀 Respirator Backend running on http://0.0.0.0:${port}`);
 }
 
 bootstrap();
