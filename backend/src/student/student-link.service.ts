@@ -1,15 +1,21 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import * as WebSocket from 'ws';
+import * as dgram from 'dgram';
 import { SimulationService } from '../simulation/simulation.service';
 import { TelemetryData } from '../common/dto/ventilator.dto';
 import { EventEmitter } from 'events';
+
+const DISCOVERY_PORT = 41234;
 
 @Injectable()
 export class StudentLinkService extends EventEmitter implements OnModuleInit, OnModuleDestroy {
   private ws: WebSocket | null = null;
   private readonly logger = new Logger(StudentLinkService.name);
-  private trainerUrl = process.env.TRAINER_URL || 'ws://localhost:8081/api/trainer/ws';
+  private trainerUrl: string | null = process.env.TRAINER_URL || null;
   private reconnectTimer: NodeJS.Timeout;
+  private discoverySocket: dgram.Socket | null = null;
+  private isDiscovering = false;
+  private isConnected = false;
   
   public currentStudentName: string | null = null;
 
@@ -18,8 +24,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
   }
 
   onModuleInit() {
-    this.connect();
-
+    // Subscribe to simulation events for analytics forwarding
     this.simulationService.on('setting_changed', (stationId, param, prev, curr, wasAsync, asyncType) => {
        if (stationId === this.currentStudentName && this.ws?.readyState === WebSocket.OPEN) {
           this.ws.send(JSON.stringify({
@@ -45,22 +50,91 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
           }));
        }
     });
+
+    // If TRAINER_URL is explicitly set, connect directly
+    // Otherwise, auto-discover trainer via UDP beacon
+    if (this.trainerUrl) {
+      this.logger.log(`TRAINER_URL is set: ${this.trainerUrl}`);
+      this.connect();
+    } else {
+      this.logger.log('No TRAINER_URL set — starting auto-discovery...');
+      this.startDiscovery();
+    }
   }
 
   onModuleDestroy() {
     clearTimeout(this.reconnectTimer);
+    this.stopDiscovery();
     if (this.ws) {
       this.ws.close();
     }
   }
 
+  // ──────────────────────────────────────────────
+  //  UDP Discovery
+  // ──────────────────────────────────────────────
+
+  private startDiscovery() {
+    if (this.isDiscovering) return;
+    this.isDiscovering = true;
+
+    this.discoverySocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+
+    this.discoverySocket.on('message', (msg, rinfo) => {
+      try {
+        const beacon = JSON.parse(msg.toString());
+        if (beacon.type === 'trainer_beacon' && beacon.wsUrl) {
+          this.logger.log(`🔍 Discovered trainer at ${beacon.wsUrl} (${beacon.trainerName || rinfo.address})`);
+          
+          // Save the discovered URL and connect
+          this.trainerUrl = beacon.wsUrl;
+          this.stopDiscovery();
+          this.connect();
+        }
+      } catch (e) {
+        // Ignore non-JSON or irrelevant UDP packets
+      }
+    });
+
+    this.discoverySocket.on('error', (err) => {
+      this.logger.error(`Discovery socket error: ${err.message}`);
+      this.isDiscovering = false;
+    });
+
+    this.discoverySocket.bind(DISCOVERY_PORT, () => {
+      this.logger.log(`👂 Listening for trainer beacons on UDP port ${DISCOVERY_PORT}...`);
+    });
+  }
+
+  private stopDiscovery() {
+    if (this.discoverySocket) {
+      try {
+        this.discoverySocket.close();
+      } catch (e) {
+        // Socket might already be closed
+      }
+      this.discoverySocket = null;
+    }
+    this.isDiscovering = false;
+  }
+
+  // ──────────────────────────────────────────────
+  //  WebSocket Connection to Trainer
+  // ──────────────────────────────────────────────
+
   private connect() {
-    this.logger.log(`Connecting to Master (Trainer) at ${this.trainerUrl}...`);
+    if (!this.trainerUrl) {
+      this.logger.warn('No trainer URL available, falling back to discovery');
+      this.startDiscovery();
+      return;
+    }
+
+    this.logger.log(`Connecting to Trainer at ${this.trainerUrl}...`);
     this.ws = new WebSocket(this.trainerUrl);
 
     this.ws.on('open', () => {
-      this.logger.log('Connected to Master Pi');
-      // If student is already logged in locally, send registration upstream
+      this.isConnected = true;
+      this.logger.log('✅ Connected to Trainer');
       if (this.currentStudentName) {
         this.registerWithMaster(this.currentStudentName);
       }
@@ -71,9 +145,19 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     });
 
     this.ws.on('close', () => {
-      this.logger.warn('Disconnected from Master Pi, retrying in 5s...');
+      this.isConnected = false;
       this.ws = null;
-      this.reconnectTimer = setTimeout(() => this.connect(), 5000);
+      
+      if (process.env.TRAINER_URL) {
+        // Manual URL set: just reconnect on a timer
+        this.logger.warn('Disconnected from Trainer, retrying in 5s...');
+        this.reconnectTimer = setTimeout(() => this.connect(), 5000);
+      } else {
+        // Auto-discovered: re-discover in case trainer IP changed
+        this.logger.warn('Disconnected from Trainer, restarting discovery...');
+        this.trainerUrl = null;
+        this.reconnectTimer = setTimeout(() => this.startDiscovery(), 3000);
+      }
     });
 
     this.ws.on('error', (err) => {
@@ -81,18 +165,21 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     });
   }
 
+  // ──────────────────────────────────────────────
+  //  Message Handling
+  // ──────────────────────────────────────────────
+
   private handleMessage(rawData: string) {
     try {
       const msg = JSON.parse(rawData);
       
-      // Handle registration confirmation or heartbeat if added later
       if (msg.type === 'registration_success') {
-          this.logger.log(`Successfully registered as ${msg.studentName} on Master`);
+          this.logger.log(`Successfully registered as ${msg.studentName} on Trainer`);
           return;
       }
 
       if (!this.currentStudentName) {
-          this.logger.warn('Received message from Master but no student name is set locally');
+          this.logger.warn('Received message from Trainer but no student name is set locally');
           return;
       }
 
@@ -105,8 +192,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
           break;
         case 'trainer_command':
           // Emit events instead of calling SimulationService directly
-          // This allows StudentUiGateway to handle start/stop/reset
-          // with the unified callback (sends to both UI and master)
+          // StudentUiGateway subscribes to these and uses the unified callback
           if (msg.command === 'stop') {
              this.logger.log('Trainer command: stop');
              this.emit('trainer_stop');
@@ -135,16 +221,20 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     }
   }
 
+  // ──────────────────────────────────────────────
+  //  Public API
+  // ──────────────────────────────────────────────
+
   public registerWithMaster(studentName: string) {
     this.currentStudentName = studentName;
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.logger.log(`Registering student "${studentName}" with Master...`);
+      this.logger.log(`Registering student "${studentName}" with Trainer...`);
       this.ws.send(JSON.stringify({ 
         type: 'remote_student_register', 
         studentName 
       }));
     } else {
-      this.logger.warn('Cannot register with Master: WebSocket not open. Will retry on connect.');
+      this.logger.warn('Cannot register with Trainer: WebSocket not open. Will register on connect.');
     }
   }
 
@@ -158,4 +248,3 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     }
   }
 }
-
