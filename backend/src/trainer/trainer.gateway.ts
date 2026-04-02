@@ -53,6 +53,18 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
     if (client.isRemoteStudent && client.studentName) {
       this.logger.log(`Remote Student disconnected: ${client.studentName}`);
       this.studentClients.delete(client.studentName);
+      
+      // Auto-abort any active session for this student
+      const studentName = client.studentName;
+      const act = async () => {
+          const activeSession = await this.sessionsService.findActiveSession(studentName);
+          if (activeSession) {
+              await this.sessionsService.abort(activeSession.id);
+              this.logger.log(`Auto-aborted session ${activeSession.id} for disconnected student ${studentName}`);
+          }
+      };
+      act().catch(e => console.error('Failed to auto-abort session on disconnect', e));
+      
       // Mark as disconnected but keep last known telemetry for reference
       const state = this.studentStates.get(client.studentName);
       if (state) {
@@ -167,6 +179,50 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
              }
          };
          act().catch(e => console.error('Failed to log student event', e));
+         return;
+      }
+
+      // 5. Handle Session Lifecycle from Student
+      if (msg.type === 'student_session_start' && client.isRemoteStudent) {
+         const act = async () => {
+             const studentName = msg.studentName;
+             const scenarioName = msg.scenarioName || 'Free Practice';
+             
+             // Check if there's already a pending session (assigned by trainer)
+             const pendingSession = await this.sessionsService.findPendingSession(studentName);
+             if (pendingSession) {
+                 // Trainer already assigned a scenario → use that session
+                 await this.sessionsService.start(pendingSession.id);
+                 this.logger.log(`Started pending session ${pendingSession.id} for ${studentName}`);
+             } else {
+                 // No pending session → check if there's already a running one
+                 const activeSession = await this.sessionsService.findActiveSession(studentName);
+                 if (!activeSession) {
+                     // Create and immediately start a new session
+                     const newSession = await this.sessionsService.create({
+                         stationId: studentName,
+                         studentName,
+                         scenarioName,
+                     });
+                     await this.sessionsService.start(newSession.id);
+                     this.logger.log(`Created & started new session for ${studentName} (${scenarioName})`);
+                 }
+             }
+         };
+         act().catch(e => console.error('Failed to handle student_session_start', e));
+         return;
+      }
+
+      if (msg.type === 'student_session_stop' && client.isRemoteStudent) {
+         const act = async () => {
+             const studentName = msg.studentName;
+             const activeSession = await this.sessionsService.findActiveSession(studentName);
+             if (activeSession) {
+                 await this.sessionsService.complete(activeSession.id, activeSession.initialSettings);
+                 this.logger.log(`Completed session ${activeSession.id} for ${studentName}`);
+             }
+         };
+         act().catch(e => console.error('Failed to handle student_session_stop', e));
          return;
       }
 

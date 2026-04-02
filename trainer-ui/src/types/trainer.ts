@@ -90,7 +90,7 @@ export interface Session {
   scenarioName: string;
   startTime: number;
   endTime: number | null;
-  status: 'IN_PROGRESS' | 'COMPLETED' | 'ABORTED';
+  status: 'IN_PROGRESS' | 'COMPLETED' | 'ABORTED' | 'PENDING';
   metrics: SessionMetrics | null;
 }
 

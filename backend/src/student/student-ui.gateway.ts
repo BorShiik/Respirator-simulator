@@ -189,12 +189,18 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
       scenarioName, 
       studentName: name 
     });
+
+    // Notify trainer to create/start a session for analytics
+    this.linkService.notifySessionStart(scenarioName);
   }
 
   public stopSimulation() {
     if (!this.currentStudentName) return;
     this.simulationService.stopSimulation(this.currentStudentName);
     this.broadcast({ type: 'status', status: 'stopped' });
+
+    // Notify trainer to complete the active session
+    this.linkService.notifySessionStop();
   }
 
   public resetSimulation() {

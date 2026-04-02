@@ -43,8 +43,13 @@ export function AnalyticsPage() {
     return sessions.filter(s => s.traineeId === selectedTrainee);
   }, [sessions, selectedTrainee]);
 
+  // Filter out Free Practice sessions for analytics
+  const analyticsSessions = useMemo(() => {
+    return filteredSessions.filter(s => s.scenarioName !== 'Free Practice');
+  }, [filteredSessions]);
+
   const learningCurveData: LearningCurveDataPoint[] = useMemo(() => {
-    return filteredSessions
+    return analyticsSessions
       .filter(s => s.status === 'COMPLETED' && s.metrics)
       .sort((a, b) => a.startTime - b.startTime)
       .map((session, index) => ({
@@ -55,10 +60,10 @@ export function AnalyticsPage() {
         settingChanges: session.metrics?.numberOfSettingChanges || 0,
         successful: session.metrics?.successfulResolution || false,
       }));
-  }, [filteredSessions]);
+  }, [analyticsSessions]);
 
   const stats = useMemo(() => {
-    const completed = filteredSessions.filter(s => s.status === 'COMPLETED');
+    const completed = analyticsSessions.filter(s => s.status === 'COMPLETED');
     const avgTime = completed.length > 0
       ? completed.reduce((sum, s) => sum + (s.metrics?.timeToResolveAsynchrony || 0), 0) / completed.length
       : 0;
@@ -70,13 +75,13 @@ export function AnalyticsPage() {
       : 0;
 
     return {
-      totalSessions: filteredSessions.length,
+      totalSessions: analyticsSessions.length,
       completedSessions: completed.length,
       avgTimeToResolve: Math.round(avgTime),
       avgSettingChanges: Math.round(avgChanges * 10) / 10,
       successRate: Math.round(successRate),
     };
-  }, [filteredSessions]);
+  }, [analyticsSessions]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -245,15 +250,19 @@ export function AnalyticsPage() {
                               : 'bg-yellow-100 text-yellow-800'
                             : session.status === 'IN_PROGRESS'
                             ? 'bg-blue-100 text-blue-800'
+                            : session.status === 'PENDING'
+                            ? 'bg-purple-100 text-purple-800'
                             : 'bg-gray-100 text-gray-800'
                         }`}
                       >
-                        {session.status === 'COMPLETED'
+                      {session.status === 'COMPLETED'
                           ? session.metrics?.successfulResolution
                             ? 'Sukces'
                             : 'Zakończona'
                           : session.status === 'IN_PROGRESS'
                           ? 'W toku'
+                          : session.status === 'PENDING'
+                          ? 'Oczekuje'
                           : 'Przerwana'}
                       </span>
                     </td>

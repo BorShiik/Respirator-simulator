@@ -247,4 +247,33 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
       }));
     }
   }
+
+  /**
+   * Notify the trainer that the student has started a simulation.
+   * The trainer will create/start a session for analytics tracking.
+   */
+  public notifySessionStart(scenarioName: string) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentStudentName) {
+      this.logger.log(`Notifying trainer: session started (${scenarioName})`);
+      this.ws.send(JSON.stringify({
+        type: 'student_session_start',
+        studentName: this.currentStudentName,
+        scenarioName,
+      }));
+    }
+  }
+
+  /**
+   * Notify the trainer that the student has stopped or completed a simulation.
+   * The trainer will complete the active session.
+   */
+  public notifySessionStop() {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentStudentName) {
+      this.logger.log('Notifying trainer: session stopped');
+      this.ws.send(JSON.stringify({
+        type: 'student_session_stop',
+        studentName: this.currentStudentName,
+      }));
+    }
+  }
 }
