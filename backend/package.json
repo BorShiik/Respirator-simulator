@@ -2,17 +2,13 @@
   "name": "respirator-backend",
   "version": "1.0.0",
   "description": "Backend for Ventilator Training Simulator",
-  "main": "dist/main.js",
+  "main": "dist/main-student.js",
   "scripts": {
     "build": "nest build",
-    "start": "nest start",
-    "start:dev": "nest start --watch",
     "start:student": "nest start --entryFile main-student",
     "start:student:dev": "nest start --watch --entryFile main-student",
     "start:trainer": "nest start --entryFile main-trainer",
     "start:trainer:dev": "nest start --watch --entryFile main-trainer",
-    "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage"
