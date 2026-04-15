@@ -19,11 +19,13 @@ interface ChartPoint {
   value: number | null;
 }
 
-const FIXED_BUFFER_SIZE = 200; // Должен совпадать с BUFFER_SIZE в useStudentWebSocket
+const FIXED_BUFFER_SIZE = 150;
 
 export function VolumeChart({ data, targetVt }: VolumeChartProps) {
   const chartData: ChartPoint[] = useMemo(() => {
-    return data.map((value, index) => ({
+    const padded = new Array(Math.max(0, FIXED_BUFFER_SIZE - data.length)).fill(null);
+    const values = [...padded, ...data];
+    return values.map((value, index) => ({
       index,
       value: value != null ? Math.round(value) : null,
     }));

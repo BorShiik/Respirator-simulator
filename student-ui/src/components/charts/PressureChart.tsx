@@ -20,12 +20,14 @@ interface ChartPoint {
   value: number | null;
 }
 
-const FIXED_BUFFER_SIZE = 200; // Должен совпадать с BUFFER_SIZE в useStudentWebSocket
+const FIXED_BUFFER_SIZE = 150;
 
 export function PressureChart({ data, peep = 5, pip }: PressureChartProps) {
-  // Создаём данные с сохранением позиции каждой точки
   const chartData: ChartPoint[] = useMemo(() => {
-    return data.map((value, index) => ({
+    // Pad from left with nulls so the chart always shows a full window
+    const padded = new Array(Math.max(0, FIXED_BUFFER_SIZE - data.length)).fill(null);
+    const values = [...padded, ...data];
+    return values.map((value, index) => ({
       index,
       value: value != null ? Math.round(value * 10) / 10 : null,
     }));

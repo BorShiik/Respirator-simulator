@@ -23,62 +23,25 @@ interface UseStudentWebSocketReturn {
 const RECONNECT_DELAY = 3000;
 const MAX_RECONNECT_ATTEMPTS = 10;
 
-const BUFFER_SIZE = 200; // Buffer size for charts
+const BUFFER_SIZE = 150; // Sliding window size (ILSim uses 150)
 
-let mockInitialized = false;
-let mockPressureBuffer: (number | null)[] = [];
-let mockFlowBuffer: (number | null)[] = [];
-let mockVolumeBuffer: (number | null)[] = [];
-let mockCurrentIndex = 0;
-
-function initializeMockBuffers() {
-  mockPressureBuffer = new Array(BUFFER_SIZE).fill(null);
-  mockFlowBuffer = new Array(BUFFER_SIZE).fill(null);
-  mockVolumeBuffer = new Array(BUFFER_SIZE).fill(null);
-  mockCurrentIndex = 0;
-  mockInitialized = true;
-}
-
-function generateMockTelemetry(_prevTelemetry: TelemetryData | null, settings: VentilatorSettings): TelemetryData {
-  const timestamp = Date.now();
-
-  if (!mockInitialized) {
-    initializeMockBuffers();
-  }
-
-  // Mock: drawing flat lines. Real physics now lives in the backend.
-  // Run the backend for full chart functionality.
-  mockPressureBuffer[mockCurrentIndex] = settings.epap || 5;
-  mockFlowBuffer[mockCurrentIndex] = 0;
-  mockVolumeBuffer[mockCurrentIndex] = 0;
-
-  mockCurrentIndex++;
-  if (mockCurrentIndex >= BUFFER_SIZE) {
-    initializeMockBuffers();
-  }
-
-  return {
-    timestamp,
-    pressure: [...mockPressureBuffer] as number[],
-    flow: [...mockFlowBuffer] as number[],
-    volume: [...mockVolumeBuffer] as number[],
-    settings: settings,
-    asynchrony: { active: false, type: null },
-    scenarioName: 'MOCK MODE (No Physics)',
-  };
-}
-
-// Real data buffers
-let realPressureBuffer: (number | null)[] = new Array(BUFFER_SIZE).fill(null);
-let realFlowBuffer: (number | null)[] = new Array(BUFFER_SIZE).fill(null);
-let realVolumeBuffer: (number | null)[] = new Array(BUFFER_SIZE).fill(null);
-let realCurrentIndex = 0;
+// Sliding window buffers — new data pushed to end, old data dropped from front
+let realPressureBuffer: number[] = [];
+let realFlowBuffer: number[] = [];
+let realVolumeBuffer: number[] = [];
 
 function resetRealBuffers() {
-  realPressureBuffer = new Array(BUFFER_SIZE).fill(null);
-  realFlowBuffer = new Array(BUFFER_SIZE).fill(null);
-  realVolumeBuffer = new Array(BUFFER_SIZE).fill(null);
-  realCurrentIndex = 0;
+  realPressureBuffer = [];
+  realFlowBuffer = [];
+  realVolumeBuffer = [];
+}
+
+function pushToBuffer(buffer: number[], values: number[]): number[] {
+  const combined = buffer.concat(values);
+  if (combined.length > BUFFER_SIZE) {
+    return combined.slice(combined.length - BUFFER_SIZE);
+  }
+  return combined;
 }
 
 export function useStudentWebSocket(studentName: string | null, externalSettings?: VentilatorSettings): UseStudentWebSocketReturn {
@@ -129,7 +92,20 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
     setError(null);
 
     mockIntervalRef.current = window.setInterval(() => {
-      setTelemetry(prev => generateMockTelemetry(prev, settingsRef.current));
+      const val = settingsRef.current.epap || 5;
+      realPressureBuffer = pushToBuffer(realPressureBuffer, [val]);
+      realFlowBuffer = pushToBuffer(realFlowBuffer, [0]);
+      realVolumeBuffer = pushToBuffer(realVolumeBuffer, [0]);
+
+      setTelemetry({
+        timestamp: Date.now(),
+        pressure: [...realPressureBuffer],
+        flow: [...realFlowBuffer],
+        volume: [...realVolumeBuffer],
+        settings: settingsRef.current,
+        asynchrony: { active: false, type: null },
+        scenarioName: 'MOCK MODE (No Physics)',
+      });
     }, 100);
   }, []);
 
@@ -200,27 +176,16 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
               const flows = Array.isArray(message.flow) ? message.flow : [message.flow];
               const volumes = Array.isArray(message.volume) ? message.volume : [message.volume];
 
-              const pointsCount = Math.max(pressures.length, flows.length, volumes.length);
-
-              // Adding points via "sweep" mechanics
-              for (let i = 0; i < pointsCount; i++) {
-                realPressureBuffer[realCurrentIndex] = pressures[i] ?? null;
-                realFlowBuffer[realCurrentIndex] = flows[i] ?? null;
-                realVolumeBuffer[realCurrentIndex] = volumes[i] ?? null;
-
-                realCurrentIndex++;
-
-                // If reached the end — clear EVERYTHING and start over
-                if (realCurrentIndex >= BUFFER_SIZE) {
-                  resetRealBuffers();
-                }
-              }
+              // Sliding window — push new data to end, old data drops off the left
+              realPressureBuffer = pushToBuffer(realPressureBuffer, pressures);
+              realFlowBuffer = pushToBuffer(realFlowBuffer, flows);
+              realVolumeBuffer = pushToBuffer(realVolumeBuffer, volumes);
 
               setTelemetry({
                 timestamp: message.timestamp,
-                pressure: [...realPressureBuffer] as number[],
-                flow: [...realFlowBuffer] as number[],
-                volume: [...realVolumeBuffer] as number[],
+                pressure: [...realPressureBuffer],
+                flow: [...realFlowBuffer],
+                volume: [...realVolumeBuffer],
                 settings: message.settings,
                 asynchrony: message.asynchrony,
                 scenarioName: message.scenarioName,
