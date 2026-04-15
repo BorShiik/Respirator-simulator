@@ -176,14 +176,14 @@ export const DIFFICULTY_COLORS: Record<Scenario['difficulty'], string> = {
 };
 
 export const DEFAULT_SETTINGS: VentilatorSettings = {
-  ipap: 15,
-  epap: 5,
-  peep: 5,
-  rr: 14,
+  ipap: 12,
+  epap: 4,
+  peep: 4,
+  rr: 15,
   ti: 1.0,
   trigger: 2,
   vt: 500,
-  pinsp: 15,
+  pinsp: 12,
   mode: 'PC-CMV',
 };
 

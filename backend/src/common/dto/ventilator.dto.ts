@@ -78,31 +78,43 @@ export interface PatientModel {
   resistance: number;    // cmH2O/(L/s) (airway resistance R)
   spontaneousRate: number; // Spontaneous breathing rate
   effort: number;        // Patient effort (0-100%)
-  rin: number;           // Inspiratory resistance (cmH2O/(L/s)) - NEW
-  rout: number;          // Expiratory resistance (cmH2O/(L/s)) - NEW
-  p01: number;           // Occlusion pressure (cmH2O) - NEW
+  rin: number;           // Inspiratory resistance (cmH2O/(L/s))
+  rout: number;          // Expiratory resistance (cmH2O/(L/s))
+  p01: number;           // Occlusion pressure (cmH2O)
+  Tcykl: number;         // Patient respiratory cycle period (seconds)
+  PTi: number;           // Patient inspiratory time (seconds)
+  PriorityPR: number;    // Override respirator frequency for auto-triggering (breaths/min, 0=off)
+  PressureRaiseT: number; // Pressure rise time (seconds, 0=instant)
+  DoubleTriggeringTime: number; // Time in cycle when Pin drops to EPAP for double trigger (seconds, 0=off)
+  knobDisable: boolean;  // Lock student knob (cannot change parameters)
 }
 
 // Default values
 export const DEFAULT_SETTINGS: VentilatorSettings = {
-  ipap: 15,
-  epap: 5,
-  peep: 5,
-  rr: 14,
+  ipap: 12,
+  epap: 4,
+  peep: 4,
+  rr: 15,
   ti: 1.0,
   trigger: 2,
   vt: 500,
-  pinsp: 15,
+  pinsp: 12,
   mode: 'PC-CMV',
-  pressureRaiseT: 0.1,
+  pressureRaiseT: 0,
 };
 
 export const DEFAULT_PATIENT: PatientModel = {
   compliance: 50,      // Normal: 50-100 mL/cmH2O
-  resistance: 5,       // Normal: 2-5 cmH2O/(L/s)
+  resistance: 10,      // cmH2O/(L/s) (ILSim default)
   spontaneousRate: 0,  // No spontaneous breathing by default
   effort: 0,
-  rin: 2,              // Normal inspiratory resistance
-  rout: 5,             // Normal expiratory resistance
-  p01: 2,              // Normal occlusion pressure
+  rin: 1,              // Inspiratory resistance (ILSim default)
+  rout: 20,            // Expiratory resistance (ILSim default)
+  p01: 0,              // No patient effort by default (ILSim default)
+  Tcykl: 3.0,          // Patient respiratory cycle period
+  PTi: 1.0,            // Patient inspiratory time
+  PriorityPR: 0,       // No auto-triggering override
+  PressureRaiseT: 0,   // Instant pressure rise
+  DoubleTriggeringTime: 0, // No double triggering
+  knobDisable: false,   // Student can adjust parameters
 };

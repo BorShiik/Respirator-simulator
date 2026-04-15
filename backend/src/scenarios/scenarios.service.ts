@@ -68,47 +68,86 @@ export class ScenariosService {
    * Seed default scenarios for demo
    */
   async seedDefaultScenarios(): Promise<void> {
-    const count = await this.scenarioRepo.count();
-    if (count > 0) return;
+    const existing = await this.scenarioRepo.find({ select: ['name'] });
+    const existingNames = new Set(existing.map(s => s.name));
 
     const defaultScenarios = [
       {
-        name: 'Basic Training - Ineffective Trigger',
-        description: 'Practice identifying and correcting ineffective trigger asynchrony',
-        initialResistance: 12,
-        initialCompliance: 40,
-        blocks: [
-          { id: 'b1', type: 'ASYNCHRONY' as const, startTime: 30, duration: 120, asynchronyType: 'INEFFECTIVE_TRIGGER' as AsynchronyType, description: '', parameterChanges: {} },
-        ],
-        durationSeconds: 180,
-      },
-      {
-        name: 'Double Trigger Challenge',
-        description: 'Identify and resolve double triggering',
-        initialResistance: 15,
-        initialCompliance: 30,
-        blocks: [
-          { id: 'b1', type: 'ASYNCHRONY' as const, startTime: 20, duration: 60, asynchronyType: 'DOUBLE_TRIGGER' as AsynchronyType, description: '', parameterChanges: {} },
-          { id: 'b2', type: 'ASYNCHRONY' as const, startTime: 100, duration: 60, asynchronyType: 'DOUBLE_TRIGGER' as AsynchronyType, description: '', parameterChanges: {} },
-        ],
-        durationSeconds: 180,
-      },
-      {
-        name: 'Mixed Asynchrony Scenario',
-        description: 'Handle multiple types of asynchrony',
+        name: 'Nieefektywny wyzwalacz',
+        description: 'Pacjent podejmuje wysiłek oddechowy, ale respirator go ignoruje z powodu zbyt wysokiego progu wyzwalania. Rozwiązanie: zmniejsz czułość triggera lub IPAP.',
         initialResistance: 10,
         initialCompliance: 50,
         blocks: [
-          { id: 'b1', type: 'ASYNCHRONY' as const, startTime: 30, duration: 45, asynchronyType: 'INEFFECTIVE_TRIGGER' as AsynchronyType, description: '', parameterChanges: {} },
-          { id: 'b2', type: 'ASYNCHRONY' as const, startTime: 90, duration: 45, asynchronyType: 'PREMATURE_CYCLING' as AsynchronyType, description: '', parameterChanges: {} },
-          { id: 'b3', type: 'ASYNCHRONY' as const, startTime: 150, duration: 45, asynchronyType: 'FLOW_MISMATCH' as AsynchronyType, description: '', parameterChanges: {} },
+          { id: 'b1', type: 'ASYNCHRONY' as const, startTime: 30, duration: 120, asynchronyType: 'INEFFECTIVE_TRIGGER' as AsynchronyType, description: 'Nieefektywny wyzwalacz — próg triggera za wysoki', parameterChanges: {} },
         ],
-        durationSeconds: 240,
+        durationSeconds: 180,
+      },
+      {
+        name: 'Podwójny wyzwalacz',
+        description: 'Ciśnienie spada w trakcie wdechu, co powoduje drugi cykl wyzwalania. Rozwiązanie: wydłuż czas wdechu (Ti).',
+        initialResistance: 10,
+        initialCompliance: 50,
+        blocks: [
+          { id: 'b1', type: 'ASYNCHRONY' as const, startTime: 30, duration: 120, asynchronyType: 'DOUBLE_TRIGGER' as AsynchronyType, description: 'Podwójny wyzwalacz — Pin spada do EPAP w trakcie wdechu', parameterChanges: {} },
+        ],
+        durationSeconds: 180,
+      },
+      {
+        name: 'Autowyzwalacz',
+        description: 'Respirator wyzwala oddechy z własną częstością, niezależnie od pacjenta. Rozwiązanie: zwiększ próg triggera (mniejsza czułość).',
+        initialResistance: 10,
+        initialCompliance: 50,
+        blocks: [
+          { id: 'b1', type: 'ASYNCHRONY' as const, startTime: 30, duration: 120, asynchronyType: 'AUTO_TRIGGER' as AsynchronyType, description: 'Autowyzwalacz — respirator oddycha z częstością 30/min', parameterChanges: {} },
+        ],
+        durationSeconds: 180,
+      },
+      {
+        name: 'Opóźnione przełączenie',
+        description: 'Respirator kontynuuje wdech po tym, jak pacjent zakończył fazę wdechową. Rozwiązanie: skróć czas wdechu (Ti).',
+        initialResistance: 10,
+        initialCompliance: 50,
+        blocks: [
+          { id: 'b1', type: 'ASYNCHRONY' as const, startTime: 30, duration: 120, asynchronyType: 'DELAYED_CYCLING' as AsynchronyType, description: 'Opóźnione przełączenie — krótki PTi pacjenta vs długi Ti respiratora', parameterChanges: {} },
+        ],
+        durationSeconds: 180,
+      },
+      {
+        name: 'Przedwczesne przełączenie',
+        description: 'Respirator przerywa wdech zanim pacjent zakończył fazę wdechową. Rozwiązanie: wydłuż czas wdechu (Ti).',
+        initialResistance: 10,
+        initialCompliance: 50,
+        blocks: [
+          { id: 'b1', type: 'ASYNCHRONY' as const, startTime: 30, duration: 120, asynchronyType: 'PREMATURE_CYCLING' as AsynchronyType, description: 'Przedwczesne przełączenie — długi PTi pacjenta vs krótki Ti respiratora', parameterChanges: {} },
+        ],
+        durationSeconds: 180,
+      },
+      {
+        name: 'Niedopasowanie przepływu',
+        description: 'Zbyt wolny wzrost ciśnienia — przepływ nie nadąża za zapotrzebowaniem pacjenta. Rozwiązanie: zwiększ IPAP.',
+        initialResistance: 10,
+        initialCompliance: 50,
+        blocks: [
+          { id: 'b1', type: 'ASYNCHRONY' as const, startTime: 30, duration: 120, asynchronyType: 'FLOW_MISMATCH' as AsynchronyType, description: 'Niedopasowanie przepływu — PressureRaiseT za duży', parameterChanges: {} },
+        ],
+        durationSeconds: 180,
+      },
+      {
+        name: 'Odwrócony wyzwalacz',
+        description: 'Wdech mechaniczny wywołuje odruchowy wysiłek mięśniowy pacjenta (zjawisko odwróconego wyzwalania). Scenariusz demonstracyjny.',
+        initialResistance: 10,
+        initialCompliance: 50,
+        blocks: [
+          { id: 'b1', type: 'ASYNCHRONY' as const, startTime: 30, duration: 120, asynchronyType: 'REVERSE_TRIGGER' as AsynchronyType, description: 'Odwrócony wyzwalacz — brak fizyki (placeholder)', parameterChanges: {} },
+        ],
+        durationSeconds: 180,
       },
     ];
 
     for (const scenario of defaultScenarios) {
-      await this.create(scenario);
+      if (!existingNames.has(scenario.name)) {
+        await this.create(scenario);
+      }
     }
   }
 }

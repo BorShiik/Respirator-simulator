@@ -35,8 +35,8 @@ cd trainer-ui && npm run lint
 
 Three independent packages (no monorepo tooling — each has its own `package.json`):
 
-### Split-backend design
-The backend has **two entry points** for distributed deployment on Raspberry Pi:
+### Backend design
+The backend has **two entry points** for distributed deployment on Raspberry Pi (no monolith — it was removed as broken and redundant):
 - `main-student.ts` — runs on each student RPi. Includes `SimulationModule`, `HardwareModule`, `StudentModule`. No database.
 - `main-trainer.ts` — runs on master RPi. Includes `ScenariosModule`, `SessionsModule`, `TrainerModule`. Uses SQLite (`respirator-trainer.db`).
 
