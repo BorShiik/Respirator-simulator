@@ -13,7 +13,7 @@ export class StudentController {
   @HttpCode(200)
   async handleCommand(
     @Param('studentName') studentName: string,
-    @Body() body: { command: 'start' | 'stop' | 'reset'; scenarioId?: string },
+    @Body() body: { command: 'start' | 'stop' | 'reset' | 'pause' | 'continue'; scenarioId?: string },
   ) {
     this.logger.log(`Received command ${body.command} for student ${studentName}`);
 
@@ -28,6 +28,13 @@ export class StudentController {
 
       case 'reset':
         this.studentUiGateway.resetSimulation();
+        break;
+      case 'pause':
+        this.studentUiGateway.pauseSimulation();
+        break;
+
+      case 'continue':
+        this.studentUiGateway.resumeSimulation();
         break;
     }
 

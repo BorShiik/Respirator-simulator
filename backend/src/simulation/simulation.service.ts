@@ -144,6 +144,61 @@ export class SimulationService extends EventEmitter {
   }
 
   /**
+   * Pause simulation for a station
+   */
+  pauseSimulation(stationId: string): void {
+    const interval = this.intervals.get(stationId);
+    if (interval) {
+      clearInterval(interval);
+      this.intervals.delete(stationId);
+    }
+  }
+
+  /**
+   * Resume simulation for a station
+   */
+  resumeSimulation(stationId: string): void {
+    if (this.intervals.has(stationId)) return;
+    const state = this.states.get(stationId);
+    if (!state) return;
+
+    const interval = setInterval(() => {
+      this.simulationTick(stationId);
+    }, this.DT * 1000);
+
+    this.intervals.set(stationId, interval);
+  }
+
+  /**
+   * Reset simulation for a station without changing scenario or settings
+   */
+  resetSimulation(stationId: string): void {
+    const state = this.states.get(stationId);
+    if (!state) return;
+
+    // Reset physics and time
+    this.leakingBreathCPAPSTInit(state, true);
+    state.totalTime = 0;
+    state.breathCount = 0;
+    state.pressureBuffer = [];
+    state.flowBuffer = [];
+    state.volumeBuffer = [];
+
+    // Reset scenario blocks so they can be re-applied
+    if (state.scenarioBlocks) {
+      for (const block of state.scenarioBlocks) {
+        block._applied = false;
+        block._resolved = false;
+      }
+    }
+
+    // Clear any active asynchrony so it can be re-triggered by the timeline
+    if (state.asynchrony.active) {
+       this.injectAsynchrony(stationId, null);
+    }
+  }
+
+  /**
    * Update ventilator settings
    */
   updateSettings(stationId: string, settings: Partial<VentilatorSettings>): void {

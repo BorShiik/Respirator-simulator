@@ -44,6 +44,7 @@ export interface Station {
 export interface StationLiveStatus {
   stationId: string;
   status: StationStatus;
+  isRunning?: boolean;
   settings: VentilatorSettings | null;
   asynchrony: AsynchronyStatus | null;
   pressure: number[];
@@ -120,7 +121,7 @@ export interface TrainerWebSocketMessage {
   station?: StationLiveStatus;
 }
 
-export type CommandType = 'start' | 'stop' | 'reset';
+export type CommandType = 'reset' | 'pause' | 'continue';
 
 export interface CommandRequest {
   command: CommandType;

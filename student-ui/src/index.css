@@ -61,6 +61,10 @@
     @apply bg-clinical-warning text-white hover:bg-amber-600 focus:ring-clinical-warning;
   }
   
+  .control-button-success {
+    @apply bg-green-600 text-white hover:bg-green-700 focus:ring-green-500;
+  }
+  
   .chart-container {
     @apply bg-clinical-panel rounded-lg border border-clinical-border p-2 shadow-sm;
   }

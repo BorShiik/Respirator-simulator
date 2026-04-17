@@ -43,6 +43,7 @@ function generateMockStations(): StationLiveStatus[] {
       volume: isOnline ? Array.from({ length: 20 }, () => Math.random() * 500) : [],
       scenarioName: isOnline ? 'Mock Scenario' : undefined,
       lastUpdate: Date.now(),
+      isRunning: isOnline,
     });
   }
   
@@ -107,6 +108,7 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
               flow: Array.from({ length: 20 }, () => -10 + Math.random() * 50),
               volume: Array.from({ length: 20 }, () => Math.random() * 500),
               lastUpdate: Date.now(),
+              isRunning: true,
             });
           }
         });
@@ -185,7 +187,7 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
           } else if (message.type === 'stationUpdate' && message.station) {
             setStationsMap(prev => {
               const newMap = new Map(prev);
-              const s = message.station!;
+              const s = message.station!; console.log('StationUpdate:', s);
               const existing = newMap.get(s.stationId);
               
               let pressureHistory = existing ? existing.pressure : [];

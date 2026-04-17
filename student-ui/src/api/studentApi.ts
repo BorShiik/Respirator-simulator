@@ -60,9 +60,9 @@ export const studentApi = {
   sendCommand,
   getWebSocketUrl,
   
-  start: (studentName: string) => sendCommand(studentName, 'start'),
-  stop: (studentName: string) => sendCommand(studentName, 'stop'),
   reset: (studentName: string) => sendCommand(studentName, 'reset'),
+  pause: (studentName: string) => sendCommand(studentName, 'pause'),
+  continue: (studentName: string) => sendCommand(studentName, 'continue'),
 };
 
 export default studentApi;

@@ -115,7 +115,7 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
   const [selectedParameter, setSelectedParameter] = useState<ParameterKey | null>(null);
   const [localSettings, setLocalSettings] = useState<VentilatorSettings>(DEFAULT_SETTINGS);
   
-  const { telemetry, connectionStatus, isRegistered, logout, updateSettings, selectParameter, externalSelectedParameter } = useStudentWebSocket(studentName, localSettings);
+  const { telemetry, connectionStatus, isRegistered, logout, updateSettings, selectParameter, externalSelectedParameter, simulationStatus } = useStudentWebSocket(studentName, localSettings);
 
   // Синхронизация с настройками от сервера (если не в mock режиме)
   useEffect(() => {
@@ -221,6 +221,7 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
           connectionStatus={connectionStatus}
           isRegistered={isRegistered}
           onLogout={handleLogout}
+          simulationStatus={simulationStatus}
         />
       }
     />

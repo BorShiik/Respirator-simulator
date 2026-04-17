@@ -95,6 +95,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
          this.studentStates.set(msg.studentName, {
             studentName: msg.studentName,
             status: 'online',
+            simulationStatus: 'running',
             lastUpdate: Date.now(),
             telemetry: null
          });
@@ -126,6 +127,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
                  stationId: client.studentName,
                  studentName: client.studentName,
                  status: state.status,
+                 isRunning: state.simulationStatus !== 'paused',
                  scenarioName: state.telemetry.scenarioName,
                  settings: state.telemetry.settings,
                  asynchrony: state.telemetry.asynchrony,
@@ -135,6 +137,16 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
                  lastUpdate: state.lastUpdate,
               }
             });
+         }
+         return;
+      }
+
+      // 2b. Handle direct simulation active status updates
+      if (msg.type === 'remote_student_status' && client.isRemoteStudent) {
+         const state = this.studentStates.get(msg.studentName);
+         if (state) {
+            state.simulationStatus = msg.status;
+            this.notifyStudentChange();
          }
          return;
       }
@@ -243,7 +255,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
         stationId: state.studentName, // frontend expects stationId
         studentName: state.studentName,
         isRegistered: true,
-        isRunning: state.status === 'online', // simplification
+        isRunning: state.simulationStatus !== 'paused',
         status: state.status,
         scenarioName: state.telemetry?.scenarioName || null,
         settings: state.telemetry?.settings || null,

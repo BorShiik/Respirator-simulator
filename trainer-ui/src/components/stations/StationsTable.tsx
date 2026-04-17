@@ -10,7 +10,7 @@ interface StationsTableProps {
 export function StationsTable({ stations }: StationsTableProps) {
   const [loadingCommand, setLoadingCommand] = useState<{ stationId: string; command: string } | null>(null);
 
-  const handleCommand = async (stationId: string, command: 'start' | 'stop' | 'reset') => {
+  const handleCommand = async (stationId: string, command: 'pause' | 'continue' | 'reset') => {
     setLoadingCommand({ stationId, command });
     try {
       await trainerApi.sendCommand(stationId, command);
@@ -112,29 +112,19 @@ export function StationsTable({ stations }: StationsTableProps) {
                     {station.status === 'online' && (
                       <>
                         <button
-                          onClick={() => handleCommand(station.stationId, 'start')}
+                          onClick={() => handleCommand(station.stationId, station.isRunning ? 'pause' : 'continue')}
                           disabled={loadingCommand?.stationId === station.stationId}
-                          className="admin-btn admin-btn-success admin-btn-sm"
+                          className={`admin-btn admin-btn-sm ${station.isRunning ? 'admin-btn-warning' : 'admin-btn-success'}`}
                         >
                           {loadingCommand?.stationId === station.stationId &&
-                          loadingCommand?.command === 'start'
+                          loadingCommand?.command === (station.isRunning ? 'pause' : 'continue')
                             ? '...'
-                            : 'Start'}
-                        </button>
-                        <button
-                          onClick={() => handleCommand(station.stationId, 'stop')}
-                          disabled={loadingCommand?.stationId === station.stationId}
-                          className="admin-btn admin-btn-danger admin-btn-sm"
-                        >
-                          {loadingCommand?.stationId === station.stationId &&
-                          loadingCommand?.command === 'stop'
-                            ? '...'
-                            : 'Stop'}
+                            : (station.isRunning ? 'Pause' : 'Continue')}
                         </button>
                         <button
                           onClick={() => handleCommand(station.stationId, 'reset')}
                           disabled={loadingCommand?.stationId === station.stationId}
-                          className="admin-btn admin-btn-warning admin-btn-sm"
+                          className="admin-btn admin-btn-danger admin-btn-sm"
                         >
                           {loadingCommand?.stationId === station.stationId &&
                           loadingCommand?.command === 'reset'

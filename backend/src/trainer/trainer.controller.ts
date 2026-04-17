@@ -22,13 +22,13 @@ export class TrainerController {
   @HttpCode(200)
   async commandStudent(
     @Param('studentName') studentName: string,
-    @Body() body: { command: 'start' | 'stop' | 'reset'; scenarioId?: string },
+    @Body() body: { command: 'reset' | 'pause' | 'continue'; scenarioId?: string },
   ) {
     // Send command to remote student via websocket
     this.trainerGateway.sendCommandToStudent(studentName, body.command, { scenarioId: body.scenarioId });
     
     // If starting a simulation, change the pending session for this station to running to start analytics logic
-    if (body.command === 'start') {
+    if (body.command === 'continue') {
         const pendingSession = await this.sessionsService.findPendingSession(studentName);
         if (pendingSession) {
             await this.sessionsService.start(pendingSession.id);
@@ -45,11 +45,8 @@ export class TrainerController {
                 await this.sessionsService.start(newSession.id);
             }
         }
-    } else if (body.command === 'stop') {
-        const activeSession = await this.sessionsService.findActiveSession(studentName);
-        if (activeSession) {
-            await this.sessionsService.complete(activeSession.id, activeSession.initialSettings);
-        }
+    } else if (body.command === 'pause') {
+        // We do not complete the active session on pause so they can continue later
     }
 
     return {

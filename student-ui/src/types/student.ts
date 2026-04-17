@@ -97,7 +97,7 @@ export type WebSocketMessage =
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 
-export type CommandType = 'start' | 'stop' | 'reset';
+export type CommandType = 'reset' | 'pause' | 'continue';
 
 export interface CommandRequest {
   command: CommandType;
