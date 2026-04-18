@@ -168,3 +168,6 @@ vite.config.ts.timestamp-*
 
 # Database
 *.db
+
+
+*.DS_Store
