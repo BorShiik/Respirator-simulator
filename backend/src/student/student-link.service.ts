@@ -18,9 +18,14 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
   private isConnected = false;
   
   public currentStudentName: string | null = null;
+  public currentStationId: string | null = null;
 
   constructor(private readonly simulationService: SimulationService) {
     super();
+  }
+
+  public setStationId(stationId: string) {
+    this.currentStationId = stationId;
   }
 
   onModuleInit() {
@@ -29,6 +34,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
        if (stationId === this.currentStudentName && this.ws?.readyState === WebSocket.OPEN) {
           this.ws.send(JSON.stringify({
              type: 'student_event',
+             stationId: this.currentStationId,
              studentName: this.currentStudentName,
              event: 'setting_change',
              parameter: param,
@@ -44,6 +50,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
        if (stationId === this.currentStudentName && this.ws?.readyState === WebSocket.OPEN) {
           this.ws.send(JSON.stringify({
              type: 'student_event',
+             stationId: this.currentStationId,
              studentName: this.currentStudentName,
              event: 'asynchrony_injected',
              asynchronyType: type
@@ -55,6 +62,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
        if (stationId === this.currentStudentName && this.ws?.readyState === WebSocket.OPEN) {
           this.ws.send(JSON.stringify({
              type: 'student_event',
+             stationId: this.currentStationId,
              studentName: this.currentStudentName,
              event: 'asynchrony_resolved',
              asynchronyType: type
@@ -242,6 +250,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
       this.logger.log(`Registering student "${studentName}" with Trainer...`);
       this.ws.send(JSON.stringify({ 
         type: 'remote_student_register', 
+        stationId: this.currentStationId,
         studentName 
       }));
     } else {
@@ -253,6 +262,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentStudentName) {
       this.ws.send(JSON.stringify({
         type: 'remote_student_telemetry',
+        stationId: this.currentStationId,
         studentName: this.currentStudentName,
         telemetry
       }));
@@ -268,6 +278,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
       this.logger.log(`Notifying trainer: session started (${scenarioName})`);
       this.ws.send(JSON.stringify({
         type: 'student_session_start',
+        stationId: this.currentStationId,
         studentName: this.currentStudentName,
         scenarioName,
       }));
@@ -283,6 +294,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
       this.logger.log('Notifying trainer: session stopped');
       this.ws.send(JSON.stringify({
         type: 'student_session_stop',
+        stationId: this.currentStationId,
         studentName: this.currentStudentName,
       }));
     }
@@ -292,6 +304,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentStudentName) {
       this.ws.send(JSON.stringify({
         type: 'remote_student_status',
+        stationId: this.currentStationId,
         studentName: this.currentStudentName,
         status
       }));

@@ -21,10 +21,6 @@ export function StationsTable({ stations }: StationsTableProps) {
     }
   };
 
-  const formatStationName = (stationId: string) => {
-    return stationId.replace('station-', 'Station ');
-  };
-
   return (
     <div className="admin-card overflow-hidden">
       <table className="admin-table">
@@ -55,7 +51,7 @@ export function StationsTable({ stations }: StationsTableProps) {
                         station.status === 'online' ? 'status-dot-online' : 'status-dot-offline'
                       }`}
                     />
-                    <span className="font-medium">{formatStationName(station.stationId)}</span>
+                    <span className="font-medium">{station.stationId}</span>
                   </div>
                 </td>
                 <td>
@@ -72,10 +68,14 @@ export function StationsTable({ stations }: StationsTableProps) {
                   </span>
                 </td>
                 <td>
-                  <span className="text-admin-muted">Not assigned</span>
+                  <span className={station.studentName ? "font-medium" : "text-admin-muted"}>
+                    {station.studentName || 'Not assigned'}
+                  </span>
                 </td>
                 <td>
-                  <span className="text-admin-muted">No scenario</span>
+                  <span className={station.scenarioName ? "font-medium" : "text-admin-muted"}>
+                    {station.scenarioName || 'No scenario'}
+                  </span>
                 </td>
                 <td>
                   {station.status === 'online' && station.asynchrony ? (

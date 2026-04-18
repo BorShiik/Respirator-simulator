@@ -51,6 +51,7 @@ export interface StationLiveStatus {
   flow: number[];
   volume: number[];
   scenarioName?: string;
+  studentName?: string;
   lastUpdate: number;
 }
 

@@ -21,6 +21,7 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
   private readonly logger = new Logger(StudentUiGateway.name);
   private activeClients: Set<WebSocket> = new Set();
   private currentStudentName: string | null = null;
+  private currentStationId: string | null = null;
 
   constructor(
     private readonly simulationService: SimulationService,
@@ -158,6 +159,7 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
       
       case 'logout':
         this.currentStudentName = null;
+        this.currentStationId = null;
         this.broadcast({ type: 'loggedOut', status: 'idle' });
         break;
     }
@@ -165,10 +167,13 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
 
   public registerStudent(name: string) {
     this.currentStudentName = name;
+    // Generate a station ID like ST-1234
+    this.currentStationId = `ST-${Math.floor(Math.random() * 9000) + 1000}`;
     
     this.broadcast({ type: 'registered', studentName: name, status: 'idle' });
     
     // Register upstream
+    this.linkService.setStationId(this.currentStationId);
     this.linkService.registerWithMaster(name);
 
     // Start simulation automatically
