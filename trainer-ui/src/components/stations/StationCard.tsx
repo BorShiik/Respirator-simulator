@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   LineChart,
   Line,
@@ -11,6 +12,8 @@ interface StationCardProps {
 }
 
 export function StationCard({ station }: StationCardProps) {
+  const navigate = useNavigate();
+
   const chartData = useMemo(() => {
     return station.pressure.map((value, index) => ({
       index,
@@ -23,7 +26,18 @@ export function StationCard({ station }: StationCardProps) {
   };
 
   return (
-    <div className="admin-card p-4">
+    <div
+      className="admin-card p-4 cursor-pointer transition-shadow hover:shadow-lg hover:ring-2 hover:ring-admin-accent/30"
+      onClick={() => navigate(`/stations/${station.stationId}`)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          navigate(`/stations/${station.stationId}`);
+        }
+      }}
+    >
       <div className="flex items-start justify-between mb-4">
         <div>
           <h3 className="font-semibold text-admin-text">
