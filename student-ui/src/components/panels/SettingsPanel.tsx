@@ -26,6 +26,7 @@ interface SettingsPanelProps {
   settings: VentilatorSettings;
   selectedParameter: ParameterKey | null;
   onParameterSelect: (key: ParameterKey | null) => void;
+  isDisabled?: boolean;
 }
 
 interface ParameterDisplayProps {
@@ -33,21 +34,26 @@ interface ParameterDisplayProps {
   value: number;
   isSelected: boolean;
   onSelect: () => void;
+  isDisabled?: boolean;
 }
 
-function ParameterDisplay({ config, value, isSelected, onSelect }: ParameterDisplayProps) {
+function ParameterDisplay({ config, value, isSelected, onSelect, isDisabled }: ParameterDisplayProps) {
   const displayValue = config.decimals === 0 
     ? Math.round(value) 
     : value.toFixed(config.decimals);
 
   return (
     <div 
-      className={`parameter-card cursor-pointer transition-all duration-200 select-none
-        ${isSelected 
+      className={`parameter-card transition-all duration-200 select-none
+        ${isDisabled 
+          ? 'opacity-50 grayscale-[0.6] cursor-not-allowed pointer-events-none' 
+          : 'cursor-pointer hover:border-clinical-accent hover:border-opacity-50 active:scale-95'
+        }
+        ${isSelected && !isDisabled
           ? 'border-clinical-accent border-2 bg-blue-50 ring-2 ring-clinical-accent ring-opacity-50' 
-          : 'hover:border-clinical-accent hover:border-opacity-50 active:scale-95'
+          : ''
         }`}
-      onClick={onSelect}
+      onClick={isDisabled ? undefined : onSelect}
     >
       <div className="parameter-label mb-1">{config.label}</div>
       <div className="flex items-baseline">
@@ -65,9 +71,9 @@ function ParameterDisplay({ config, value, isSelected, onSelect }: ParameterDisp
   );
 }
 
-export function SettingsPanel({ settings, selectedParameter, onParameterSelect }: SettingsPanelProps) {
+export function SettingsPanel({ settings, selectedParameter, onParameterSelect, isDisabled }: SettingsPanelProps) {
   return (
-    <div className="flex flex-col h-full">
+    <div className={`flex flex-col h-full ${isDisabled ? 'pointer-events-none' : ''}`}>
       <div className="text-center mb-3">
         <span className="text-xs uppercase tracking-wider font-semibold text-clinical-muted">
           Tryb wentylacji
@@ -87,6 +93,7 @@ export function SettingsPanel({ settings, selectedParameter, onParameterSelect }
             onSelect={() => onParameterSelect(
               selectedParameter === config.key ? null : config.key
             )}
+            isDisabled={isDisabled}
           />
         ))}
       </div>

@@ -134,7 +134,7 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
   // Обработка клавиш ↑↓ для изменения параметров
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!selectedParameter) return;
+      if (!selectedParameter || simulationStatus === 'paused') return;
       
       const config = PARAMETER_CONFIGS.find(c => c.key === selectedParameter);
       if (!config) return;
@@ -174,7 +174,7 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedParameter, localSettings, updateSettings, selectParameter]);
+  }, [selectedParameter, localSettings, updateSettings, selectParameter, simulationStatus]);
 
   const pressure = telemetry?.pressure || [];
   const flow = telemetry?.flow || [];
@@ -198,6 +198,7 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
             setSelectedParameter(param);
             selectParameter(param);
           }}
+          isDisabled={simulationStatus === 'paused'}
         />
       }
       centerTop={
