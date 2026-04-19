@@ -4,7 +4,7 @@ import {
   Line,
   ResponsiveContainer,
 } from 'recharts';
-import { StationLiveStatus, MODE_LABELS, ASYNCHRONY_LABELS } from '../../types/trainer';
+import { StationLiveStatus, MODE_LABELS } from '../../types/trainer';
 
 interface StationCardProps {
   station: StationLiveStatus;
@@ -49,11 +49,7 @@ export function StationCard({ station }: StationCardProps) {
                 : 'bg-green-100 text-green-800'
             }`}
           >
-            {station.asynchrony.active
-              ? station.asynchrony.type
-                ? ASYNCHRONY_LABELS[station.asynchrony.type]
-                : 'Asynchronia'
-              : 'Synchronia'}
+            {station.asynchrony.active ? 'Asynchronia' : 'Synchronia'}
           </div>
         )}
       </div>

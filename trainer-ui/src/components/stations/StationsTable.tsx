@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { StationLiveStatus, ASYNCHRONY_LABELS } from '../../types/trainer';
+import { StationLiveStatus } from '../../types/trainer';
 import { trainerApi } from '../../api/trainerApi';
 import { useState } from 'react';
 
@@ -90,11 +90,7 @@ export function StationsTable({ stations }: StationsTableProps) {
                           station.asynchrony.active ? 'text-admin-danger font-medium' : 'text-admin-success'
                         }`}
                       >
-                        {station.asynchrony.active && station.asynchrony.type
-                          ? ASYNCHRONY_LABELS[station.asynchrony.type]
-                          : station.asynchrony.active
-                          ? 'Detected'
-                          : 'Synchrony'}
+                        {station.asynchrony.active ? 'Asynchronia' : 'Synchronia'}
                       </span>
                     </div>
                   ) : (
