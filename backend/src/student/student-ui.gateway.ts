@@ -84,6 +84,12 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
         this.logger.log('Trainer requested RESET');
         this.resetSimulation();
     });
+
+    this.linkService.on('station_id_updated', (stationId: string) => {
+        this.logger.log(`Confirmed Station ID from Trainer: ${stationId}`);
+        this.currentStationId = stationId;
+        this.broadcast({ type: 'registered', studentName: this.currentStudentName, stationId: this.currentStationId, status: 'idle' });
+    });
   }
 
   handleConnection(client: WebSocket) {
@@ -167,13 +173,13 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
 
   public registerStudent(name: string) {
     this.currentStudentName = name;
-    // Generate a station ID like ST-1234
-    this.currentStationId = `ST-${Math.floor(Math.random() * 9000) + 1000}`;
+    // We no longer generate a random station ID locally. 
+    // We wait for the Trainer to assign an incrementing numeric ID.
+    this.currentStationId = null; 
     
     this.broadcast({ type: 'registered', studentName: name, status: 'idle' });
     
-    // Register upstream
-    this.linkService.setStationId(this.currentStationId);
+    // Register upstream - Trainer will assign an ID and send it back
     this.linkService.registerWithMaster(name);
 
     // Start simulation automatically

@@ -31,6 +31,8 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
   private readonly logger = new Logger(TrainerGateway.name);
   private trainerClients: Set<ExtendedWebSocket> = new Set();
   private studentClients: Map<string, ExtendedWebSocket> = new Map();
+  private stationIdMapping: Map<string, string> = new Map(); // studentName -> numeric stationId
+  private nextStationId = 1;
 
   // Cache of latest student states received via telemetry
   private studentStates: Map<string, any> = new Map();
@@ -88,7 +90,16 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
       }
 
       if (msg.type === 'remote_student_register') {
-         const stationId = msg.stationId || msg.studentName;
+         // Assign numeric incrementing ID if not already mapped for this student name
+         let stationId = msg.stationId;
+         
+         // If we don't have a numeric ID for this student, assign one
+         // We use the student name as a key for consistency during reconnects
+         if (!this.stationIdMapping.has(msg.studentName)) {
+            this.stationIdMapping.set(msg.studentName, (this.nextStationId++).toString());
+         }
+         stationId = this.stationIdMapping.get(msg.studentName)!;
+
          client.isRemoteStudent = true;
          client.stationId = stationId;
          client.studentName = msg.studentName;
@@ -104,9 +115,9 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
             telemetry: null
          });
          
-         this.logger.log(`Registered remote student: ${msg.studentName} at ${stationId}`);
+         this.logger.log(`Registered remote student: ${msg.studentName} at station ${stationId}`);
          
-         // Send confirmation back to student
+         // Send confirmation back to student with the assigned ID
          this.sendToClient(client, {
             type: 'registration_success',
             studentName: msg.studentName,
