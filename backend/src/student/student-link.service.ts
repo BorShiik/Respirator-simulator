@@ -193,7 +193,11 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
       const msg = JSON.parse(rawData);
       
       if (msg.type === 'registration_success') {
-          this.logger.log(`Successfully registered as ${msg.studentName} on Trainer`);
+          this.logger.log(`Successfully registered as ${msg.studentName} on Trainer (Assigned Station ID: ${msg.stationId})`);
+          if (msg.stationId) {
+             this.currentStationId = msg.stationId;
+             this.emit('station_id_updated', msg.stationId);
+          }
           return;
       }
 

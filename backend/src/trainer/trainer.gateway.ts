@@ -31,6 +31,8 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
   private readonly logger = new Logger(TrainerGateway.name);
   private trainerClients: Set<ExtendedWebSocket> = new Set();
   private studentClients: Map<string, ExtendedWebSocket> = new Map();
+  private stationIdMapping: Map<string, string> = new Map(); // studentName -> numeric stationId
+  private nextStationId = 1;
 
   // Cache of latest student states received via telemetry
   private studentStates: Map<string, any> = new Map();
@@ -88,7 +90,16 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
       }
 
       if (msg.type === 'remote_student_register') {
-         const stationId = msg.stationId || msg.studentName;
+         // Assign numeric incrementing ID if not already mapped for this student name
+         let stationId = msg.stationId;
+         
+         // If we don't have a numeric ID for this student, assign one
+         // We use the student name as a key for consistency during reconnects
+         if (!this.stationIdMapping.has(msg.studentName)) {
+            this.stationIdMapping.set(msg.studentName, (this.nextStationId++).toString());
+         }
+         stationId = this.stationIdMapping.get(msg.studentName)!;
+
          client.isRemoteStudent = true;
          client.stationId = stationId;
          client.studentName = msg.studentName;
@@ -100,13 +111,15 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
             studentName: msg.studentName,
             status: 'online',
             simulationStatus: 'running',
+            assignedAsynchronyType: null,
+            scenarioName: null,
             lastUpdate: Date.now(),
             telemetry: null
          });
          
-         this.logger.log(`Registered remote student: ${msg.studentName} at ${stationId}`);
+         this.logger.log(`Registered remote student: ${msg.studentName} at station ${stationId}`);
          
-         // Send confirmation back to student
+         // Send confirmation back to student with the assigned ID
          this.sendToClient(client, {
             type: 'registration_success',
             studentName: msg.studentName,
@@ -133,12 +146,13 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
                  studentName: client.studentName,
                  status: state.status,
                  isRunning: state.simulationStatus !== 'paused',
-                 scenarioName: state.telemetry.scenarioName,
+                 scenarioName: state.scenarioName || state.telemetry.scenarioName,
                  settings: state.telemetry.settings,
                  asynchrony: state.telemetry.asynchrony,
                  pressure: state.telemetry.pressure,
                  flow: state.telemetry.flow,
                  volume: state.telemetry.volume,
+                 assignedAsynchronyType: state.assignedAsynchronyType,
                  lastUpdate: state.lastUpdate,
               }
             });
@@ -160,6 +174,11 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
       if (client.isTrainer && msg.type === 'trainer_command') {
          // Intercept asynchrony commands to log them into Analytics
          if (msg.payload && msg.payload.type === 'set_asynchrony') {
+             const state = this.studentStates.get(msg.targetStudent);
+             if (state) {
+                state.assignedAsynchronyType = msg.payload.asynchronyType;
+             }
+
              const act = async () => {
                  const activeSession = await this.sessionsService.findActiveSession(msg.targetStudent);
                  if (activeSession) {
@@ -193,7 +212,11 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
                  } else if (msg.event === 'asynchrony_resolved') {
                      await this.sessionsService.logAsynchronyEnd(activeSession.id, msg.asynchronyType);
                  } else if (msg.event === 'asynchrony_injected') {
-                     await this.sessionsService.logAsynchronyStart(activeSession.id, msg.asynchronyType);
+                      const state = this.studentStates.get(client.stationId!);
+                      if (state) {
+                         state.assignedAsynchronyType = msg.asynchronyType;
+                      }
+                      await this.sessionsService.logAsynchronyStart(activeSession.id, msg.asynchronyType);
                  }
              }
          };
@@ -263,12 +286,13 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
         isRegistered: true,
         isRunning: state.simulationStatus !== 'paused',
         status: state.status,
-        scenarioName: state.telemetry?.scenarioName || null,
+        scenarioName: state.scenarioName || state.telemetry?.scenarioName || null,
         settings: state.telemetry?.settings || null,
         asynchrony: state.telemetry?.asynchrony || null,
         pressure: state.telemetry?.pressure || [],
         volume: state.telemetry?.volume || [],
         flow: state.telemetry?.flow || [],
+        assignedAsynchronyType: state.assignedAsynchronyType || null,
         lastUpdate: state.lastUpdate,
     }));
   }
@@ -296,6 +320,11 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
   // Called locally by ScenariosService or SessionsService when Trainer initiates a scenario change etc.
   public sendCommandToStudent(stationId: string, command: string, payload: any) {
       if (command === 'set_asynchrony') {
+          const state = this.studentStates.get(stationId);
+          if (state) {
+              state.assignedAsynchronyType = payload.asynchronyType;
+          }
+
           const act = async () => {
               const activeSession = await this.sessionsService.findActiveSession(stationId);
               if (activeSession) {
@@ -303,6 +332,13 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
               }
           };
           act().catch(e => console.error('Failed to log asynchrony from sendCommand', e));
+      }
+
+      if (payload.scenarioName) {
+          const state = this.studentStates.get(stationId);
+          if (state) {
+              state.scenarioName = payload.scenarioName;
+          }
       }
 
       const target = this.studentClients.get(stationId);

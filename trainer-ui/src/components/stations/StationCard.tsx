@@ -1,16 +1,19 @@
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   LineChart,
   Line,
   ResponsiveContainer,
 } from 'recharts';
-import { StationLiveStatus, MODE_LABELS, ASYNCHRONY_LABELS } from '../../types/trainer';
+import { StationLiveStatus, MODE_LABELS } from '../../types/trainer';
 
 interface StationCardProps {
   station: StationLiveStatus;
 }
 
 export function StationCard({ station }: StationCardProps) {
+  const navigate = useNavigate();
+
   const chartData = useMemo(() => {
     return station.pressure.map((value, index) => ({
       index,
@@ -23,11 +26,27 @@ export function StationCard({ station }: StationCardProps) {
   };
 
   return (
-    <div className="admin-card p-4">
+    <div
+      className="admin-card p-4 cursor-pointer transition-shadow hover:shadow-lg hover:ring-2 hover:ring-admin-accent/30"
+      onClick={() => navigate(`/stations/${station.stationId}`)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          navigate(`/stations/${station.stationId}`);
+        }
+      }}
+    >
       <div className="flex items-start justify-between mb-4">
         <div>
           <h3 className="font-semibold text-admin-text">
             {formatStationName(station.stationId)}
+            {station.studentName && (
+              <span className="ml-2 text-admin-muted font-normal">
+                - {station.studentName}
+              </span>
+            )}
           </h3>
           <div className="flex items-center gap-2 mt-1">
             <span
@@ -49,11 +68,7 @@ export function StationCard({ station }: StationCardProps) {
                 : 'bg-green-100 text-green-800'
             }`}
           >
-            {station.asynchrony.active
-              ? station.asynchrony.type
-                ? ASYNCHRONY_LABELS[station.asynchrony.type]
-                : 'Asynchronia'
-              : 'Synchronia'}
+            {station.asynchrony.active ? 'Asynchronia' : 'Synchronia'}
           </div>
         )}
       </div>
@@ -81,10 +96,18 @@ export function StationCard({ station }: StationCardProps) {
             </div>
           </div>
 
-          <div className="mb-2">
-            <div className="text-xs text-admin-muted mb-1">Tryb</div>
-            <div className="text-sm font-medium">
-              {MODE_LABELS[station.settings.mode]}
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <div>
+              <div className="text-xs text-admin-muted mb-1">Tryb</div>
+              <div className="text-sm font-medium">
+                {MODE_LABELS[station.settings.mode]}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-admin-muted mb-1">Scenariusz</div>
+              <div className="text-sm font-medium">
+                {station.scenarioName || 'Brak'}
+              </div>
             </div>
           </div>
 
