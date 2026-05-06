@@ -171,3 +171,7 @@ vite.config.ts.timestamp-*
 
 
 *.DS_Store
+
+# Kiosk launcher
+.chromium-kiosk/
+logs/
