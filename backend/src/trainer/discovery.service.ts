@@ -40,19 +40,33 @@ export class DiscoveryService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Get all non-internal IPv4 addresses of this machine
+   * Get all non-internal IPv4 interfaces with their calculated broadcast addresses
    */
-  private getLocalIPs(): string[] {
+  private getLocalInterfaces(): { ip: string, broadcast: string }[] {
     const interfaces = os.networkInterfaces();
-    const ips: string[] = [];
+    const results: { ip: string, broadcast: string }[] = [];
+    
+    const getBroadcast = (ip: string, netmask: string) => {
+      const ipParts = ip.split('.').map(Number);
+      const maskParts = netmask.split('.').map(Number);
+      return ipParts.map((part, i) => part | (~maskParts[i] & 255)).join('.');
+    };
+
     for (const name of Object.keys(interfaces)) {
       for (const iface of interfaces[name] || []) {
         if (iface.family === 'IPv4' && !iface.internal) {
-          ips.push(iface.address);
+          results.push({
+            ip: iface.address,
+            broadcast: getBroadcast(iface.address, iface.netmask)
+          });
         }
       }
     }
-    return ips;
+    // Always append localhost as a fallback for local development
+    if (!results.some(r => r.ip === '127.0.0.1')) {
+      results.push({ ip: '127.0.0.1', broadcast: '127.255.255.255' });
+    }
+    return results;
   }
 
   private startBroadcasting() {
@@ -67,33 +81,35 @@ export class DiscoveryService implements OnModuleInit, OnModuleDestroy {
       this.socket!.setBroadcast(true);
 
       const port = process.env.PORT || 8081;
-      const ips = this.getLocalIPs();
+      const ifaces = this.getLocalInterfaces();
 
-      if (ips.length === 0) {
+      if (ifaces.length === 0) {
         this.logger.warn('No network interfaces found! Discovery beacon will not work.');
         return;
       }
 
       this.logger.log(`📡 Trainer discovery beacon started`);
       this.logger.log(`   Broadcasting on UDP port ${DISCOVERY_PORT} every ${BEACON_INTERVAL_MS / 1000}s`);
-      this.logger.log(`   Trainer IPs: ${ips.join(', ')}`);
+      this.logger.log(`   Trainer IPs: ${ifaces.map(i => i.ip).join(', ')}`);
 
       // Send first beacon immediately
-      this.sendBeacon(ips, port);
+      this.sendBeacon(ifaces, port);
 
       // Then every BEACON_INTERVAL_MS
       this.interval = setInterval(() => {
         // Re-read IPs in case network changes
-        const currentIPs = this.getLocalIPs();
-        if (currentIPs.length > 0) {
-          this.sendBeacon(currentIPs, port);
+        const currentIfaces = this.getLocalInterfaces();
+        if (currentIfaces.length > 0) {
+          this.sendBeacon(currentIfaces, port);
         }
       }, BEACON_INTERVAL_MS);
     });
   }
 
-  private sendBeacon(ips: string[], port: string | number) {
-    const primaryIP = ips[0];
+  private sendBeacon(ifaces: { ip: string, broadcast: string }[], port: string | number) {
+    const primaryIP = ifaces[0].ip;
+    const ips = ifaces.map(i => i.ip);
+
     const beacon = JSON.stringify({
       type: 'trainer_beacon',
       wsUrl: `ws://${primaryIP}:${port}/api/trainer/ws`,
@@ -105,11 +121,21 @@ export class DiscoveryService implements OnModuleInit, OnModuleDestroy {
 
     const message = Buffer.from(beacon);
 
-    // Send to broadcast address
+    // 1. Send to global broadcast address
     this.socket!.send(message, 0, message.length, DISCOVERY_PORT, '255.255.255.255', (err) => {
       if (err) {
-        this.logger.error(`Beacon send error: ${err.message}`);
+        this.logger.error(`Beacon send error (global): ${err.message}`);
       }
     });
+
+    // 2. Send to specific subnet broadcasts (Fixes Windows routing to wrong interface)
+    for (const iface of ifaces) {
+      if (iface.broadcast !== '255.255.255.255') {
+        this.socket!.send(message, 0, message.length, DISCOVERY_PORT, iface.broadcast, () => {});
+      }
+    }
+
+    // 3. Also send specifically to localhost to ensure local development works
+    this.socket!.send(message, 0, message.length, DISCOVERY_PORT, '127.0.0.1', () => {});
   }
 }
