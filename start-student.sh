@@ -112,6 +112,18 @@ wait_for_port() {
 log "🩺 Respirator Simulator — Student Station"
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
+# Очистка портов от старых (зависших) процессов
+log "Checking if ports $BACKEND_PORT and $FRONTEND_PORT are clear..."
+if command -v fuser &>/dev/null; then
+    fuser -k -15 ${BACKEND_PORT}/tcp &>/dev/null || true
+    fuser -k -15 ${FRONTEND_PORT}/tcp &>/dev/null || true
+    sleep 1 # Даем процессам время на корректное завершение
+else
+    # Резервный вариант, если fuser не установлен
+    killall node 2>/dev/null || true
+    sleep 1
+fi
+
 # Check Node.js
 if ! command -v node &>/dev/null; then
     err "Node.js is not installed. Install Node 20+ first."
