@@ -160,7 +160,7 @@ fi
 
 # ── 1. Start backend ────────────────────────────────────────
 log "Starting student backend on port $BACKEND_PORT..."
-(cd "$BACKEND_DIR" && PORT=$BACKEND_PORT TRAINER_URL="${TRAINER_URL:-}" npm run start:student:dev) >> "$BACKEND_LOG" 2>&1 &
+(cd "$BACKEND_DIR" && PORT=$BACKEND_PORT TRAINER_URL="${TRAINER_URL:-}" npm run start:student) >> "$BACKEND_LOG" 2>&1 &
 BACKEND_PID=$!
 log "Backend PID: $BACKEND_PID  (log: $BACKEND_LOG)"
 
