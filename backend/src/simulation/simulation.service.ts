@@ -638,11 +638,40 @@ export class SimulationService extends EventEmitter {
                     ...iterBlock.parameterChanges
                  };
              }
+             // Core patient parameters
              if (iterBlock.compliance !== undefined) {
                  state.patient.compliance = Math.max(1, iterBlock.compliance);
              }
              if (iterBlock.resistance !== undefined) {
                  state.patient.resistance = Math.max(0.5, iterBlock.resistance);
+             }
+             // ILSim patient parameters
+             if (iterBlock.rin !== undefined) {
+                 state.patient.rin = Math.max(0.1, iterBlock.rin);
+             }
+             if (iterBlock.rout !== undefined) {
+                 state.patient.rout = Math.max(0.1, iterBlock.rout);
+             }
+             if (iterBlock.p01 !== undefined) {
+                 state.patient.p01 = Math.max(0, iterBlock.p01);
+             }
+             if (iterBlock.Tcykl !== undefined) {
+                 state.patient.Tcykl = Math.max(0.5, iterBlock.Tcykl);
+             }
+             if (iterBlock.PTi !== undefined) {
+                 state.patient.PTi = Math.max(0, iterBlock.PTi);
+             }
+             if (iterBlock.PriorityPR !== undefined) {
+                 state.patient.PriorityPR = Math.max(0, iterBlock.PriorityPR);
+             }
+             if (iterBlock.PressureRaiseT !== undefined) {
+                 state.patient.PressureRaiseT = Math.max(0, iterBlock.PressureRaiseT);
+             }
+             if (iterBlock.DoubleTriggeringTime !== undefined) {
+                 state.patient.DoubleTriggeringTime = Math.max(0, iterBlock.DoubleTriggeringTime);
+             }
+             if (iterBlock.knobDisable !== undefined) {
+                 state.patient.knobDisable = iterBlock.knobDisable;
              }
              iterBlock._applied = true;
          }

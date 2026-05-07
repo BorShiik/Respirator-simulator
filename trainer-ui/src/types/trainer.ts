@@ -68,6 +68,28 @@ export interface ScenarioBlock {
   asynchronyType?: AsynchronyType;
   resistance?: number;
   compliance?: number;
+  // Patient parameters (ILSim-style)
+  rin?: number;
+  rout?: number;
+  p01?: number;
+  Tcykl?: number;
+  PTi?: number;
+  PriorityPR?: number;
+  PressureRaiseT?: number;
+  DoubleTriggeringTime?: number;
+  knobDisable?: boolean;
+}
+
+export interface PatientParams {
+  rin: number;
+  rout: number;
+  p01: number;
+  Tcykl: number;
+  PTi: number;
+  PriorityPR: number;
+  PressureRaiseT: number;
+  DoubleTriggeringTime: number;
+  knobDisable: boolean;
 }
 
 export interface Scenario {
@@ -79,6 +101,7 @@ export interface Scenario {
   initialSettings: VentilatorSettings;
   initialResistance: number;
   initialCompliance: number;
+  initialPatientParams: PatientParams;
   blocks: ScenarioBlock[];
   createdAt: number;
   updatedAt: number;
@@ -190,6 +213,18 @@ export const DEFAULT_SETTINGS: VentilatorSettings = {
   mode: 'PC-CMV',
 };
 
+export const DEFAULT_PATIENT_PARAMS: PatientParams = {
+  rin: 1,
+  rout: 20,
+  p01: 0,
+  Tcykl: 3.0,
+  PTi: 1.0,
+  PriorityPR: 0,
+  PressureRaiseT: 0,
+  DoubleTriggeringTime: 0,
+  knobDisable: false,
+};
+
 export const DEFAULT_SCENARIO: Omit<Scenario, 'id' | 'createdAt' | 'updatedAt'> = {
   name: '',
   description: '',
@@ -198,5 +233,6 @@ export const DEFAULT_SCENARIO: Omit<Scenario, 'id' | 'createdAt' | 'updatedAt'> 
   initialSettings: DEFAULT_SETTINGS,
   initialResistance: 10,
   initialCompliance: 50,
+  initialPatientParams: DEFAULT_PATIENT_PARAMS,
   blocks: [],
 };

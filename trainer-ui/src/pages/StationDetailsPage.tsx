@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import { useTrainerWebSocket } from '../hooks/useTrainerWebSocket';
 import { trainerApi } from '../api/trainerApi';
-import { Scenario, MODE_LABELS, ASYNCHRONY_LABELS } from '../types/trainer';
+import { Scenario, MODE_LABELS, ASYNCHRONY_LABELS, DEFAULT_PATIENT_PARAMS } from '../types/trainer';
 
 export function StationDetailsPage() {
   const { stationId } = useParams<{ stationId: string }>();
@@ -42,6 +42,7 @@ export function StationDetailsPage() {
             },
             initialResistance: 10,
             initialCompliance: 50,
+            initialPatientParams: { ...DEFAULT_PATIENT_PARAMS },
             blocks: [],
             createdAt: Date.now(),
             updatedAt: Date.now(),
@@ -57,6 +58,7 @@ export function StationDetailsPage() {
             },
             initialResistance: 15,
             initialCompliance: 40,
+            initialPatientParams: { ...DEFAULT_PATIENT_PARAMS, p01: 2 },
             blocks: [],
             createdAt: Date.now(),
             updatedAt: Date.now(),

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { ScenarioList } from '../components/scenarios/ScenarioList';
 import { ScenarioEditor } from '../components/scenarios/ScenarioEditor';
 import { trainerApi } from '../api/trainerApi';
-import { Scenario } from '../types/trainer';
+import { Scenario, DEFAULT_PATIENT_PARAMS } from '../types/trainer';
 
 export function ScenariosPage() {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
@@ -33,6 +33,7 @@ export function ScenariosPage() {
           },
           initialResistance: 10,
           initialCompliance: 50,
+          initialPatientParams: { ...DEFAULT_PATIENT_PARAMS, p01: 2, Tcykl: 2.8 },
           blocks: [
             { id: 'b1', type: 'NORMAL', startTime: 0, duration: 120, description: 'Initial Phase', parameterChanges: {} },
             { id: 'b2', type: 'ASYNCHRONY', startTime: 120, duration: 60, description: 'Asynchrony Detection', parameterChanges: {}, asynchronyType: 'INEFFECTIVE_TRIGGER' },
@@ -52,6 +53,7 @@ export function ScenariosPage() {
           },
           initialResistance: 15,
           initialCompliance: 40,
+          initialPatientParams: { ...DEFAULT_PATIENT_PARAMS, p01: 2, Tcykl: 2.0 },
           blocks: [
             { id: 'b1', type: 'NORMAL', startTime: 0, duration: 60, description: 'Stabilization', parameterChanges: {} },
             { id: 'b2', type: 'ASYNCHRONY', startTime: 60, duration: 120, description: 'Ineffective Trigger', parameterChanges: {}, asynchronyType: 'INEFFECTIVE_TRIGGER' },
@@ -72,6 +74,7 @@ export function ScenariosPage() {
           },
           initialResistance: 20,
           initialCompliance: 35,
+          initialPatientParams: { ...DEFAULT_PATIENT_PARAMS, p01: 2, Tcykl: 2.0 },
           blocks: [
             { id: 'b1', type: 'NORMAL', startTime: 0, duration: 60, description: 'Calibration', parameterChanges: {} },
             { id: 'b2', type: 'ASYNCHRONY', startTime: 60, duration: 180, description: 'Delayed Cycling', parameterChanges: {}, asynchronyType: 'DELAYED_CYCLING' },

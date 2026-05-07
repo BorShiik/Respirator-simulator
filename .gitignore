@@ -167,4 +167,11 @@ vite.config.ts.timestamp-*
 .vite/
 
 # Database
-.db
+*.db
+
+
+*.DS_Store
+
+# Kiosk launcher
+.chromium-kiosk/
+logs/

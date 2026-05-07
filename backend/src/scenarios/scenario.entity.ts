@@ -13,6 +13,16 @@ export interface ScenarioBlock {
   asynchronyType?: AsynchronyType;
   resistance?: number;
   compliance?: number;
+  // Patient parameters (ILSim-style)
+  rin?: number;
+  rout?: number;
+  p01?: number;
+  Tcykl?: number;
+  PTi?: number;
+  PriorityPR?: number;
+  PressureRaiseT?: number;
+  DoubleTriggeringTime?: number;
+  knobDisable?: boolean;
 }
 
 @Entity('scenarios')
@@ -41,6 +51,9 @@ export class ScenarioEntity {
   @Column({ type: 'float', default: 50 })
   initialCompliance: number;
 
+  @Column({ type: 'simple-json', nullable: true })
+  initialPatientParams: Record<string, number | boolean> | null;
+
   @Column({ default: true })
   isActive: boolean;
 
@@ -50,3 +63,4 @@ export class ScenarioEntity {
   @UpdateDateColumn()
   updatedAt: Date;
 }
+
