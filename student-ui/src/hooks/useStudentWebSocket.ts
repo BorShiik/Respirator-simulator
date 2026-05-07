@@ -18,6 +18,7 @@ interface UseStudentWebSocketReturn {
   updateSettings: (settings: VentilatorSettings) => void;
   selectParameter: (param: string | null) => void;
   externalSelectedParameter: string | null;
+  simulationStatus: string | null;
 }
 
 const RECONNECT_DELAY = 3000;
@@ -50,6 +51,7 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
   const [isRegistered, setIsRegistered] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [externalSelectedParameter, setExternalSelectedParameter] = useState<string | null>(null);
+  const [simulationStatus, setSimulationStatus] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -164,10 +166,12 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
               break;
 
             case 'status':
-              // Reset chart buffers when simulation starts or stops
-              // This prevents stale data from the previous session
-              if (message.status === 'running' || message.status === 'stopped') {
+              // Reset chart buffers only on explicit reset
+              if (message.status === 'reset') {
                 resetRealBuffers();
+                setSimulationStatus('running');
+              } else {
+                setSimulationStatus(message.status);
               }
               break;
 
@@ -293,6 +297,7 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
     updateSettings,
     selectParameter,
     externalSelectedParameter,
+    simulationStatus,
   };
 }
 

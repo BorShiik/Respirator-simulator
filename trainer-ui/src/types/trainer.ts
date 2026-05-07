@@ -44,12 +44,15 @@ export interface Station {
 export interface StationLiveStatus {
   stationId: string;
   status: StationStatus;
+  isRunning?: boolean;
   settings: VentilatorSettings | null;
   asynchrony: AsynchronyStatus | null;
   pressure: number[];
   flow: number[];
   volume: number[];
   scenarioName?: string;
+  studentName?: string;
+  assignedAsynchronyType?: AsynchronyType | null;
   lastUpdate: number;
 }
 
@@ -143,7 +146,7 @@ export interface TrainerWebSocketMessage {
   station?: StationLiveStatus;
 }
 
-export type CommandType = 'start' | 'stop' | 'reset';
+export type CommandType = 'reset' | 'pause' | 'continue';
 
 export interface CommandRequest {
   command: CommandType;

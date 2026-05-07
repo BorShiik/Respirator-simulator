@@ -129,8 +129,8 @@ export const trainerApi = {
   getAllSessions,
   getTrainerWebSocketUrl,
   
-  startStation: (stationId: string) => sendCommand(stationId, 'start'),
-  stopStation: (stationId: string) => sendCommand(stationId, 'stop'),
+  pauseStation: (stationId: string) => sendCommand(stationId, 'pause'),
+  continueStation: (stationId: string) => sendCommand(stationId, 'continue'),
   resetStation: (stationId: string) => sendCommand(stationId, 'reset'),
 };
 

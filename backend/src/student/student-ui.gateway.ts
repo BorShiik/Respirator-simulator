@@ -21,6 +21,7 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
   private readonly logger = new Logger(StudentUiGateway.name);
   private activeClients: Set<WebSocket> = new Set();
   private currentStudentName: string | null = null;
+  private currentStationId: string | null = null;
 
   constructor(
     private readonly simulationService: SimulationService,
@@ -69,21 +70,25 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
     // Listen to trainer commands forwarded by StudentLinkService
     // This ensures start/stop/reset always use the unified callback
     // (which sends telemetry to both UI AND master)
-    this.linkService.on('trainer_start', () => {
-        this.logger.log('Trainer requested START');
-        if (!this.currentStudentName) return;
-        const state = this.simulationService.getState(this.currentStudentName);
-        this.startSimulation(state?.scenarioName || 'Free Practice');
+    this.linkService.on('trainer_continue', () => {
+        this.logger.log('Trainer requested CONTINUE');
+        this.resumeSimulation();
     });
 
-    this.linkService.on('trainer_stop', () => {
-        this.logger.log('Trainer requested STOP');
-        this.stopSimulation();
+    this.linkService.on('trainer_pause', () => {
+        this.logger.log('Trainer requested PAUSE');
+        this.pauseSimulation();
     });
 
     this.linkService.on('trainer_reset', () => {
         this.logger.log('Trainer requested RESET');
         this.resetSimulation();
+    });
+
+    this.linkService.on('station_id_updated', (stationId: string) => {
+        this.logger.log(`Confirmed Station ID from Trainer: ${stationId}`);
+        this.currentStationId = stationId;
+        this.broadcast({ type: 'registered', studentName: this.currentStudentName, stationId: this.currentStationId, status: 'idle' });
     });
   }
 
@@ -146,12 +151,21 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
         this.stopSimulation();
         break;
 
+      case 'pause':
+        this.pauseSimulation();
+        break;
+
+      case 'continue':
+        this.resumeSimulation();
+        break;
+
       case 'reset':
         this.resetSimulation();
         break;
       
       case 'logout':
         this.currentStudentName = null;
+        this.currentStationId = null;
         this.broadcast({ type: 'loggedOut', status: 'idle' });
         break;
     }
@@ -159,10 +173,13 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
 
   public registerStudent(name: string) {
     this.currentStudentName = name;
+    // We no longer generate a random station ID locally. 
+    // We wait for the Trainer to assign an incrementing numeric ID.
+    this.currentStationId = null; 
     
     this.broadcast({ type: 'registered', studentName: name, status: 'idle' });
     
-    // Register upstream
+    // Register upstream - Trainer will assign an ID and send it back
     this.linkService.registerWithMaster(name);
 
     // Start simulation automatically
@@ -190,6 +207,8 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
       studentName: name 
     });
 
+    this.linkService.sendSimulationStatusToMaster('running');
+
     // Notify trainer to create/start a session for analytics
     this.linkService.notifySessionStart(scenarioName);
   }
@@ -203,10 +222,38 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
     this.linkService.notifySessionStop();
   }
 
+  public pauseSimulation() {
+    if (!this.currentStudentName) return;
+    this.simulationService.pauseSimulation(this.currentStudentName);
+    this.broadcast({ type: 'status', status: 'paused' });
+    this.linkService.sendSimulationStatusToMaster('paused');
+  }
+
+  public resumeSimulation() {
+    if (!this.currentStudentName) return;
+    this.simulationService.resumeSimulation(this.currentStudentName);
+    const scenarioName = this.simulationService.getState(this.currentStudentName)?.scenarioName;
+    this.broadcast({ 
+      type: 'status', 
+      status: 'running', 
+      scenarioName: scenarioName || 'Free Practice', 
+      studentName: this.currentStudentName 
+    });
+    this.linkService.sendSimulationStatusToMaster('running');
+  }
+
   public resetSimulation() {
     if (!this.currentStudentName) return;
-    this.stopSimulation();
-    this.startSimulation('Free Practice');
+    this.simulationService.resetSimulation(this.currentStudentName);
+    this.simulationService.resumeSimulation(this.currentStudentName);
+    const scenarioName = this.simulationService.getState(this.currentStudentName)?.scenarioName;
+    this.broadcast({ 
+      type: 'status', 
+      status: 'reset', 
+      scenarioName: scenarioName || 'Free Practice', 
+      studentName: this.currentStudentName 
+    });
+    this.linkService.sendSimulationStatusToMaster('running');
   }
 
   private broadcast(message: any) {

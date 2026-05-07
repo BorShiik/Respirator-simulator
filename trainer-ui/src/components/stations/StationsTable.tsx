@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { StationLiveStatus, ASYNCHRONY_LABELS } from '../../types/trainer';
+import { StationLiveStatus } from '../../types/trainer';
 import { trainerApi } from '../../api/trainerApi';
 import { useState } from 'react';
 
@@ -10,7 +10,7 @@ interface StationsTableProps {
 export function StationsTable({ stations }: StationsTableProps) {
   const [loadingCommand, setLoadingCommand] = useState<{ stationId: string; command: string } | null>(null);
 
-  const handleCommand = async (stationId: string, command: 'start' | 'stop' | 'reset') => {
+  const handleCommand = async (stationId: string, command: 'pause' | 'continue' | 'reset') => {
     setLoadingCommand({ stationId, command });
     try {
       await trainerApi.sendCommand(stationId, command);
@@ -19,10 +19,6 @@ export function StationsTable({ stations }: StationsTableProps) {
     } finally {
       setLoadingCommand(null);
     }
-  };
-
-  const formatStationName = (stationId: string) => {
-    return stationId.replace('station-', 'Station ');
   };
 
   return (
@@ -55,7 +51,7 @@ export function StationsTable({ stations }: StationsTableProps) {
                         station.status === 'online' ? 'status-dot-online' : 'status-dot-offline'
                       }`}
                     />
-                    <span className="font-medium">{formatStationName(station.stationId)}</span>
+                    <span className="font-medium">{station.stationId}</span>
                   </div>
                 </td>
                 <td>
@@ -72,10 +68,14 @@ export function StationsTable({ stations }: StationsTableProps) {
                   </span>
                 </td>
                 <td>
-                  <span className="text-admin-muted">Not assigned</span>
+                  <span className={station.studentName ? "font-medium" : "text-admin-muted"}>
+                    {station.studentName || 'Not assigned'}
+                  </span>
                 </td>
                 <td>
-                  <span className="text-admin-muted">No scenario</span>
+                  <span className={station.scenarioName ? "font-medium" : "text-admin-muted"}>
+                    {station.scenarioName || 'No scenario'}
+                  </span>
                 </td>
                 <td>
                   {station.status === 'online' && station.asynchrony ? (
@@ -90,11 +90,7 @@ export function StationsTable({ stations }: StationsTableProps) {
                           station.asynchrony.active ? 'text-admin-danger font-medium' : 'text-admin-success'
                         }`}
                       >
-                        {station.asynchrony.active && station.asynchrony.type
-                          ? ASYNCHRONY_LABELS[station.asynchrony.type]
-                          : station.asynchrony.active
-                          ? 'Detected'
-                          : 'Synchrony'}
+                        {station.asynchrony.active ? 'Asynchronia' : 'Synchronia'}
                       </span>
                     </div>
                   ) : (
@@ -112,29 +108,19 @@ export function StationsTable({ stations }: StationsTableProps) {
                     {station.status === 'online' && (
                       <>
                         <button
-                          onClick={() => handleCommand(station.stationId, 'start')}
+                          onClick={() => handleCommand(station.stationId, station.isRunning ? 'pause' : 'continue')}
                           disabled={loadingCommand?.stationId === station.stationId}
-                          className="admin-btn admin-btn-success admin-btn-sm"
+                          className={`admin-btn admin-btn-sm ${station.isRunning ? 'admin-btn-warning' : 'admin-btn-success'}`}
                         >
                           {loadingCommand?.stationId === station.stationId &&
-                          loadingCommand?.command === 'start'
+                          loadingCommand?.command === (station.isRunning ? 'pause' : 'continue')
                             ? '...'
-                            : 'Start'}
-                        </button>
-                        <button
-                          onClick={() => handleCommand(station.stationId, 'stop')}
-                          disabled={loadingCommand?.stationId === station.stationId}
-                          className="admin-btn admin-btn-danger admin-btn-sm"
-                        >
-                          {loadingCommand?.stationId === station.stationId &&
-                          loadingCommand?.command === 'stop'
-                            ? '...'
-                            : 'Stop'}
+                            : (station.isRunning ? 'Pause' : 'Continue')}
                         </button>
                         <button
                           onClick={() => handleCommand(station.stationId, 'reset')}
                           disabled={loadingCommand?.stationId === station.stationId}
-                          className="admin-btn admin-btn-warning admin-btn-sm"
+                          className="admin-btn admin-btn-danger admin-btn-sm"
                         >
                           {loadingCommand?.stationId === station.stationId &&
                           loadingCommand?.command === 'reset'

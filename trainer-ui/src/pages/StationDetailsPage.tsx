@@ -107,7 +107,7 @@ export function StationDetailsPage() {
     }
   };
 
-  const handleCommand = async (command: 'start' | 'stop' | 'reset') => {
+  const handleCommand = async (command: 'pause' | 'continue' | 'reset') => {
     if (!stationId) return;
     setLoadingCommand(command);
     try {
@@ -292,23 +292,20 @@ export function StationDetailsPage() {
 
             <div className="space-y-3">
               <button
-                onClick={() => handleCommand('start')}
+                onClick={() => handleCommand(station?.isRunning ? 'pause' : 'continue')}
                 disabled={station?.status !== 'online' || loadingCommand !== null}
-                className="admin-btn admin-btn-success w-full"
+                className={`admin-btn w-full ${station?.isRunning ? 'admin-btn-warning' : 'admin-btn-success'}`}
               >
-                {loadingCommand === 'start' ? 'Starting...' : 'Start'}
-              </button>
-              <button
-                onClick={() => handleCommand('stop')}
-                disabled={station?.status !== 'online' || loadingCommand !== null}
-                className="admin-btn admin-btn-danger w-full"
-              >
-                {loadingCommand === 'stop' ? 'Stopping...' : 'Stop'}
+                {loadingCommand === (station?.isRunning ? 'pause' : 'continue') ? (
+                  station?.isRunning ? 'Pausing...' : 'Continuing...'
+                ) : (
+                  station?.isRunning ? 'Pause' : 'Continue'
+                )}
               </button>
               <button
                 onClick={() => handleCommand('reset')}
                 disabled={station?.status !== 'online' || loadingCommand !== null}
-                className="admin-btn admin-btn-warning w-full"
+                className="admin-btn admin-btn-danger w-full"
               >
                 {loadingCommand === 'reset' ? 'Resetting...' : 'Reset'}
               </button>
