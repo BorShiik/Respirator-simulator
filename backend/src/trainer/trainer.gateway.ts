@@ -57,16 +57,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
       this.logger.log(`Remote Student disconnected: ${client.studentName} from ${client.stationId}`);
       this.studentClients.delete(client.stationId);
       
-      // Auto-abort any active session for this student
-      const stationId = client.stationId;
-      const act = async () => {
-          const activeSession = await this.sessionsService.findActiveSession(stationId);
-          if (activeSession) {
-              await this.sessionsService.abort(activeSession.id);
-              this.logger.log(`Auto-aborted session ${activeSession.id} for disconnected station ${stationId}`);
-          }
-      };
-      act().catch(e => console.error('Failed to auto-abort session on disconnect', e));
+      // DO NOT auto-abort the session so it can be resumed
       
       // Mark as disconnected but keep last known telemetry for reference
       const state = this.studentStates.get(client.stationId);
@@ -105,17 +96,24 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
          client.studentName = msg.studentName;
          this.studentClients.set(stationId, client);
          
-         // Initialize state
-         this.studentStates.set(stationId, {
-            stationId: stationId,
-            studentName: msg.studentName,
-            status: 'online',
-            simulationStatus: 'running',
-            assignedAsynchronyType: null,
-            scenarioName: null,
-            lastUpdate: Date.now(),
-            telemetry: null
-         });
+         const existingState = this.studentStates.get(stationId);
+         if (existingState) {
+            existingState.status = 'online';
+            existingState.simulationStatus = 'running';
+            existingState.lastUpdate = Date.now();
+         } else {
+             // Initialize state
+             this.studentStates.set(stationId, {
+                stationId: stationId,
+                studentName: msg.studentName,
+                status: 'online',
+                simulationStatus: 'running',
+                assignedAsynchronyType: null,
+                scenarioName: null,
+                lastUpdate: Date.now(),
+                telemetry: null
+             });
+         }
          
          this.logger.log(`Registered remote student: ${msg.studentName} at station ${stationId}`);
          
@@ -127,6 +125,17 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
          });
 
          this.notifyStudentChange();
+         return;
+      }
+
+      // Handle explicit logout from student
+      if (msg.type === 'remote_student_logout' && client.isRemoteStudent) {
+         const state = this.studentStates.get(client.stationId!);
+         if (state) {
+            state.status = 'offline';
+            this.logger.log(`Remote Student explicitly logged out: ${msg.studentName}`);
+            this.notifyStudentChange();
+         }
          return;
       }
 

@@ -263,6 +263,16 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     }
   }
 
+  public notifyLogout() {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentStudentName) {
+      this.logger.log(`Notifying trainer of logout for "${this.currentStudentName}"...`);
+      this.ws.send(JSON.stringify({ 
+        type: 'remote_student_logout', 
+        studentName: this.currentStudentName 
+      }));
+    }
+  }
+
   public sendTelemetryToMaster(telemetry: TelemetryData) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentStudentName) {
       this.ws.send(JSON.stringify({

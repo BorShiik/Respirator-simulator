@@ -115,10 +115,11 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
 
     // Only stop simulation if NO clients are connected anymore
     if (this.activeClients.size === 0 && this.currentStudentName) {
-      this.logger.log(`No active clients left, stopping simulation for ${this.currentStudentName}`);
-      this.simulationService.stopSimulation(this.currentStudentName);
-      // We keep currentStudentName so if they reconnect quickly, we know who it was (optional)
-      // but usually the UI will send 'register' anyway.
+      this.logger.log(`No active clients left, pausing simulation for ${this.currentStudentName}`);
+      this.pauseSimulation();
+      this.linkService.notifyLogout();
+      this.currentStudentName = null;
+      this.currentStationId = null;
     }
   }
 
@@ -164,6 +165,10 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
         break;
       
       case 'logout':
+        if (this.currentStudentName) {
+           this.pauseSimulation();
+           this.linkService.notifyLogout();
+        }
         this.currentStudentName = null;
         this.currentStationId = null;
         this.broadcast({ type: 'loggedOut', status: 'idle' });
@@ -182,8 +187,13 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
     // Register upstream - Trainer will assign an ID and send it back
     this.linkService.registerWithMaster(name);
 
-    // Start simulation automatically
-    this.startSimulation('Free Practice');
+    // Check if simulation already exists
+    const existingState = this.simulationService.getState(name);
+    if (existingState) {
+       this.resumeSimulation();
+    } else {
+       this.startSimulation('Free Practice');
+    }
   }
 
   public startSimulation(scenarioName: string = 'Free Practice') {

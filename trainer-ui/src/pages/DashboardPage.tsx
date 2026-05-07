@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { StationsTable } from '../components/stations/StationsTable';
 import { StationCard } from '../components/stations/StationCard';
 import { useTrainerWebSocket } from '../hooks/useTrainerWebSocket';
@@ -128,8 +129,10 @@ export function DashboardPage() {
       <div>
         <h2 className="text-lg font-semibold text-admin-text mb-4">Stations preview</h2>
         <div className="grid grid-cols-3 gap-4">
-          {stations.slice(0, 6).map((station) => (
-            <StationCard key={station.stationId} station={station} />
+          {stations.filter(s => s.status === 'online').slice(0, 6).map((station) => (
+            <Link key={station.stationId} to={`/stations/${station.stationId}`} className="block transition-transform hover:scale-[1.02]">
+              <StationCard station={station} />
+            </Link>
           ))}
         </div>
       </div>
