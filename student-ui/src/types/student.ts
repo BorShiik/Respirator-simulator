@@ -26,6 +26,22 @@ export type AsynchronyType =
   | 'FLOW_MISMATCH'
   | 'REVERSE_TRIGGER';
 
+export type DifficultyLevel = 'EASY' | 'MEDIUM' | 'HARD';
+
+export interface PatientParams {
+  compliance: number;
+  resistance: number;
+  rin: number;
+  rout: number;
+  p01: number;
+  Tcykl: number;
+  PTi: number;
+  PriorityPR: number;
+  PressureRaiseT: number;
+  DoubleTriggeringTime: number;
+  knobDisable: boolean;
+}
+
 export interface TelemetryData {
   timestamp: number;
   pressure: number[];
@@ -73,6 +89,8 @@ export interface StatusMessage {
   status: string;
   scenarioName?: string;
   studentName?: string;
+  difficulty?: DifficultyLevel;
+  patientParams?: PatientParams;
 }
 
 export interface ConnectedMessage {

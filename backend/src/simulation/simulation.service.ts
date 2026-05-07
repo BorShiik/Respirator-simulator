@@ -33,6 +33,7 @@ interface SimulationState {
   patient: PatientModel;
   asynchrony: AsynchronyStatus;
   scenarioName: string;
+  difficulty: string;
   scenarioBlocks?: any[];
 
   // Asynchrony resolution tracking
@@ -109,6 +110,7 @@ export class SimulationService extends EventEmitter {
       patient,
       asynchrony: { active: false, type: null },
       scenarioName,
+      difficulty: 'EASY',
       scenarioBlocks: preservedBlocks,
       baselineSettings: null,
       baselinePatient: null,

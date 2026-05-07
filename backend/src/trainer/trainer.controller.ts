@@ -79,12 +79,14 @@ export class TrainerController {
       this.trainerGateway.sendCommandToStudent(studentName, 'update_settings', {
          settings: scenario.initialSettings,
          scenarioName: scenario.name,
-         scenario: scenario // Add the full scenario object so the student node can schedule events
+         difficulty: scenario.difficulty || 'EASY',
+         scenario: scenario
       });
     } else {
       this.trainerGateway.sendCommandToStudent(studentName, 'update_settings', {
          scenarioName: scenario.name,
-         scenario: scenario // Send scenario even without initial settings
+         difficulty: scenario.difficulty || 'EASY',
+         scenario: scenario
       });
     }
 
@@ -179,6 +181,7 @@ export class TrainerController {
       initialResistance?: number;
       initialCompliance?: number;
       initialPatientParams?: Record<string, number | boolean>;
+      difficulty?: string;
     },
   ) {
     return this.scenariosService.create(body);
@@ -196,6 +199,7 @@ export class TrainerController {
       initialResistance: number;
       initialCompliance: number;
       initialPatientParams: Record<string, number | boolean>;
+      difficulty: string;
     }>,
   ) {
     return this.scenariosService.update(id, body);

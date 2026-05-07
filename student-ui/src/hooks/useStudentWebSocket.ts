@@ -3,6 +3,8 @@ import {
   TelemetryData,
   WebSocketMessage,
   ConnectionStatus,
+  DifficultyLevel,
+  PatientParams,
   DEFAULT_SETTINGS,
   VentilatorSettings,
 } from '../types/student';
@@ -19,6 +21,8 @@ interface UseStudentWebSocketReturn {
   selectParameter: (param: string | null) => void;
   externalSelectedParameter: string | null;
   simulationStatus: string | null;
+  difficulty: DifficultyLevel;
+  patientParams: PatientParams | null;
 }
 
 const RECONNECT_DELAY = 3000;
@@ -52,6 +56,8 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
   const [error, setError] = useState<string | null>(null);
   const [externalSelectedParameter, setExternalSelectedParameter] = useState<string | null>(null);
   const [simulationStatus, setSimulationStatus] = useState<string | null>(null);
+  const [difficulty, setDifficulty] = useState<DifficultyLevel>('EASY');
+  const [patientParams, setPatientParams] = useState<PatientParams | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -172,6 +178,12 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
                 setSimulationStatus('running');
               } else {
                 setSimulationStatus(message.status);
+              }
+              if (message.difficulty) {
+                setDifficulty(message.difficulty);
+              }
+              if (message.patientParams) {
+                setPatientParams(message.patientParams);
               }
               break;
 
@@ -298,6 +310,8 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
     selectParameter,
     externalSelectedParameter,
     simulationStatus,
+    difficulty,
+    patientParams,
   };
 }
 

@@ -3,12 +3,55 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    /* Light theme (default) */
+    --color-bg: #f0f4f8;
+    --color-panel: #ffffff;
+    --color-border: #d1dce8;
+    --color-text: #1a365d;
+    --color-muted: #64748b;
+    --color-accent: #0066cc;
+    --color-success: #059669;
+    --color-warning: #d97706;
+    --color-danger: #dc2626;
+    --color-chart-grid: #e2e8f0;
+    --color-chart-axis: #cbd5e1;
+    --color-chart-tick: #64748b;
+    --color-chart-line: #0066cc;
+    --color-right-panel-bg: #ffffff;
+    --color-right-panel-border: #d1dce8;
+    --color-right-panel-text: #1a365d;
+    --color-right-panel-muted: #64748b;
+  }
+
+  .dark {
+    --color-bg: #0a0f1a;
+    --color-panel: #111827;
+    --color-border: #1e3a5f;
+    --color-text: #e2e8f0;
+    --color-muted: #94a3b8;
+    --color-accent: #3b82f6;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-danger: #ef4444;
+    --color-chart-grid: #1e293b;
+    --color-chart-axis: #334155;
+    --color-chart-tick: #94a3b8;
+    --color-chart-line: #3b82f6;
+    --color-right-panel-bg: #111827;
+    --color-right-panel-border: #1e3a5f;
+    --color-right-panel-text: #e2e8f0;
+    --color-right-panel-muted: #94a3b8;
+  }
+
   html, body, #root {
     @apply h-full w-full m-0 p-0 overflow-hidden;
   }
   
   body {
-    @apply bg-clinical-bg font-display text-clinical-text antialiased;
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family: 'Inter', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -16,19 +59,24 @@
 
 @layer components {
   .parameter-card {
-    @apply bg-clinical-panel rounded-lg p-3 border border-clinical-border shadow-sm;
+    background-color: var(--color-panel);
+    border: 1px solid var(--color-border);
+    @apply rounded-lg p-3 shadow-sm;
   }
   
   .parameter-value {
-    @apply font-mono text-value-lg text-clinical-accent leading-none;
+    color: var(--color-accent);
+    @apply font-mono text-value-lg leading-none;
   }
   
   .parameter-unit {
-    @apply text-sm text-clinical-muted font-medium ml-1;
+    color: var(--color-muted);
+    @apply text-sm font-medium ml-1;
   }
   
   .parameter-label {
-    @apply text-xs uppercase tracking-wider text-clinical-muted font-semibold;
+    color: var(--color-muted);
+    @apply text-xs uppercase tracking-wider font-semibold;
   }
   
   .status-badge {
@@ -50,15 +98,18 @@
   }
   
   .control-button-primary {
-    @apply bg-clinical-accent text-white hover:bg-blue-700 focus:ring-clinical-accent;
+    background-color: var(--color-accent);
+    @apply text-white hover:opacity-90;
   }
   
   .control-button-danger {
-    @apply bg-clinical-danger text-white hover:bg-red-700 focus:ring-clinical-danger;
+    background-color: var(--color-danger);
+    @apply text-white hover:opacity-90;
   }
   
   .control-button-warning {
-    @apply bg-clinical-warning text-white hover:bg-amber-600 focus:ring-clinical-warning;
+    background-color: var(--color-warning);
+    @apply text-white hover:opacity-90;
   }
   
   .control-button-success {
@@ -66,7 +117,9 @@
   }
   
   .chart-container {
-    @apply bg-clinical-panel rounded-lg border border-clinical-border p-2 shadow-sm;
+    background-color: var(--color-panel);
+    border: 1px solid var(--color-border);
+    @apply rounded-lg p-2 shadow-sm;
   }
 }
 

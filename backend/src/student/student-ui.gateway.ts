@@ -204,6 +204,8 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
       type: 'status', 
       status: 'running', 
       scenarioName, 
+      difficulty: this.simulationService.getState(name)?.difficulty || 'EASY',
+      patientParams: this.simulationService.getState(name)?.patient || null,
       studentName: name 
     });
 
@@ -232,11 +234,14 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
   public resumeSimulation() {
     if (!this.currentStudentName) return;
     this.simulationService.resumeSimulation(this.currentStudentName);
-    const scenarioName = this.simulationService.getState(this.currentStudentName)?.scenarioName;
+    const state = this.simulationService.getState(this.currentStudentName);
+    const scenarioName = state?.scenarioName;
     this.broadcast({ 
       type: 'status', 
       status: 'running', 
       scenarioName: scenarioName || 'Free Practice', 
+      difficulty: state?.difficulty || 'EASY',
+      patientParams: state?.patient || null,
       studentName: this.currentStudentName 
     });
     this.linkService.sendSimulationStatusToMaster('running');
@@ -246,11 +251,14 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
     if (!this.currentStudentName) return;
     this.simulationService.resetSimulation(this.currentStudentName);
     this.simulationService.resumeSimulation(this.currentStudentName);
-    const scenarioName = this.simulationService.getState(this.currentStudentName)?.scenarioName;
+    const state2 = this.simulationService.getState(this.currentStudentName);
+    const scenarioName2 = state2?.scenarioName;
     this.broadcast({ 
       type: 'status', 
       status: 'reset', 
-      scenarioName: scenarioName || 'Free Practice', 
+      scenarioName: scenarioName2 || 'Free Practice', 
+      difficulty: state2?.difficulty || 'EASY',
+      patientParams: state2?.patient || null,
       studentName: this.currentStudentName 
     });
     this.linkService.sendSimulationStatusToMaster('running');

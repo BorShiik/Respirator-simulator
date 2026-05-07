@@ -28,6 +28,7 @@ export class ScenariosService {
     initialResistance?: number;
     initialCompliance?: number;
     initialPatientParams?: Record<string, number | boolean>;
+    difficulty?: string;
   }): Promise<ScenarioEntity> {
     const scenario = this.scenarioRepo.create({
       name: data.name,
@@ -38,6 +39,7 @@ export class ScenariosService {
       initialResistance: data.initialResistance !== undefined ? data.initialResistance : 10,
       initialCompliance: data.initialCompliance !== undefined ? data.initialCompliance : 50,
       initialPatientParams: data.initialPatientParams || null,
+      difficulty: data.difficulty || 'EASY',
     });
     return this.scenarioRepo.save(scenario);
   }

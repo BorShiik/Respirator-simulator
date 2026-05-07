@@ -230,6 +230,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
                 const state = this.simulationService.getState(this.currentStudentName);
                 if (state) {
                    state.scenarioName = msg.scenario.name;
+                   state.difficulty = msg.difficulty || msg.scenario.difficulty || 'EASY';
                    this.simulationService.applyScenarioEvents(this.currentStudentName, msg.scenario.blocks || []);
                 }
              }

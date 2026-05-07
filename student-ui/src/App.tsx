@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { StudentLayout } from './components/layout/StudentLayout';
 import { PressureChart } from './components/charts/PressureChart';
 import { FlowChart } from './components/charts/FlowChart';
@@ -7,6 +7,28 @@ import { SettingsPanel, ParameterKey, PARAMETER_CONFIGS } from './components/pan
 import { StatusPanel } from './components/panels/StatusPanel';
 import { useStudentWebSocket } from './hooks/useStudentWebSocket';
 import { DEFAULT_SETTINGS, VentilatorSettings } from './types/student';
+
+// ─── Theme Hook ──────────────────────────────────────────────────
+function useTheme() {
+  const [isDark, setIsDark] = useState(() => {
+    const saved = localStorage.getItem('theme');
+    return saved ? saved === 'dark' : true; // Default to dark
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (isDark) {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  }, [isDark]);
+
+  const toggle = useCallback(() => setIsDark(prev => !prev), []);
+
+  return { isDark, toggle };
+}
 
 function StudentRegistration({ onRegister }: { onRegister: (studentName: string) => void }) {
   const [firstName, setFirstName] = useState('');
@@ -114,8 +136,9 @@ function StudentRegistration({ onRegister }: { onRegister: (studentName: string)
 function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: () => void }) {
   const [selectedParameter, setSelectedParameter] = useState<ParameterKey | null>(null);
   const [localSettings, setLocalSettings] = useState<VentilatorSettings>(DEFAULT_SETTINGS);
+  const { isDark, toggle: toggleTheme } = useTheme();
   
-  const { telemetry, connectionStatus, isRegistered, logout, updateSettings, selectParameter, externalSelectedParameter, simulationStatus } = useStudentWebSocket(studentName, localSettings);
+  const { telemetry, connectionStatus, isRegistered, logout, updateSettings, selectParameter, externalSelectedParameter, simulationStatus, difficulty, patientParams } = useStudentWebSocket(studentName, localSettings);
 
   // Синхронизация с настройками от сервера (если не в mock режиме)
   useEffect(() => {
@@ -190,6 +213,8 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
 
   return (
     <StudentLayout
+      isDark={isDark}
+      onToggleTheme={toggleTheme}
       leftPanel={
         <SettingsPanel 
           settings={localSettings} 
@@ -199,20 +224,22 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
             selectParameter(param);
           }}
           isDisabled={simulationStatus === 'paused'}
+          isDark={isDark}
         />
       }
       centerTop={
         <PressureChart 
           data={pressure} 
           peep={localSettings.peep || localSettings.epap} 
-          pip={localSettings.ipap || localSettings.pinsp} 
+          pip={localSettings.ipap || localSettings.pinsp}
+          isDark={isDark}
         />
       }
       centerMiddle={
-        <FlowChart data={flow} />
+        <FlowChart data={flow} isDark={isDark} />
       }
       centerBottom={
-        <VolumeChart data={volume} targetVt={localSettings.vt} />
+        <VolumeChart data={volume} targetVt={localSettings.vt} isDark={isDark} />
       }
       rightPanel={
         <StatusPanel
@@ -223,6 +250,8 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
           isRegistered={isRegistered}
           onLogout={handleLogout}
           simulationStatus={simulationStatus}
+          difficulty={difficulty}
+          patientParams={patientParams}
         />
       }
     />

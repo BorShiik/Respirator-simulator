@@ -54,6 +54,9 @@ export class ScenarioEntity {
   @Column({ type: 'simple-json', nullable: true })
   initialPatientParams: Record<string, number | boolean> | null;
 
+  @Column({ default: 'EASY' })
+  difficulty: string;
+
   @Column({ default: true })
   isActive: boolean;
 
