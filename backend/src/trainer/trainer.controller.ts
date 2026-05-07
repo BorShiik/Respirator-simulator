@@ -88,15 +88,27 @@ export class TrainerController {
       });
     }
 
-    // Notify to apply patient physics
-    if (scenario.initialCompliance !== undefined || scenario.initialResistance !== undefined) {
-      this.trainerGateway.sendCommandToStudent(studentName, 'update_patient', {
-         parameters: {
-            compliance: scenario.initialCompliance,
-            resistance: scenario.initialResistance,
-         }
-      });
+    // Notify to apply patient physics (ALL parameters, not just R and C)
+    const patientUpdate: Record<string, any> = {
+      compliance: scenario.initialCompliance,
+      resistance: scenario.initialResistance,
+    };
+    // Merge ILSim patient parameters from scenario if available
+    if (scenario.initialPatientParams) {
+      const pp = scenario.initialPatientParams;
+      if (pp.rin !== undefined) patientUpdate.rin = pp.rin;
+      if (pp.rout !== undefined) patientUpdate.rout = pp.rout;
+      if (pp.p01 !== undefined) patientUpdate.p01 = pp.p01;
+      if (pp.Tcykl !== undefined) patientUpdate.Tcykl = pp.Tcykl;
+      if (pp.PTi !== undefined) patientUpdate.PTi = pp.PTi;
+      if (pp.PriorityPR !== undefined) patientUpdate.PriorityPR = pp.PriorityPR;
+      if (pp.PressureRaiseT !== undefined) patientUpdate.PressureRaiseT = pp.PressureRaiseT;
+      if (pp.DoubleTriggeringTime !== undefined) patientUpdate.DoubleTriggeringTime = pp.DoubleTriggeringTime;
+      if (pp.knobDisable !== undefined) patientUpdate.knobDisable = pp.knobDisable;
     }
+    this.trainerGateway.sendCommandToStudent(studentName, 'update_patient', {
+       parameters: patientUpdate
+    });
 
     // Check if there are immediate blocks (like asynchrony starting at time 0)
     if (scenario.blocks && scenario.blocks.length > 0) {
@@ -166,6 +178,7 @@ export class TrainerController {
       initialSettings?: Record<string, number>;
       initialResistance?: number;
       initialCompliance?: number;
+      initialPatientParams?: Record<string, number | boolean>;
     },
   ) {
     return this.scenariosService.create(body);
@@ -182,6 +195,7 @@ export class TrainerController {
       initialSettings: Record<string, number>;
       initialResistance: number;
       initialCompliance: number;
+      initialPatientParams: Record<string, number | boolean>;
     }>,
   ) {
     return this.scenariosService.update(id, body);
