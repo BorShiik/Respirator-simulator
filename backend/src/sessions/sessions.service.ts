@@ -19,6 +19,7 @@ export class SessionsService {
     scenarioName?: string;
     studentName?: string;
     initialSettings?: VentilatorSettings;
+    roomId?: string;
   }): Promise<SessionEntity> {
     const session = this.sessionRepo.create({
       stationId: data.stationId,
@@ -26,6 +27,7 @@ export class SessionsService {
       scenarioName: data.scenarioName,
       studentName: data.studentName,
       initialSettings: data.initialSettings,
+      roomId: data.roomId,
       status: 'pending',
     });
     return this.sessionRepo.save(session);
@@ -239,6 +241,7 @@ export class SessionsService {
       traineeName: session.studentName || session.stationId,
       scenarioId: session.scenarioId || null,
       scenarioName: session.scenarioName || 'Free Practice',
+      roomId: session.roomId || null,
       startTime: session.startedAt ? session.startedAt.getTime() : session.createdAt.getTime(),
       endTime: session.endedAt ? session.endedAt.getTime() : null,
       status: session.status === 'completed'

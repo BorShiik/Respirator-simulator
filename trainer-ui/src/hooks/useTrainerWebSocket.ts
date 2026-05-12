@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   StationLiveStatus,
   TrainerWebSocketMessage,
+  EventLogEntry,
   DEFAULT_SETTINGS,
 } from '../types/trainer';
 import { getTrainerWebSocketUrl } from '../api/trainerApi';
@@ -13,6 +14,8 @@ interface UseTrainerWebSocketReturn {
   connectionStatus: ConnectionStatus;
   error: string | null;
   reconnect: () => void;
+  eventLog: EventLogEntry[];
+  clearEventLog: () => void;
 }
 
 const RECONNECT_DELAY = 3000;
@@ -54,6 +57,7 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
   const [stationsMap, setStationsMap] = useState<Map<string, StationLiveStatus>>(new Map());
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [error, setError] = useState<string | null>(null);
+  const [eventLog, setEventLog] = useState<EventLogEntry[]>([]);
   
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -218,6 +222,8 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
               newMap.set(s.stationId, s);
               return newMap;
             });
+          } else if (message.type === 'eventLog' && message.entry) {
+            setEventLog(prev => [message.entry!, ...prev].slice(0, 200));
           }
         } catch (parseError) {
           console.error('Failed to parse Trainer WebSocket message:', parseError);
@@ -265,11 +271,17 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
     return cleanup;
   }, [connect, cleanup]);
 
+  const clearEventLog = useCallback(() => {
+    setEventLog([]);
+  }, []);
+
   return {
     stationsMap,
     connectionStatus,
     error,
     reconnect,
+    eventLog,
+    clearEventLog,
   };
 }
 

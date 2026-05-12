@@ -8,6 +8,7 @@ import { Logger } from '@nestjs/common';
 import { Server } from 'ws';
 import * as WebSocketLib from 'ws';
 import { SessionsService } from '../sessions/sessions.service';
+import { RoomsService } from './rooms/rooms.service';
 
 // TrainerGateway handles both Trainer UI clients AND incoming data from remote Student Pi's.
 
@@ -16,6 +17,7 @@ interface ExtendedWebSocket extends WebSocket {
   isRemoteStudent?: boolean;
   stationId?: string;
   studentName?: string;
+  roomId?: string;
   on: (event: string, listener: (data: Buffer | string) => void) => void;
   send: (data: string | Buffer) => void;
   readyState: number;
@@ -37,7 +39,10 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
   // Cache of latest student states received via telemetry
   private studentStates: Map<string, any> = new Map();
 
-  constructor(private readonly sessionsService: SessionsService) {}
+  constructor(
+    private readonly sessionsService: SessionsService,
+    private readonly roomsService: RoomsService,
+  ) {}
 
   handleConnection(client: ExtendedWebSocket) {
     this.logger.log('Client connected to Trainer Gateway');
@@ -68,7 +73,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
     }
   }
 
-  private handleMessage(client: ExtendedWebSocket, rawData: string) {
+  private async handleMessage(client: ExtendedWebSocket, rawData: string) {
     try {
       const msg = JSON.parse(rawData);
 
@@ -81,6 +86,15 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
       }
 
       if (msg.type === 'remote_student_register') {
+         const room = await this.roomsService.findByCode(msg.roomCode);
+         if (!room) {
+           this.sendToClient(client, {
+              type: 'registration_error',
+              message: 'Invalid or inactive room code'
+           });
+           return;
+         }
+
          // Assign numeric incrementing ID if not already mapped for this student name
          let stationId = msg.stationId;
          
@@ -94,6 +108,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
          client.isRemoteStudent = true;
          client.stationId = stationId;
          client.studentName = msg.studentName;
+         client.roomId = room.id;
          this.studentClients.set(stationId, client);
          
          const existingState = this.studentStates.get(stationId);
@@ -106,10 +121,12 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
              this.studentStates.set(stationId, {
                 stationId: stationId,
                 studentName: msg.studentName,
+                roomId: room.id,
                 status: 'online',
                 simulationStatus: 'running',
                 assignedAsynchronyType: null,
                 scenarioName: null,
+                difficulty: 'EASY',
                 lastUpdate: Date.now(),
                 telemetry: null
              });
@@ -146,6 +163,10 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
             state.telemetry = msg.telemetry;
             state.status = 'online'; // (running)
             state.lastUpdate = Date.now();
+            // Track difficulty from telemetry
+            if (msg.telemetry.difficulty) {
+              state.difficulty = msg.telemetry.difficulty;
+            }
             
             // Forward instantly to connected trainers
             this.broadcast({
@@ -156,6 +177,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
                  status: state.status,
                  isRunning: state.simulationStatus !== 'paused',
                  scenarioName: state.scenarioName || state.telemetry.scenarioName,
+                 difficulty: state.difficulty || 'EASY',
                  settings: state.telemetry.settings,
                  asynchrony: state.telemetry.asynchrony,
                  pressure: state.telemetry.pressure,
@@ -206,6 +228,21 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
       // 4. Handle Analytics Events from Student
       if (msg.type === 'student_event' && client.isRemoteStudent) {
+         // Forward event to trainer UI clients for Event Log
+         this.broadcastEventLog({
+           stationId: client.stationId!,
+           studentName: client.studentName,
+           timestamp: Date.now(),
+           event: msg.event,
+           details: {
+             parameter: msg.parameter,
+             previousValue: msg.previousValue,
+             newValue: msg.newValue,
+             asynchronyType: msg.asynchronyType,
+             wasAsynchronyActive: msg.wasAsynchronyActive,
+           },
+         });
+
          const act = async () => {
              const activeSession = await this.sessionsService.findActiveSession(client.stationId!);
              if (activeSession) {
@@ -255,6 +292,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
                          stationId: stationId,
                          studentName,
                          scenarioName,
+                         roomId: client.roomId,
                      });
                      await this.sessionsService.start(newSession.id);
                      this.logger.log(`Created & started new session for ${stationId} (${scenarioName})`);
@@ -296,6 +334,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
         isRunning: state.simulationStatus !== 'paused',
         status: state.status,
         scenarioName: state.scenarioName || state.telemetry?.scenarioName || null,
+        difficulty: state.difficulty || 'EASY',
         settings: state.telemetry?.settings || null,
         asynchrony: state.telemetry?.asynchrony || null,
         pressure: state.telemetry?.pressure || [],
@@ -324,6 +363,20 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
   notifyStudentChange() {
     const stations = this.getStudentList();
     this.broadcast({ type: 'stationsSnapshot', stations });
+  }
+
+  // Broadcast event log entry to all connected trainer UI clients
+  public broadcastEventLog(entry: {
+    stationId: string;
+    studentName?: string;
+    timestamp: number;
+    event: string;
+    details: Record<string, any>;
+  }) {
+    this.broadcast({
+      type: 'eventLog',
+      entry,
+    });
   }
 
   // Called locally by ScenariosService or SessionsService when Trainer initiates a scenario change etc.

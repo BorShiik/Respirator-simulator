@@ -105,6 +105,11 @@ export interface ParameterSelectedMessage {
   parameter: string;
 }
 
+export interface TrainerStatusMessage {
+  type: 'trainerStatus';
+  connected: boolean;
+}
+
 export type WebSocketMessage = 
   | TelemetryMessage 
   | SettingsUpdateMessage 
@@ -113,7 +118,8 @@ export type WebSocketMessage =
   | LoggedOutMessage 
   | ErrorMessage 
   | StatusMessage
-  | ConnectedMessage;
+  | ConnectedMessage
+  | TrainerStatusMessage;
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 

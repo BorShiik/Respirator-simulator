@@ -52,6 +52,8 @@ export class DiscoveryService implements OnModuleInit, OnModuleDestroy {
       return ipParts.map((part, i) => part | (~maskParts[i] & 255)).join('.');
     };
 
+    const isLinkLocal = (ip: string) => ip.startsWith('169.254.');
+
     for (const name of Object.keys(interfaces)) {
       for (const iface of interfaces[name] || []) {
         if (iface.family === 'IPv4' && !iface.internal) {
@@ -62,6 +64,16 @@ export class DiscoveryService implements OnModuleInit, OnModuleDestroy {
         }
       }
     }
+
+    // Sort: routable IPs first, link-local (169.254.x.x) last
+    // Link-local addresses are auto-assigned when DHCP fails and are
+    // typically unreachable from other devices on the real network
+    results.sort((a, b) => {
+      const aLL = isLinkLocal(a.ip) ? 1 : 0;
+      const bLL = isLinkLocal(b.ip) ? 1 : 0;
+      return aLL - bLL;
+    });
+
     // Always append localhost as a fallback for local development
     if (!results.some(r => r.ip === '127.0.0.1')) {
       results.push({ ip: '127.0.0.1', broadcast: '127.255.255.255' });

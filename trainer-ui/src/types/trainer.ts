@@ -1,3 +1,11 @@
+export interface Room {
+  id: string;
+  code: string;
+  name: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
 export interface VentilatorSettings {
   ipap: number;
   epap: number;
@@ -52,6 +60,7 @@ export interface StationLiveStatus {
   volume: number[];
   scenarioName?: string;
   studentName?: string;
+  difficulty?: 'EASY' | 'MEDIUM' | 'HARD';
   assignedAsynchronyType?: AsynchronyType | null;
   lastUpdate: number;
 }
@@ -114,6 +123,7 @@ export interface Session {
   traineeName: string;
   scenarioId: string;
   scenarioName: string;
+  roomId: string | null;
   startTime: number;
   endTime: number | null;
   status: 'IN_PROGRESS' | 'COMPLETED' | 'ABORTED' | 'PENDING';
@@ -140,10 +150,19 @@ export interface SessionDetails extends Session {
   timeline: SessionTimeline[];
 }
 
+export interface EventLogEntry {
+  stationId: string;
+  studentName?: string;
+  timestamp: number;
+  event: string;
+  details: Record<string, any>;
+}
+
 export interface TrainerWebSocketMessage {
-  type: 'stationUpdate' | 'stationsSnapshot';
+  type: 'stationUpdate' | 'stationsSnapshot' | 'eventLog';
   stations?: StationLiveStatus[];
   station?: StationLiveStatus;
+  entry?: EventLogEntry;
 }
 
 export type CommandType = 'reset' | 'pause' | 'continue';

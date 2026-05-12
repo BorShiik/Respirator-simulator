@@ -90,6 +90,12 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
         this.currentStationId = stationId;
         this.broadcast({ type: 'registered', studentName: this.currentStudentName, stationId: this.currentStationId, status: 'idle' });
     });
+
+    // Forward trainer connection status to student UI
+    this.linkService.on('trainer_connection_status', (connected: boolean) => {
+        this.logger.log(`Trainer connection status: ${connected ? 'CONNECTED' : 'DISCONNECTED'}`);
+        this.broadcast({ type: 'trainerStatus', connected });
+    });
   }
 
   handleConnection(client: WebSocket) {
@@ -98,6 +104,9 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
 
     // Awaiting registration by default
     client.send(JSON.stringify({ type: 'connected', status: 'awaiting_registration' }));
+
+    // Send current trainer connection status immediately
+    client.send(JSON.stringify({ type: 'trainerStatus', connected: this.linkService.trainerConnected }));
 
     client.on('message', (data: Buffer | string) => {
       try {
@@ -127,8 +136,9 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
     switch (message.type || message.event) {
       case 'register':
         const name = (message.data?.studentName || message.studentName)?.trim();
+        const roomCode = (message.data?.roomCode || message.roomCode)?.trim();
         if (name) {
-          this.registerStudent(name);
+          this.registerStudent(name, roomCode);
         }
         break;
 
@@ -176,7 +186,7 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
     }
   }
 
-  public registerStudent(name: string) {
+  public registerStudent(name: string, roomCode?: string) {
     this.currentStudentName = name;
     // We no longer generate a random station ID locally. 
     // We wait for the Trainer to assign an incrementing numeric ID.
@@ -185,7 +195,7 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
     this.broadcast({ type: 'registered', studentName: name, status: 'idle' });
     
     // Register upstream - Trainer will assign an ID and send it back
-    this.linkService.registerWithMaster(name);
+    this.linkService.registerWithMaster(name, roomCode);
 
     // Check if simulation already exists
     const existingState = this.simulationService.getState(name);

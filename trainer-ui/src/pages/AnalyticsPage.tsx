@@ -5,6 +5,8 @@ import { trainerApi } from '../api/trainerApi';
 
 export function AnalyticsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [rooms, setRooms] = useState<{ id: string; name: string }[]>([]);
+  const [selectedRoom, setSelectedRoom] = useState<string>('all');
   const [selectedTrainee, setSelectedTrainee] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -17,12 +19,17 @@ export function AnalyticsPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await trainerApi.getAllSessions();
-      setSessions(data);
+      const [sessionsData, roomsData] = await Promise.all([
+        trainerApi.getAllSessions(),
+        trainerApi.getRooms()
+      ]);
+      setSessions(sessionsData);
+      setRooms(roomsData);
     } catch (err) {
-      console.error('Failed to load sessions:', err);
-      setError('Failed to fetch session data from server. Ensure the backend is running.');
+      console.error('Failed to load analytics data:', err);
+      setError('Failed to fetch analytics data from server. Ensure the backend is running.');
       setSessions([]);
+      setRooms([]);
     } finally {
       setIsLoading(false);
     }
@@ -39,9 +46,15 @@ export function AnalyticsPage() {
   }, [sessions]);
 
   const filteredSessions = useMemo(() => {
-    if (selectedTrainee === 'all') return sessions;
-    return sessions.filter(s => s.traineeId === selectedTrainee);
-  }, [sessions, selectedTrainee]);
+    let result = sessions;
+    if (selectedRoom !== 'all') {
+      result = result.filter(s => s.roomId === selectedRoom);
+    }
+    if (selectedTrainee !== 'all') {
+      result = result.filter(s => s.traineeId === selectedTrainee);
+    }
+    return result;
+  }, [sessions, selectedRoom, selectedTrainee]);
 
   // Filter out Free Practice sessions for analytics
   const analyticsSessions = useMemo(() => {
@@ -138,11 +151,23 @@ export function AnalyticsPage() {
           <h1 className="text-2xl font-bold text-admin-text">Analytics</h1>
           <p className="text-admin-muted mt-1">Analysis of trainee progress and results</p>
         </div>
-        <div>
+        <div className="flex gap-4">
+          <select
+            value={selectedRoom}
+            onChange={(e) => setSelectedRoom(e.target.value)}
+            className="admin-input min-w-[200px]"
+          >
+            <option value="all">Wszystkie pokoje</option>
+            {rooms.map((room) => (
+              <option key={room.id} value={room.id}>
+                {room.name}
+              </option>
+            ))}
+          </select>
           <select
             value={selectedTrainee}
             onChange={(e) => setSelectedTrainee(e.target.value)}
-            className="admin-input"
+            className="admin-input min-w-[200px]"
           >
             <option value="all">Wszyscy studenci</option>
             {trainees.map((trainee) => (

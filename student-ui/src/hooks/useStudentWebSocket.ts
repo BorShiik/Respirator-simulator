@@ -13,6 +13,7 @@ import { getWebSocketUrl } from '../api/studentApi';
 interface UseStudentWebSocketReturn {
   telemetry: TelemetryData | null;
   connectionStatus: ConnectionStatus;
+  trainerConnectionStatus: boolean;
   isRegistered: boolean;
   error: string | null;
   reconnect: () => void;
@@ -49,7 +50,7 @@ function pushToBuffer(buffer: number[], values: number[]): number[] {
   return combined;
 }
 
-export function useStudentWebSocket(studentName: string | null, externalSettings?: VentilatorSettings): UseStudentWebSocketReturn {
+export function useStudentWebSocket(studentName: string | null, roomCode: string | null, externalSettings?: VentilatorSettings): UseStudentWebSocketReturn {
   const [telemetry, setTelemetry] = useState<TelemetryData | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [isRegistered, setIsRegistered] = useState(false);
@@ -58,18 +59,21 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
   const [simulationStatus, setSimulationStatus] = useState<string | null>(null);
   const [difficulty, setDifficulty] = useState<DifficultyLevel>('EASY');
   const [patientParams, setPatientParams] = useState<PatientParams | null>(null);
+  const [trainerConnectionStatus, setTrainerConnectionStatus] = useState<boolean>(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const mockIntervalRef = useRef<number | null>(null);
   const studentNameRef = useRef<string | null>(studentName);
+  const roomCodeRef = useRef<string | null>(roomCode);
   const settingsRef = useRef<VentilatorSettings>(externalSettings || DEFAULT_SETTINGS);
 
   // Update refs when props change
   useEffect(() => {
     studentNameRef.current = studentName;
-  }, [studentName]);
+    roomCodeRef.current = roomCode;
+  }, [studentName, roomCode]);
 
   useEffect(() => {
     if (externalSettings) {
@@ -118,7 +122,7 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
   }, []);
 
   const connect = useCallback(() => {
-    if (!studentName) return;
+    if (!studentName || !roomCode) return;
 
     cleanup();
     setConnectionStatus('connecting');
@@ -143,10 +147,10 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
         setError(null);
         reconnectAttemptsRef.current = 0;
 
-        // Send registration message with student name
+        // Send registration message with student name and room code
         ws.send(JSON.stringify({
           type: 'register',
-          data: { studentName: studentNameRef.current }
+          data: { studentName: studentNameRef.current, roomCode: roomCodeRef.current }
         }));
       };
 
@@ -207,6 +211,7 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
                 scenarioName: message.scenarioName,
                 difficulty: message.difficulty,
               });
+              // Also update difficulty from telemetry for continuous sync
               if (message.difficulty) {
                 setDifficulty(message.difficulty);
               }
@@ -223,6 +228,11 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
             case 'parameterSelected':
               console.log('Backend selected parameter:', message.parameter);
               setExternalSelectedParameter(message.parameter);
+              break;
+
+            case 'trainerStatus':
+              console.log('Trainer connection status:', message.connected);
+              setTrainerConnectionStatus(message.connected);
               break;
           }
         } catch (parseError) {
@@ -306,6 +316,7 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
   return {
     telemetry,
     connectionStatus,
+    trainerConnectionStatus,
     isRegistered,
     error,
     reconnect,
