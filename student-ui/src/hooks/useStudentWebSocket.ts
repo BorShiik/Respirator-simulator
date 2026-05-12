@@ -49,7 +49,7 @@ function pushToBuffer(buffer: number[], values: number[]): number[] {
   return combined;
 }
 
-export function useStudentWebSocket(studentName: string | null, externalSettings?: VentilatorSettings): UseStudentWebSocketReturn {
+export function useStudentWebSocket(studentName: string | null, roomCode: string | null, externalSettings?: VentilatorSettings): UseStudentWebSocketReturn {
   const [telemetry, setTelemetry] = useState<TelemetryData | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [isRegistered, setIsRegistered] = useState(false);
@@ -64,12 +64,14 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
   const reconnectTimeoutRef = useRef<number | null>(null);
   const mockIntervalRef = useRef<number | null>(null);
   const studentNameRef = useRef<string | null>(studentName);
+  const roomCodeRef = useRef<string | null>(roomCode);
   const settingsRef = useRef<VentilatorSettings>(externalSettings || DEFAULT_SETTINGS);
 
   // Update refs when props change
   useEffect(() => {
     studentNameRef.current = studentName;
-  }, [studentName]);
+    roomCodeRef.current = roomCode;
+  }, [studentName, roomCode]);
 
   useEffect(() => {
     if (externalSettings) {
@@ -118,7 +120,7 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
   }, []);
 
   const connect = useCallback(() => {
-    if (!studentName) return;
+    if (!studentName || !roomCode) return;
 
     cleanup();
     setConnectionStatus('connecting');
@@ -143,10 +145,10 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
         setError(null);
         reconnectAttemptsRef.current = 0;
 
-        // Send registration message with student name
+        // Send registration message with student name and room code
         ws.send(JSON.stringify({
           type: 'register',
-          data: { studentName: studentNameRef.current }
+          data: { studentName: studentNameRef.current, roomCode: roomCodeRef.current }
         }));
       };
 

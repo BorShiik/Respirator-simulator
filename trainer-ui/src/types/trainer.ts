@@ -1,3 +1,11 @@
+export interface Room {
+  id: string;
+  code: string;
+  name: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
 export interface VentilatorSettings {
   ipap: number;
   epap: number;
@@ -114,6 +122,7 @@ export interface Session {
   traineeName: string;
   scenarioId: string;
   scenarioName: string;
+  roomId: string | null;
   startTime: number;
   endTime: number | null;
   status: 'IN_PROGRESS' | 'COMPLETED' | 'ABORTED' | 'PENDING';

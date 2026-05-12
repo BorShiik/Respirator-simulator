@@ -16,8 +16,8 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
   private discoverySocket: dgram.Socket | null = null;
   private isDiscovering = false;
   private isConnected = false;
-  
   public currentStudentName: string | null = null;
+  public currentRoomCode: string | null = null;
   public currentStationId: string | null = null;
 
   constructor(private readonly simulationService: SimulationService) {
@@ -155,7 +155,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
       this.isConnected = true;
       this.logger.log('✅ Connected to Trainer');
       if (this.currentStudentName) {
-        this.registerWithMaster(this.currentStudentName);
+        this.registerWithMaster(this.currentStudentName, this.currentRoomCode || undefined);
       }
     });
 
@@ -249,14 +249,18 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
   //  Public API
   // ──────────────────────────────────────────────
 
-  public registerWithMaster(studentName: string) {
+  public registerWithMaster(studentName: string, roomCode?: string) {
     this.currentStudentName = studentName;
+    if (roomCode) {
+      this.currentRoomCode = roomCode;
+    }
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.logger.log(`Registering student "${studentName}" with Trainer...`);
       this.ws.send(JSON.stringify({ 
         type: 'remote_student_register', 
         stationId: this.currentStationId,
-        studentName 
+        studentName,
+        roomCode
       }));
     } else {
       this.logger.warn('Cannot register with Trainer: WebSocket not open. Will register on connect.');

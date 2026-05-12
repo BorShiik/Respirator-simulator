@@ -8,6 +8,7 @@ import { Logger } from '@nestjs/common';
 import { Server } from 'ws';
 import * as WebSocketLib from 'ws';
 import { SessionsService } from '../sessions/sessions.service';
+import { RoomsService } from './rooms/rooms.service';
 
 // TrainerGateway handles both Trainer UI clients AND incoming data from remote Student Pi's.
 
@@ -16,6 +17,7 @@ interface ExtendedWebSocket extends WebSocket {
   isRemoteStudent?: boolean;
   stationId?: string;
   studentName?: string;
+  roomId?: string;
   on: (event: string, listener: (data: Buffer | string) => void) => void;
   send: (data: string | Buffer) => void;
   readyState: number;
@@ -37,7 +39,10 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
   // Cache of latest student states received via telemetry
   private studentStates: Map<string, any> = new Map();
 
-  constructor(private readonly sessionsService: SessionsService) {}
+  constructor(
+    private readonly sessionsService: SessionsService,
+    private readonly roomsService: RoomsService,
+  ) {}
 
   handleConnection(client: ExtendedWebSocket) {
     this.logger.log('Client connected to Trainer Gateway');
@@ -68,7 +73,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
     }
   }
 
-  private handleMessage(client: ExtendedWebSocket, rawData: string) {
+  private async handleMessage(client: ExtendedWebSocket, rawData: string) {
     try {
       const msg = JSON.parse(rawData);
 
@@ -81,6 +86,15 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
       }
 
       if (msg.type === 'remote_student_register') {
+         const room = await this.roomsService.findByCode(msg.roomCode);
+         if (!room) {
+           this.sendToClient(client, {
+              type: 'registration_error',
+              message: 'Invalid or inactive room code'
+           });
+           return;
+         }
+
          // Assign numeric incrementing ID if not already mapped for this student name
          let stationId = msg.stationId;
          
@@ -94,6 +108,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
          client.isRemoteStudent = true;
          client.stationId = stationId;
          client.studentName = msg.studentName;
+         client.roomId = room.id;
          this.studentClients.set(stationId, client);
          
          const existingState = this.studentStates.get(stationId);
@@ -106,6 +121,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
              this.studentStates.set(stationId, {
                 stationId: stationId,
                 studentName: msg.studentName,
+                roomId: room.id,
                 status: 'online',
                 simulationStatus: 'running',
                 assignedAsynchronyType: null,
@@ -255,6 +271,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
                          stationId: stationId,
                          studentName,
                          scenarioName,
+                         roomId: client.roomId,
                      });
                      await this.sessionsService.start(newSession.id);
                      this.logger.log(`Created & started new session for ${stationId} (${scenarioName})`);

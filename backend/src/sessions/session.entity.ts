@@ -16,6 +16,9 @@ export class SessionEntity {
   scenarioName: string;
 
   @Column({ nullable: true })
+  roomId: string;
+
+  @Column({ nullable: true })
   studentName: string;
 
   @Column({ type: 'datetime', nullable: true })

@@ -6,6 +6,7 @@ import {
   CommandType,
   CommandResponse,
   AssignScenarioRequest,
+  Room,
 } from '../types/trainer';
 
 function getApiBaseUrl(): string {
@@ -103,6 +104,25 @@ export async function getAllSessions(): Promise<Session[]> {
   return fetchApi<Session[]>('/api/trainer/sessions');
 }
 
+// === Rooms ===
+
+export async function getRooms(): Promise<Room[]> {
+  return fetchApi<Room[]>('/api/trainer/rooms');
+}
+
+export async function createRoom(name: string): Promise<Room> {
+  return fetchApi<Room>('/api/trainer/rooms', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function closeRoom(roomId: string): Promise<Room> {
+  return fetchApi<Room>(`/api/trainer/rooms/${roomId}/close`, {
+    method: 'PATCH',
+  });
+}
+
 export function getTrainerWebSocketUrl(): string {
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   let wsHost = import.meta.env.VITE_WS_HOST;
@@ -127,6 +147,9 @@ export const trainerApi = {
   getSessionDetails,
   getTraineeSessions,
   getAllSessions,
+  getRooms,
+  createRoom,
+  closeRoom,
   getTrainerWebSocketUrl,
   
   pauseStation: (stationId: string) => sendCommand(stationId, 'pause'),
