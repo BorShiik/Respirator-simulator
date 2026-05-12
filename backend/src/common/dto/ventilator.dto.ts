@@ -40,6 +40,7 @@ export interface TelemetryData {
   settings: VentilatorSettings;
   asynchrony: AsynchronyStatus;
   scenarioName: string;
+  difficulty?: string;
 }
 
 // WebSocket message types

@@ -205,7 +205,11 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
                 settings: message.settings,
                 asynchrony: message.asynchrony,
                 scenarioName: message.scenarioName,
+                difficulty: message.difficulty,
               });
+              if (message.difficulty) {
+                setDifficulty(message.difficulty);
+              }
               break;
             }
 

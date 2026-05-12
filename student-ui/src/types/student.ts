@@ -50,6 +50,7 @@ export interface TelemetryData {
   settings: VentilatorSettings;
   asynchrony: AsynchronyStatus;
   scenarioName: string;
+  difficulty?: DifficultyLevel;
 }
 
 export interface TelemetryMessage {
@@ -61,6 +62,7 @@ export interface TelemetryMessage {
   settings: VentilatorSettings;
   asynchrony: AsynchronyStatus;
   scenarioName: string;
+  difficulty?: DifficultyLevel;
 }
 
 export interface SettingsUpdateMessage {
