@@ -10,18 +10,35 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { useTrainerWebSocket } from '../hooks/useTrainerWebSocket';
+import { useTheme } from '../hooks/useTheme';
 import { trainerApi } from '../api/trainerApi';
 import { Scenario, MODE_LABELS, ASYNCHRONY_LABELS, DEFAULT_PATIENT_PARAMS } from '../types/trainer';
 
 export function StationDetailsPage() {
   const { stationId } = useParams<{ stationId: string }>();
   const { stationsMap } = useTrainerWebSocket();
+  const { theme } = useTheme();
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>('');
   const [isAssigning, setIsAssigning] = useState(false);
   const [loadingCommand, setLoadingCommand] = useState<string | null>(null);
 
   const station = stationId ? stationsMap.get(stationId) : null;
+
+  /* Chart theme-aware colors */
+  const chartColors = useMemo(() => {
+    const style = getComputedStyle(document.documentElement);
+    return {
+      pressure: style.getPropertyValue('--chart-pressure').trim() || '#22d3ee',
+      flow: style.getPropertyValue('--chart-flow').trim() || '#fbbf24',
+      volume: style.getPropertyValue('--chart-volume').trim() || '#34d399',
+      danger: style.getPropertyValue('--chart-danger').trim() || '#f87171',
+      grid: style.getPropertyValue('--chart-grid').trim() || '#1e293b',
+      ref: style.getPropertyValue('--chart-ref').trim() || '#475569',
+      muted: style.getPropertyValue('--admin-muted').trim() || '#94a3b8',
+      success: style.getPropertyValue('--admin-success').trim() || '#10b981',
+    };
+  }, [theme]);
 
   useEffect(() => {
     const loadScenarios = async () => {
@@ -134,7 +151,7 @@ export function StationDetailsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Link to="/" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+        <Link to="/" className="p-2 hover:bg-admin-surface rounded-lg transition-colors">
           <svg className="w-5 h-5 text-admin-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
@@ -155,10 +172,11 @@ export function StationDetailsPage() {
             <div className="flex items-center gap-4 mb-6">
               <span
                 className={`w-4 h-4 rounded-full ${
-                  station?.status === 'online' ? 'bg-green-500' : 'bg-gray-400'
+                  station?.status === 'online' ? 'bg-admin-success' : 'bg-admin-muted'
                 }`}
+                style={station?.status === 'online' ? { boxShadow: '0 0 8px var(--admin-success)' } : { opacity: 0.5 }}
               />
-              <span className="text-lg font-medium">
+              <span className="text-lg font-medium text-admin-text">
                 {station?.status === 'online' ? 'Online' : 'Offline'}
               </span>
 
@@ -166,8 +184,8 @@ export function StationDetailsPage() {
                 <span
                   className={`px-3 py-1 rounded-full text-sm font-medium ${
                     station.asynchrony.active
-                      ? 'bg-red-100 text-red-800'
-                      : 'bg-green-100 text-green-800'
+                      ? 'badge-red'
+                      : 'badge-green'
                   }`}
                 >
                   {station.asynchrony.active
@@ -181,37 +199,37 @@ export function StationDetailsPage() {
 
             {station?.settings && (
               <div className="grid grid-cols-6 gap-3 mb-6">
-                <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <div className="bg-admin-surface rounded-lg p-3 text-center">
                   <div className="text-xs text-admin-muted mb-1">Mode</div>
                   <div className="font-semibold text-admin-accent">
                     {MODE_LABELS[station.settings.mode]}
                   </div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <div className="bg-admin-surface rounded-lg p-3 text-center">
                   <div className="text-xs text-admin-muted mb-1">IPAP</div>
                   <div className="font-mono font-semibold text-admin-accent">
                     {station.settings.ipap}
                   </div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <div className="bg-admin-surface rounded-lg p-3 text-center">
                   <div className="text-xs text-admin-muted mb-1">PEEP</div>
                   <div className="font-mono font-semibold text-admin-accent">
                     {station.settings.peep}
                   </div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <div className="bg-admin-surface rounded-lg p-3 text-center">
                   <div className="text-xs text-admin-muted mb-1">RR</div>
                   <div className="font-mono font-semibold text-admin-accent">
                     {station.settings.rr}
                   </div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <div className="bg-admin-surface rounded-lg p-3 text-center">
                   <div className="text-xs text-admin-muted mb-1">Ti</div>
                   <div className="font-mono font-semibold text-admin-accent">
                     {station.settings.ti}
                   </div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <div className="bg-admin-surface rounded-lg p-3 text-center">
                   <div className="text-xs text-admin-muted mb-1">Trigger</div>
                   <div className="font-mono font-semibold text-admin-accent">
                     {station.settings.trigger}
@@ -226,14 +244,14 @@ export function StationDetailsPage() {
                   <h3 className="text-sm font-medium text-admin-muted mb-2">Real-time Pressure (cmH₂O)</h3>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
                       <XAxis dataKey="index" tick={false} />
-                      <YAxis domain={[0, 40]} tick={{ fontSize: 11, fill: '#64748b' }} />
-                      <ReferenceLine y={station?.settings?.peep || 5} stroke="#059669" strokeDasharray="5 5" />
+                      <YAxis domain={[0, 40]} tick={{ fontSize: 11, fill: chartColors.muted }} />
+                      <ReferenceLine y={station?.settings?.peep || 5} stroke={chartColors.success} strokeDasharray="5 5" />
                       <Line
                         type="monotone"
                         dataKey="value"
-                        stroke={station?.asynchrony?.active ? '#dc2626' : '#0066cc'}
+                        stroke={station?.asynchrony?.active ? chartColors.danger : chartColors.pressure}
                         strokeWidth={2}
                         dot={false}
                         isAnimationActive={false}
@@ -246,14 +264,14 @@ export function StationDetailsPage() {
                   <h3 className="text-sm font-medium text-admin-muted mb-2">Flow (L/min)</h3>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={flowData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
                       <XAxis dataKey="index" tick={false} />
-                      <YAxis domain={[-100, 100]} tick={{ fontSize: 11, fill: '#64748b' }} />
-                      <ReferenceLine y={0} stroke="#94a3b8" />
+                      <YAxis domain={[-100, 100]} tick={{ fontSize: 11, fill: chartColors.muted }} />
+                      <ReferenceLine y={0} stroke={chartColors.ref} />
                       <Line
                         type="monotone"
                         dataKey="value"
-                        stroke={station?.asynchrony?.active ? '#dc2626' : '#f59e0b'}
+                        stroke={station?.asynchrony?.active ? chartColors.danger : chartColors.flow}
                         strokeWidth={2}
                         dot={false}
                         isAnimationActive={false}
@@ -266,14 +284,14 @@ export function StationDetailsPage() {
                   <h3 className="text-sm font-medium text-admin-muted mb-2">Volume (mL)</h3>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={volumeData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
                       <XAxis dataKey="index" tick={false} />
-                      <YAxis domain={[0, 1000]} tick={{ fontSize: 11, fill: '#64748b' }} />
-                      <ReferenceLine y={station?.settings?.vt || 500} stroke="#059669" strokeDasharray="5 5" />
+                      <YAxis domain={[0, 1000]} tick={{ fontSize: 11, fill: chartColors.muted }} />
+                      <ReferenceLine y={station?.settings?.vt || 500} stroke={chartColors.success} strokeDasharray="5 5" />
                       <Line
                         type="monotone"
                         dataKey="value"
-                        stroke={station?.asynchrony?.active ? '#dc2626' : '#10b981'}
+                        stroke={station?.asynchrony?.active ? chartColors.danger : chartColors.volume}
                         strokeWidth={2}
                         dot={false}
                         isAnimationActive={false}
@@ -346,11 +364,11 @@ export function StationDetailsPage() {
             <dl className="space-y-3 text-sm">
               <div className="flex justify-between">
                 <dt className="text-admin-muted">Station ID</dt>
-                <dd className="font-mono">{stationId}</dd>
+                <dd className="font-mono text-admin-text">{stationId}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-admin-muted">Last update</dt>
-                <dd>
+                <dd className="text-admin-text">
                   {station?.lastUpdate
                     ? new Date(station.lastUpdate).toLocaleTimeString('en-US')
                     : '—'}

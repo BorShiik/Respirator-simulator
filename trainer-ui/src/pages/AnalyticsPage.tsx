@@ -100,7 +100,7 @@ export function AnalyticsPage() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
-        <svg className="w-12 h-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-12 h-12 text-admin-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
         </svg>
         <p className="text-admin-muted text-center max-w-md">{error}</p>
@@ -119,7 +119,7 @@ export function AnalyticsPage() {
           <p className="text-admin-muted mt-1">Analiza postępów i wyników studentów</p>
         </div>
         <div className="admin-card flex flex-col items-center justify-center py-16 gap-4">
-          <svg className="w-16 h-16 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-16 h-16 text-admin-muted opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
           </svg>
           <p className="text-lg font-medium text-admin-text">Brak danych analitycznych</p>
@@ -154,29 +154,31 @@ export function AnalyticsPage() {
         </div>
       </div>
 
+      {/* ── Stat Cards ────────────────────────────── */}
       <div className="grid grid-cols-5 gap-4">
         <div className="admin-card p-4">
           <div className="text-sm text-admin-muted mb-1">Wszystkie sesje</div>
-          <div className="text-2xl font-bold text-admin-text">{stats.totalSessions}</div>
+          <div className="text-2xl font-bold text-admin-text font-mono">{stats.totalSessions}</div>
         </div>
         <div className="admin-card p-4">
           <div className="text-sm text-admin-muted mb-1">Zakończone</div>
-          <div className="text-2xl font-bold text-admin-success">{stats.completedSessions}</div>
+          <div className="text-2xl font-bold text-admin-success font-mono">{stats.completedSessions}</div>
         </div>
         <div className="admin-card p-4">
           <div className="text-sm text-admin-muted mb-1">Śr. czas reakcji</div>
-          <div className="text-2xl font-bold text-admin-accent">{formatDuration(stats.avgTimeToResolve)}</div>
+          <div className="text-2xl font-bold text-admin-accent font-mono">{formatDuration(stats.avgTimeToResolve)}</div>
         </div>
         <div className="admin-card p-4">
           <div className="text-sm text-admin-muted mb-1">Śr. liczba zmian</div>
-          <div className="text-2xl font-bold text-admin-text">{stats.avgSettingChanges}</div>
+          <div className="text-2xl font-bold text-admin-text font-mono">{stats.avgSettingChanges}</div>
         </div>
         <div className="admin-card p-4">
           <div className="text-sm text-admin-muted mb-1">Skuteczność</div>
-          <div className="text-2xl font-bold text-admin-success">{stats.successRate}%</div>
+          <div className="text-2xl font-bold text-admin-success font-mono">{stats.successRate}%</div>
         </div>
       </div>
 
+      {/* ── Learning Curve ────────────────────────── */}
       <div className="admin-card p-6">
         <h2 className="text-lg font-semibold text-admin-text mb-4">Krzywa uczenia się</h2>
         <div className="h-80">
@@ -184,6 +186,7 @@ export function AnalyticsPage() {
         </div>
       </div>
 
+      {/* ── Session History ───────────────────────── */}
       <div className="admin-card overflow-hidden">
         <div className="p-4 border-b border-admin-border">
           <h2 className="text-lg font-semibold text-admin-text">Historia sesji</h2>
@@ -234,7 +237,7 @@ export function AnalyticsPage() {
                         {session.metrics?.asynchronyTypes.map((type) => (
                           <span
                             key={type}
-                            className="px-2 py-0.5 bg-red-50 text-red-700 rounded text-xs"
+                            className="px-2 py-0.5 badge-red rounded text-xs"
                           >
                             {ASYNCHRONY_LABELS[type]}
                           </span>
@@ -246,13 +249,13 @@ export function AnalyticsPage() {
                         className={`px-2 py-1 rounded text-xs font-medium ${
                           session.status === 'COMPLETED'
                             ? session.metrics?.successfulResolution
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-yellow-100 text-yellow-800'
+                              ? 'badge-green'
+                              : 'badge-yellow'
                             : session.status === 'IN_PROGRESS'
-                            ? 'bg-blue-100 text-blue-800'
+                            ? 'badge-blue'
                             : session.status === 'PENDING'
-                            ? 'bg-purple-100 text-purple-800'
-                            : 'bg-gray-100 text-gray-800'
+                            ? 'badge-purple'
+                            : 'badge-gray'
                         }`}
                       >
                       {session.status === 'COMPLETED'
