@@ -39,8 +39,13 @@ function StudentRegistration({ onRegister }: { onRegister: (studentName: string)
     const stored = localStorage.getItem('studentName');
     if (stored) {
       setSavedName(stored);
+      // Auto-login after a short delay for smooth UX and to bypass headless issues
+      const timer = setTimeout(() => {
+        onRegister(stored);
+      }, 500);
+      return () => clearTimeout(timer);
     }
-  }, []);
+  }, [onRegister]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
