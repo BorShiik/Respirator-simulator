@@ -154,6 +154,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     this.ws.on('open', () => {
       this.isConnected = true;
       this.logger.log('✅ Connected to Trainer');
+      this.emit('trainer_connection_status', true);
       if (this.currentStudentName) {
         this.registerWithMaster(this.currentStudentName);
       }
@@ -166,6 +167,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     this.ws.on('close', () => {
       this.isConnected = false;
       this.ws = null;
+      this.emit('trainer_connection_status', false);
       
       if (process.env.TRAINER_URL) {
         // Manual URL set: just reconnect on a timer
@@ -314,5 +316,10 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
         status
       }));
     }
+  }
+
+  /** Whether the student backend is currently connected to the trainer backend */
+  public get trainerConnected(): boolean {
+    return this.isConnected;
   }
 }

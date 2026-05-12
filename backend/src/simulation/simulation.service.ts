@@ -546,6 +546,7 @@ export class SimulationService extends EventEmitter {
         settings: state.settings,
         asynchrony: state.asynchrony,
         scenarioName: state.scenarioName,
+        difficulty: state.difficulty,
       };
 
       callback(telemetry);

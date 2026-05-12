@@ -52,6 +52,7 @@ export interface StationLiveStatus {
   volume: number[];
   scenarioName?: string;
   studentName?: string;
+  difficulty?: 'EASY' | 'MEDIUM' | 'HARD';
   assignedAsynchronyType?: AsynchronyType | null;
   lastUpdate: number;
 }

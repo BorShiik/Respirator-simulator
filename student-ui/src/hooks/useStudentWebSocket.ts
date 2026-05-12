@@ -13,6 +13,7 @@ import { getWebSocketUrl } from '../api/studentApi';
 interface UseStudentWebSocketReturn {
   telemetry: TelemetryData | null;
   connectionStatus: ConnectionStatus;
+  trainerConnectionStatus: boolean;
   isRegistered: boolean;
   error: string | null;
   reconnect: () => void;
@@ -58,6 +59,7 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
   const [simulationStatus, setSimulationStatus] = useState<string | null>(null);
   const [difficulty, setDifficulty] = useState<DifficultyLevel>('EASY');
   const [patientParams, setPatientParams] = useState<PatientParams | null>(null);
+  const [trainerConnectionStatus, setTrainerConnectionStatus] = useState<boolean>(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -205,7 +207,12 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
                 settings: message.settings,
                 asynchrony: message.asynchrony,
                 scenarioName: message.scenarioName,
+                difficulty: message.difficulty,
               });
+              // Also update difficulty from telemetry for continuous sync
+              if (message.difficulty) {
+                setDifficulty(message.difficulty);
+              }
               break;
             }
 
@@ -219,6 +226,11 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
             case 'parameterSelected':
               console.log('Backend selected parameter:', message.parameter);
               setExternalSelectedParameter(message.parameter);
+              break;
+
+            case 'trainerStatus':
+              console.log('Trainer connection status:', message.connected);
+              setTrainerConnectionStatus(message.connected);
               break;
           }
         } catch (parseError) {
@@ -302,6 +314,7 @@ export function useStudentWebSocket(studentName: string | null, externalSettings
   return {
     telemetry,
     connectionStatus,
+    trainerConnectionStatus,
     isRegistered,
     error,
     reconnect,

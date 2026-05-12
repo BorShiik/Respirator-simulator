@@ -106,16 +106,17 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
          this.studentClients.set(stationId, client);
          
          // Initialize state
-         this.studentStates.set(stationId, {
-            stationId: stationId,
-            studentName: msg.studentName,
-            status: 'online',
-            simulationStatus: 'running',
-            assignedAsynchronyType: null,
-            scenarioName: null,
-            lastUpdate: Date.now(),
-            telemetry: null
-         });
+          this.studentStates.set(stationId, {
+             stationId: stationId,
+             studentName: msg.studentName,
+             status: 'online',
+             simulationStatus: 'running',
+             assignedAsynchronyType: null,
+             scenarioName: null,
+             difficulty: 'EASY',
+             lastUpdate: Date.now(),
+             telemetry: null
+          });
          
          this.logger.log(`Registered remote student: ${msg.studentName} at station ${stationId}`);
          
@@ -137,6 +138,10 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
             state.telemetry = msg.telemetry;
             state.status = 'online'; // (running)
             state.lastUpdate = Date.now();
+            // Track difficulty from telemetry
+            if (msg.telemetry.difficulty) {
+              state.difficulty = msg.telemetry.difficulty;
+            }
             
             // Forward instantly to connected trainers
             this.broadcast({
@@ -147,6 +152,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
                  status: state.status,
                  isRunning: state.simulationStatus !== 'paused',
                  scenarioName: state.scenarioName || state.telemetry.scenarioName,
+                 difficulty: state.difficulty || 'EASY',
                  settings: state.telemetry.settings,
                  asynchrony: state.telemetry.asynchrony,
                  pressure: state.telemetry.pressure,
@@ -302,6 +308,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
         isRunning: state.simulationStatus !== 'paused',
         status: state.status,
         scenarioName: state.scenarioName || state.telemetry?.scenarioName || null,
+        difficulty: state.difficulty || 'EASY',
         settings: state.telemetry?.settings || null,
         asynchrony: state.telemetry?.asynchrony || null,
         pressure: state.telemetry?.pressure || [],
