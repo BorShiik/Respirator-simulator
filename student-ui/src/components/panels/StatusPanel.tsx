@@ -135,15 +135,6 @@ export function StatusPanel({
         </div>
       </div>
 
-      {/* ══════ Trainer Connection Status ══════ */}
-      <div className="flex items-center gap-2 mb-3 px-1">
-        <div className={`w-2 h-2 rounded-full flex-shrink-0 transition-all duration-300 ${
-          trainerConnectionStatus
-            ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)]'
-            : 'bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.5)] animate-pulse'
-        }`} />
-      </div>
-
       {/* ══════ Scenario Card ══════ */}
       {difficulty !== 'HARD' && (
         <div className="rounded-lg p-3 mb-3" style={{ backgroundColor: V.glass, border: `1px solid ${V.glassBorder}` }}>
