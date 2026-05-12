@@ -1,4 +1,11 @@
-import { Scenario, DIFFICULTY_LABELS, DIFFICULTY_COLORS, ASYNCHRONY_LABELS } from '../../types/trainer';
+import { Scenario, DIFFICULTY_LABELS, ASYNCHRONY_LABELS } from '../../types/trainer';
+
+/** Map difficulty to theme-aware badge class */
+const DIFFICULTY_BADGE: Record<Scenario['difficulty'], string> = {
+  EASY: 'badge-green',
+  MEDIUM: 'badge-yellow',
+  HARD: 'badge-red',
+};
 
 interface ScenarioListProps {
   scenarios: Scenario[];
@@ -41,7 +48,7 @@ export function ScenarioList({ scenarios, selectedId, onSelect, onDelete }: Scen
               className={`admin-card p-4 cursor-pointer transition-all duration-200 ${
                 selectedId === scenario.id
                   ? 'ring-2 ring-admin-accent border-admin-accent'
-                  : 'hover:border-gray-300'
+                  : 'hover:border-admin-surfaceHover'
               }`}
             >
               <div className="flex items-start justify-between">
@@ -50,7 +57,7 @@ export function ScenarioList({ scenarios, selectedId, onSelect, onDelete }: Scen
                     <h3 className="font-semibold text-admin-text">{scenario.name}</h3>
                     <span
                       className={`px-2 py-0.5 rounded text-xs font-medium ${
-                        DIFFICULTY_COLORS[scenario.difficulty]
+                        DIFFICULTY_BADGE[scenario.difficulty]
                       }`}
                     >
                       {DIFFICULTY_LABELS[scenario.difficulty]}
@@ -88,7 +95,7 @@ export function ScenarioList({ scenarios, selectedId, onSelect, onDelete }: Scen
                       {asyncTypes.map((type) => (
                         <span
                           key={type}
-                          className="px-2 py-0.5 bg-red-50 text-red-700 rounded text-xs"
+                          className="px-2 py-0.5 badge-red rounded text-xs"
                         >
                           {type}
                         </span>
