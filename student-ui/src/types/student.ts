@@ -50,6 +50,7 @@ export interface TelemetryData {
   settings: VentilatorSettings;
   asynchrony: AsynchronyStatus;
   scenarioName: string;
+  difficulty?: DifficultyLevel;
 }
 
 export interface TelemetryMessage {
@@ -61,6 +62,7 @@ export interface TelemetryMessage {
   settings: VentilatorSettings;
   asynchrony: AsynchronyStatus;
   scenarioName: string;
+  difficulty?: DifficultyLevel;
 }
 
 export interface SettingsUpdateMessage {
@@ -103,6 +105,11 @@ export interface ParameterSelectedMessage {
   parameter: string;
 }
 
+export interface TrainerStatusMessage {
+  type: 'trainerStatus';
+  connected: boolean;
+}
+
 export type WebSocketMessage = 
   | TelemetryMessage 
   | SettingsUpdateMessage 
@@ -111,7 +118,8 @@ export type WebSocketMessage =
   | LoggedOutMessage 
   | ErrorMessage 
   | StatusMessage
-  | ConnectedMessage;
+  | ConnectedMessage
+  | TrainerStatusMessage;
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 
