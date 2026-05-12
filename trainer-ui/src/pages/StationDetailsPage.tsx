@@ -13,10 +13,12 @@ import { useTrainerWebSocket } from '../hooks/useTrainerWebSocket';
 import { useTheme } from '../hooks/useTheme';
 import { trainerApi } from '../api/trainerApi';
 import { Scenario, MODE_LABELS, ASYNCHRONY_LABELS, DEFAULT_PATIENT_PARAMS } from '../types/trainer';
+import { PatientControlPanel } from '../components/stations/PatientControlPanel';
+import { EventLogFeed } from '../components/stations/EventLogFeed';
 
 export function StationDetailsPage() {
   const { stationId } = useParams<{ stationId: string }>();
-  const { stationsMap } = useTrainerWebSocket();
+  const { stationsMap, eventLog } = useTrainerWebSocket();
   const { theme } = useTheme();
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>('');
@@ -302,6 +304,9 @@ export function StationDetailsPage() {
               </div>
             )}
           </div>
+
+          {/* Event Log */}
+          <EventLogFeed logs={eventLog} stationId={stationId || ''} />
         </div>
 
         <div className="space-y-6">
@@ -357,6 +362,9 @@ export function StationDetailsPage() {
               </button>
             </div>
           </div>
+
+          {/* Live Patient Control */}
+          {station && <PatientControlPanel station={station} />}
 
           <div className="admin-card p-6">
             <h2 className="text-lg font-semibold text-admin-text mb-4">Informacje</h2>

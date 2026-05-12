@@ -55,6 +55,31 @@ export class TrainerController {
     };
   }
 
+  // === Live Patient Override (Phase 2) ===
+  @Post('students/:studentName/patient')
+  @HttpCode(200)
+  async updatePatientParams(
+    @Param('studentName') studentName: string,
+    @Body() body: { parameters: Record<string, number | boolean> },
+  ) {
+    this.trainerGateway.sendCommandToStudent(studentName, 'update_patient', {
+      parameters: body.parameters,
+    });
+
+    // Broadcast event to trainer UI clients for event log
+    this.trainerGateway.broadcastEventLog({
+      stationId: studentName,
+      timestamp: Date.now(),
+      event: 'TRAINER_PATIENT_OVERRIDE',
+      details: body.parameters,
+    });
+
+    return {
+      success: true,
+      message: `Patient parameters updated on ${studentName}`,
+    };
+  }
+
   @Post('students/:studentName/assign')
   @HttpCode(200)
   async assignScenario(

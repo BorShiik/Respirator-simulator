@@ -197,6 +197,21 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
       // 4. Handle Analytics Events from Student
       if (msg.type === 'student_event' && client.isRemoteStudent) {
+         // Forward event to trainer UI clients for Event Log
+         this.broadcastEventLog({
+           stationId: client.stationId!,
+           studentName: client.studentName,
+           timestamp: Date.now(),
+           event: msg.event,
+           details: {
+             parameter: msg.parameter,
+             previousValue: msg.previousValue,
+             newValue: msg.newValue,
+             asynchronyType: msg.asynchronyType,
+             wasAsynchronyActive: msg.wasAsynchronyActive,
+           },
+         });
+
          const act = async () => {
              const activeSession = await this.sessionsService.findActiveSession(client.stationId!);
              if (activeSession) {
@@ -315,6 +330,20 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
   notifyStudentChange() {
     const stations = this.getStudentList();
     this.broadcast({ type: 'stationsSnapshot', stations });
+  }
+
+  // Broadcast event log entry to all connected trainer UI clients
+  public broadcastEventLog(entry: {
+    stationId: string;
+    studentName?: string;
+    timestamp: number;
+    event: string;
+    details: Record<string, any>;
+  }) {
+    this.broadcast({
+      type: 'eventLog',
+      entry,
+    });
   }
 
   // Called locally by ScenariosService or SessionsService when Trainer initiates a scenario change etc.

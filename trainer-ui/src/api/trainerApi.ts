@@ -103,6 +103,16 @@ export async function getAllSessions(): Promise<Session[]> {
   return fetchApi<Session[]>('/api/trainer/sessions');
 }
 
+export async function updatePatientParams(
+  stationId: string,
+  parameters: Record<string, number | boolean>,
+): Promise<CommandResponse> {
+  return fetchApi<CommandResponse>(`/api/trainer/students/${stationId}/patient`, {
+    method: 'POST',
+    body: JSON.stringify({ parameters }),
+  });
+}
+
 export function getTrainerWebSocketUrl(): string {
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   let wsHost = import.meta.env.VITE_WS_HOST;
@@ -128,6 +138,7 @@ export const trainerApi = {
   getTraineeSessions,
   getAllSessions,
   getTrainerWebSocketUrl,
+  updatePatientParams,
   
   pauseStation: (stationId: string) => sendCommand(stationId, 'pause'),
   continueStation: (stationId: string) => sendCommand(stationId, 'continue'),
@@ -135,3 +146,4 @@ export const trainerApi = {
 };
 
 export default trainerApi;
+
