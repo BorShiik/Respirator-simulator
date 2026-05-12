@@ -13,6 +13,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
   private readonly logger = new Logger(StudentLinkService.name);
   private trainerUrl: string | null = process.env.TRAINER_URL || null;
   private reconnectTimer: NodeJS.Timeout;
+  private connectTimeoutTimer: NodeJS.Timeout;
   private discoverySocket: dgram.Socket | null = null;
   private isDiscovering = false;
   private isConnected = false;
@@ -83,6 +84,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
 
   onModuleDestroy() {
     clearTimeout(this.reconnectTimer);
+    clearTimeout(this.connectTimeoutTimer);
     this.stopDiscovery();
     if (this.ws) {
       this.ws.close();
@@ -103,10 +105,26 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
       try {
         const beacon = JSON.parse(msg.toString());
         if (beacon.type === 'trainer_beacon' && beacon.wsUrl) {
-          this.logger.log(`🔍 Discovered trainer at ${beacon.wsUrl} (${beacon.trainerName || rinfo.address})`);
+          // Try to find a non-link-local IP from the beacon
+          // Link-local (169.254.x.x) addresses are unreachable across devices
+          let bestUrl = beacon.wsUrl;
+          const parsedUrl = new URL(beacon.wsUrl);
+          const beaconHost = parsedUrl.hostname;
+
+          if (beaconHost.startsWith('169.254.') && beacon.trainerIPs && Array.isArray(beacon.trainerIPs)) {
+            const routableIP = beacon.trainerIPs.find((ip: string) => !ip.startsWith('169.254.') && ip !== '127.0.0.1');
+            if (routableIP) {
+              bestUrl = beacon.wsUrl.replace(beaconHost, routableIP);
+              this.logger.log(`🔄 Beacon primary IP was link-local (${beaconHost}), using routable IP: ${routableIP}`);
+            } else {
+              this.logger.warn(`⚠️ Beacon only has link-local IPs (${beacon.trainerIPs.join(', ')}), may not be reachable`);
+            }
+          }
+
+          this.logger.log(`🔍 Discovered trainer at ${bestUrl} (${beacon.trainerName || rinfo.address})`);
           
           // Save the discovered URL and connect
-          this.trainerUrl = beacon.wsUrl;
+          this.trainerUrl = bestUrl;
           this.stopDiscovery();
           this.connect();
         }
@@ -148,10 +166,22 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
       return;
     }
 
+    // Clear any previous connection timeout
+    clearTimeout(this.connectTimeoutTimer);
+
     this.logger.log(`Connecting to Trainer at ${this.trainerUrl}...`);
     this.ws = new WebSocket(this.trainerUrl);
 
+    // Connection timeout: if WS doesn't open within 10s, abort and retry
+    this.connectTimeoutTimer = setTimeout(() => {
+      if (this.ws && !this.isConnected) {
+        this.logger.warn(`Connection to ${this.trainerUrl} timed out after 10s`);
+        this.ws.terminate(); // Force-close (triggers 'close' event)
+      }
+    }, 10000);
+
     this.ws.on('open', () => {
+      clearTimeout(this.connectTimeoutTimer);
       this.isConnected = true;
       this.logger.log('✅ Connected to Trainer');
       this.emit('trainer_connection_status', true);
@@ -165,6 +195,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     });
 
     this.ws.on('close', () => {
+      clearTimeout(this.connectTimeoutTimer);
       this.isConnected = false;
       this.ws = null;
       this.emit('trainer_connection_status', false);
