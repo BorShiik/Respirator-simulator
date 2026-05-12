@@ -45,7 +45,7 @@ function StudentRegistration({ onRegister }: { onRegister: (studentName: string,
     if (storedRoom) {
       setRoomCode(storedRoom);
     }
-  }, []);
+  }, [onRegister]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,7 +162,7 @@ function MainScreen({ studentName, roomCode, onLogout }: { studentName: string; 
   const [localSettings, setLocalSettings] = useState<VentilatorSettings>(DEFAULT_SETTINGS);
   const { isDark, toggle: toggleTheme } = useTheme();
   
-  const { telemetry, connectionStatus, isRegistered, error, logout, updateSettings, selectParameter, externalSelectedParameter, simulationStatus, difficulty, patientParams } = useStudentWebSocket(studentName, roomCode, localSettings);
+  const { telemetry, connectionStatus, trainerConnectionStatus, isRegistered, error, logout, updateSettings, selectParameter, externalSelectedParameter, simulationStatus, difficulty, patientParams } = useStudentWebSocket(studentName, roomCode, localSettings);
 
   // If there's an error during connection (e.g. invalid room code), show an alert and logout
   useEffect(() => {
@@ -279,6 +279,7 @@ function MainScreen({ studentName, roomCode, onLogout }: { studentName: string; 
           asynchrony={asynchrony}
           studentName={studentName}
           connectionStatus={connectionStatus}
+          trainerConnectionStatus={trainerConnectionStatus}
           isRegistered={isRegistered}
           onLogout={handleLogout}
           simulationStatus={simulationStatus}

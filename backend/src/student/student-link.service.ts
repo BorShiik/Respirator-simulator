@@ -13,6 +13,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
   private readonly logger = new Logger(StudentLinkService.name);
   private trainerUrl: string | null = process.env.TRAINER_URL || null;
   private reconnectTimer: NodeJS.Timeout;
+  private connectTimeoutTimer: NodeJS.Timeout;
   private discoverySocket: dgram.Socket | null = null;
   private isDiscovering = false;
   private isConnected = false;
@@ -31,7 +32,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
   onModuleInit() {
     // Subscribe to simulation events for analytics forwarding
     this.simulationService.on('setting_changed', (stationId, param, prev, curr, wasAsync, asyncType) => {
-       if (stationId === this.currentStudentName && this.ws?.readyState === WebSocket.OPEN) {
+       if (stationId === this.currentStudentName && this.ws?.readyState === 1) {
           this.ws.send(JSON.stringify({
              type: 'student_event',
              stationId: this.currentStationId,
@@ -47,7 +48,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     });
 
     this.simulationService.on('asynchrony_injected', (stationId, type) => {
-       if (stationId === this.currentStudentName && this.ws?.readyState === WebSocket.OPEN) {
+       if (stationId === this.currentStudentName && this.ws?.readyState === 1) {
           this.ws.send(JSON.stringify({
              type: 'student_event',
              stationId: this.currentStationId,
@@ -59,7 +60,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     });
 
     this.simulationService.on('asynchrony_resolved', (stationId, type) => {
-       if (stationId === this.currentStudentName && this.ws?.readyState === WebSocket.OPEN) {
+       if (stationId === this.currentStudentName && this.ws?.readyState === 1) {
           this.ws.send(JSON.stringify({
              type: 'student_event',
              stationId: this.currentStationId,
@@ -83,6 +84,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
 
   onModuleDestroy() {
     clearTimeout(this.reconnectTimer);
+    clearTimeout(this.connectTimeoutTimer);
     this.stopDiscovery();
     if (this.ws) {
       this.ws.close();
@@ -103,10 +105,26 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
       try {
         const beacon = JSON.parse(msg.toString());
         if (beacon.type === 'trainer_beacon' && beacon.wsUrl) {
-          this.logger.log(`🔍 Discovered trainer at ${beacon.wsUrl} (${beacon.trainerName || rinfo.address})`);
+          // Try to find a non-link-local IP from the beacon
+          // Link-local (169.254.x.x) addresses are unreachable across devices
+          let bestUrl = beacon.wsUrl;
+          const parsedUrl = new URL(beacon.wsUrl);
+          const beaconHost = parsedUrl.hostname;
+
+          if (beaconHost.startsWith('169.254.') && beacon.trainerIPs && Array.isArray(beacon.trainerIPs)) {
+            const routableIP = beacon.trainerIPs.find((ip: string) => !ip.startsWith('169.254.') && ip !== '127.0.0.1');
+            if (routableIP) {
+              bestUrl = beacon.wsUrl.replace(beaconHost, routableIP);
+              this.logger.log(`🔄 Beacon primary IP was link-local (${beaconHost}), using routable IP: ${routableIP}`);
+            } else {
+              this.logger.warn(`⚠️ Beacon only has link-local IPs (${beacon.trainerIPs.join(', ')}), may not be reachable`);
+            }
+          }
+
+          this.logger.log(`🔍 Discovered trainer at ${bestUrl} (${beacon.trainerName || rinfo.address})`);
           
           // Save the discovered URL and connect
-          this.trainerUrl = beacon.wsUrl;
+          this.trainerUrl = bestUrl;
           this.stopDiscovery();
           this.connect();
         }
@@ -148,12 +166,25 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
       return;
     }
 
+    // Clear any previous connection timeout
+    clearTimeout(this.connectTimeoutTimer);
+
     this.logger.log(`Connecting to Trainer at ${this.trainerUrl}...`);
     this.ws = new WebSocket(this.trainerUrl);
 
+    // Connection timeout: if WS doesn't open within 10s, abort and retry
+    this.connectTimeoutTimer = setTimeout(() => {
+      if (this.ws && !this.isConnected) {
+        this.logger.warn(`Connection to ${this.trainerUrl} timed out after 10s`);
+        this.ws.terminate(); // Force-close (triggers 'close' event)
+      }
+    }, 10000);
+
     this.ws.on('open', () => {
+      clearTimeout(this.connectTimeoutTimer);
       this.isConnected = true;
       this.logger.log('✅ Connected to Trainer');
+      this.emit('trainer_connection_status', true);
       if (this.currentStudentName) {
         this.registerWithMaster(this.currentStudentName, this.currentRoomCode || undefined);
       }
@@ -164,8 +195,10 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     });
 
     this.ws.on('close', () => {
+      clearTimeout(this.connectTimeoutTimer);
       this.isConnected = false;
       this.ws = null;
+      this.emit('trainer_connection_status', false);
       
       if (process.env.TRAINER_URL) {
         // Manual URL set: just reconnect on a timer
@@ -223,6 +256,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
              this.logger.log('Trainer command: continue');
              this.emit('trainer_continue', msg.scenarioId);
           } else if (msg.command === 'update_settings') {
+             this.logger.log(`Trainer command: update_settings (scenario=${msg.scenario?.name || 'none'}, difficulty=${msg.difficulty || 'none'}, blocks=${msg.scenario?.blocks?.length || 0})`);
              if (msg.settings) {
                 this.simulationService.updateSettings(this.currentStudentName, msg.settings);
              }
@@ -237,6 +271,12 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
           } else if (msg.command === 'reset') {
              this.logger.log('Trainer command: reset');
              this.emit('trainer_reset');
+          } else if (msg.command === 'update_patient') {
+             this.logger.log('Trainer command: update_patient');
+             this.simulationService.updatePatientParameters(this.currentStudentName, msg.parameters);
+          } else if (msg.command === 'set_asynchrony') {
+             this.logger.log(`Trainer command: set_asynchrony (${msg.asynchronyType})`);
+             this.simulationService.injectAsynchrony(this.currentStudentName, msg.asynchronyType);
           }
           break;
       }
@@ -254,7 +294,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     if (roomCode) {
       this.currentRoomCode = roomCode;
     }
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    if (this.ws && this.ws.readyState === 1) {
       this.logger.log(`Registering student "${studentName}" with Trainer...`);
       this.ws.send(JSON.stringify({ 
         type: 'remote_student_register', 
@@ -278,7 +318,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
   }
 
   public sendTelemetryToMaster(telemetry: TelemetryData) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentStudentName) {
+    if (this.ws && this.ws.readyState === 1 && this.currentStudentName) {
       this.ws.send(JSON.stringify({
         type: 'remote_student_telemetry',
         stationId: this.currentStationId,
@@ -293,7 +333,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
    * The trainer will create/start a session for analytics tracking.
    */
   public notifySessionStart(scenarioName: string) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentStudentName) {
+    if (this.ws && this.ws.readyState === 1 && this.currentStudentName) {
       this.logger.log(`Notifying trainer: session started (${scenarioName})`);
       this.ws.send(JSON.stringify({
         type: 'student_session_start',
@@ -309,7 +349,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
    * The trainer will complete the active session.
    */
   public notifySessionStop() {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentStudentName) {
+    if (this.ws && this.ws.readyState === 1 && this.currentStudentName) {
       this.logger.log('Notifying trainer: session stopped');
       this.ws.send(JSON.stringify({
         type: 'student_session_stop',
@@ -320,7 +360,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
   }
 
   public sendSimulationStatusToMaster(status: string) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentStudentName) {
+    if (this.ws && this.ws.readyState === 1 && this.currentStudentName) {
       this.ws.send(JSON.stringify({
         type: 'remote_student_status',
         stationId: this.currentStationId,
@@ -328,5 +368,10 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
         status
       }));
     }
+  }
+
+  /** Whether the student backend is currently connected to the trainer backend */
+  public get trainerConnected(): boolean {
+    return this.isConnected;
   }
 }

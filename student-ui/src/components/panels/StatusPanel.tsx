@@ -32,6 +32,7 @@ interface StatusPanelProps {
   asynchrony: AsynchronyStatus;
   studentName: string;
   connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'error';
+  trainerConnectionStatus?: boolean;
   isRegistered?: boolean;
   onLogout?: () => void;
   simulationStatus?: string | null;
@@ -61,6 +62,7 @@ export function StatusPanel({
   asynchrony, 
   studentName, 
   connectionStatus,
+  trainerConnectionStatus: _trainerConnectionStatus = false,
   isRegistered = true,
   onLogout,
   simulationStatus,
@@ -116,7 +118,7 @@ export function StatusPanel({
     <div className="flex flex-col h-full relative" style={{ color: V.text }}>
 
       {/* ══════ Header: Connection + Name + Logout ══════ */}
-      <div className="flex items-center justify-between mb-3 pb-2" style={{ borderBottom: `1px solid ${V.glassBorder}` }}>
+      <div className="flex items-center justify-between mb-1 pb-2" style={{ borderBottom: `1px solid ${V.glassBorder}` }}>
         <div className="flex items-center gap-2 min-w-0">
           <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${getConnectionDot()}`} />
           <span className="text-[11px] truncate" style={{ color: V.muted }}>{getConnectionText()}</span>

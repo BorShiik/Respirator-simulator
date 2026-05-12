@@ -60,6 +60,7 @@ export interface StationLiveStatus {
   volume: number[];
   scenarioName?: string;
   studentName?: string;
+  difficulty?: 'EASY' | 'MEDIUM' | 'HARD';
   assignedAsynchronyType?: AsynchronyType | null;
   lastUpdate: number;
 }
@@ -149,10 +150,19 @@ export interface SessionDetails extends Session {
   timeline: SessionTimeline[];
 }
 
+export interface EventLogEntry {
+  stationId: string;
+  studentName?: string;
+  timestamp: number;
+  event: string;
+  details: Record<string, any>;
+}
+
 export interface TrainerWebSocketMessage {
-  type: 'stationUpdate' | 'stationsSnapshot';
+  type: 'stationUpdate' | 'stationsSnapshot' | 'eventLog';
   stations?: StationLiveStatus[];
   station?: StationLiveStatus;
+  entry?: EventLogEntry;
 }
 
 export type CommandType = 'reset' | 'pause' | 'continue';
