@@ -270,6 +270,12 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
           } else if (msg.command === 'reset') {
              this.logger.log('Trainer command: reset');
              this.emit('trainer_reset');
+          } else if (msg.command === 'update_patient') {
+             this.logger.log('Trainer command: update_patient');
+             this.simulationService.updatePatientParameters(this.currentStudentName, msg.parameters);
+          } else if (msg.command === 'set_asynchrony') {
+             this.logger.log(`Trainer command: set_asynchrony (${msg.asynchronyType})`);
+             this.simulationService.injectAsynchrony(this.currentStudentName, msg.asynchronyType);
           }
           break;
       }

@@ -142,9 +142,6 @@ export function StatusPanel({
             ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)]'
             : 'bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.5)] animate-pulse'
         }`} />
-        <span className="text-[10px] uppercase tracking-wider" style={{ color: V.muted }}>
-          Trener: {trainerConnectionStatus ? 'podłączony' : 'brak połączenia'}
-        </span>
       </div>
 
       {/* ══════ Scenario Card ══════ */}
