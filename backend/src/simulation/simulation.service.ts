@@ -251,6 +251,8 @@ export class SimulationService extends EventEmitter {
   applyScenarioEvents(stationId: string, blocks: any[]): void {
      const state = this.states.get(stationId);
      if (state) {
+        console.log(`[SimulationService] Applied ${blocks.length} scenario blocks for ${stationId}:`,
+          blocks.map(b => `${b.type}(${b.asynchronyType || 'normal'} @ ${b.startTime}s)`).join(', '));
         state.scenarioBlocks = [...blocks];
         state.time = 0;
         state.totalTime = 0;
@@ -624,6 +626,7 @@ export class SimulationService extends EventEmitter {
      }
 
      if (expectedAsynchronyType && state.asynchrony.type !== expectedAsynchronyType) {
+         console.log(`[SimulationService] Scheduled asynchrony ${expectedAsynchronyType} activated at t=${currentTime.toFixed(1)}s for ${stationId}`);
          this.injectAsynchrony(stationId, expectedAsynchronyType);
          state.currentAsynchronyEvent = activeBlock;
      } else if (!expectedAsynchronyType && state.asynchrony.active && state.currentAsynchronyEvent) {
@@ -635,6 +638,12 @@ export class SimulationService extends EventEmitter {
      for (const iterBlock of state.scenarioBlocks) {
          const startTime = iterBlock.startTime;
          if (currentTime >= startTime && !iterBlock._applied) {
+             // Skip ASYNCHRONY blocks — their patient params represent pre-asynchrony
+             // baselines and would overwrite the values that injectAsynchrony() just set.
+             if (iterBlock.type === 'ASYNCHRONY') {
+                 iterBlock._applied = true;
+                 continue;
+             }
              if (iterBlock.parameterChanges && Object.keys(iterBlock.parameterChanges).length > 0) {
                  state.settings = {
                     ...state.settings,

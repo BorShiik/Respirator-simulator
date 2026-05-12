@@ -256,6 +256,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
              this.logger.log('Trainer command: continue');
              this.emit('trainer_continue', msg.scenarioId);
           } else if (msg.command === 'update_settings') {
+             this.logger.log(`Trainer command: update_settings (scenario=${msg.scenario?.name || 'none'}, difficulty=${msg.difficulty || 'none'}, blocks=${msg.scenario?.blocks?.length || 0})`);
              if (msg.settings) {
                 this.simulationService.updateSettings(this.currentStudentName, msg.settings);
              }
