@@ -52,6 +52,9 @@ export function StationCard({ station }: StationCardProps) {
               </span>
             )}
           </h3>
+          <div className="text-xs text-admin-muted mt-1">
+             {station.scenarioName ? station.scenarioName : 'Free Practice'}
+          </div>
           <div className="flex items-center gap-2 mt-1">
             <span
               className={`status-dot ${

@@ -134,7 +134,7 @@ export function StatusPanel({
       </div>
 
       {/* ══════ Scenario Card ══════ */}
-      {difficulty !== 'HARD' && (
+      {difficulty === 'EASY' && (
         <div className="rounded-lg p-3 mb-3" style={{ backgroundColor: V.glass, border: `1px solid ${V.glassBorder}` }}>
           <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: V.muted }}>Scenariusz</div>
           <div className="text-sm font-semibold truncate" style={{ color: V.text }}>
