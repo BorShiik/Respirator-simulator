@@ -31,7 +31,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
   onModuleInit() {
     // Subscribe to simulation events for analytics forwarding
     this.simulationService.on('setting_changed', (stationId, param, prev, curr, wasAsync, asyncType) => {
-       if (stationId === this.currentStudentName && this.ws?.readyState === WebSocket.OPEN) {
+       if (stationId === this.currentStudentName && this.ws?.readyState === 1) {
           this.ws.send(JSON.stringify({
              type: 'student_event',
              stationId: this.currentStationId,
@@ -47,7 +47,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     });
 
     this.simulationService.on('asynchrony_injected', (stationId, type) => {
-       if (stationId === this.currentStudentName && this.ws?.readyState === WebSocket.OPEN) {
+       if (stationId === this.currentStudentName && this.ws?.readyState === 1) {
           this.ws.send(JSON.stringify({
              type: 'student_event',
              stationId: this.currentStationId,
@@ -59,7 +59,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     });
 
     this.simulationService.on('asynchrony_resolved', (stationId, type) => {
-       if (stationId === this.currentStudentName && this.ws?.readyState === WebSocket.OPEN) {
+       if (stationId === this.currentStudentName && this.ws?.readyState === 1) {
           this.ws.send(JSON.stringify({
              type: 'student_event',
              stationId: this.currentStationId,
@@ -103,10 +103,19 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
       try {
         const beacon = JSON.parse(msg.toString());
         if (beacon.type === 'trainer_beacon' && beacon.wsUrl) {
-          this.logger.log(`🔍 Discovered trainer at ${beacon.wsUrl} (${beacon.trainerName || rinfo.address})`);
+          // Parse the port and path from the beacon's URL, but use the actual packet source IP
+          let targetUrl = beacon.wsUrl;
+          try {
+            const urlObj = new URL(beacon.wsUrl);
+            targetUrl = `ws://${rinfo.address}:${urlObj.port}${urlObj.pathname}`;
+          } catch (e) {
+            // Fallback if URL parsing fails
+          }
+
+          this.logger.log(`🔍 Discovered trainer at ${targetUrl} (from beacon IP: ${rinfo.address}, name: ${beacon.trainerName})`);
           
           // Save the discovered URL and connect
-          this.trainerUrl = beacon.wsUrl;
+          this.trainerUrl = targetUrl;
           this.stopDiscovery();
           this.connect();
         }
@@ -251,7 +260,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
 
   public registerWithMaster(studentName: string) {
     this.currentStudentName = studentName;
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    if (this.ws && this.ws.readyState === 1) {
       this.logger.log(`Registering student "${studentName}" with Trainer...`);
       this.ws.send(JSON.stringify({ 
         type: 'remote_student_register', 
@@ -264,7 +273,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
   }
 
   public sendTelemetryToMaster(telemetry: TelemetryData) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentStudentName) {
+    if (this.ws && this.ws.readyState === 1 && this.currentStudentName) {
       this.ws.send(JSON.stringify({
         type: 'remote_student_telemetry',
         stationId: this.currentStationId,
@@ -279,7 +288,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
    * The trainer will create/start a session for analytics tracking.
    */
   public notifySessionStart(scenarioName: string) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentStudentName) {
+    if (this.ws && this.ws.readyState === 1 && this.currentStudentName) {
       this.logger.log(`Notifying trainer: session started (${scenarioName})`);
       this.ws.send(JSON.stringify({
         type: 'student_session_start',
@@ -295,7 +304,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
    * The trainer will complete the active session.
    */
   public notifySessionStop() {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentStudentName) {
+    if (this.ws && this.ws.readyState === 1 && this.currentStudentName) {
       this.logger.log('Notifying trainer: session stopped');
       this.ws.send(JSON.stringify({
         type: 'student_session_stop',
@@ -306,7 +315,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
   }
 
   public sendSimulationStatusToMaster(status: string) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentStudentName) {
+    if (this.ws && this.ws.readyState === 1 && this.currentStudentName) {
       this.ws.send(JSON.stringify({
         type: 'remote_student_status',
         stationId: this.currentStationId,
