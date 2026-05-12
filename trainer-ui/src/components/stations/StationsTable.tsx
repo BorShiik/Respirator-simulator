@@ -51,29 +51,29 @@ export function StationsTable({ stations }: StationsTableProps) {
                         station.status === 'online' ? 'status-dot-online' : 'status-dot-offline'
                       }`}
                     />
-                    <span className="font-medium">{station.stationId}</span>
+                    <span className="font-medium text-admin-text">{station.stationId}</span>
                   </div>
                 </td>
                 <td>
                   <span
                     className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                       station.status === 'online'
-                        ? 'bg-green-100 text-green-800'
+                        ? 'badge-green'
                         : station.status === 'error'
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-gray-100 text-gray-800'
+                        ? 'badge-red'
+                        : 'badge-gray'
                     }`}
                   >
                     {station.status === 'online' ? 'Online' : station.status === 'error' ? 'Error' : 'Offline'}
                   </span>
                 </td>
                 <td>
-                  <span className={station.studentName ? "font-medium" : "text-admin-muted"}>
+                  <span className={station.studentName ? "font-medium text-admin-text" : "text-admin-muted"}>
                     {station.studentName || 'Not assigned'}
                   </span>
                 </td>
                 <td>
-                  <span className={station.scenarioName ? "font-medium" : "text-admin-muted"}>
+                  <span className={station.scenarioName ? "font-medium text-admin-text" : "text-admin-muted"}>
                     {station.scenarioName || 'No scenario'}
                   </span>
                 </td>

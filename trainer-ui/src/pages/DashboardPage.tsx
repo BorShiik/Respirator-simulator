@@ -32,11 +32,12 @@ export function DashboardPage() {
           <span
             className={`w-3 h-3 rounded-full ${
               connectionStatus === 'connected'
-                ? 'bg-green-500'
+                ? 'bg-admin-success'
                 : connectionStatus === 'connecting'
-                ? 'bg-yellow-500 animate-pulse'
-                : 'bg-red-500'
+                ? 'bg-admin-warning animate-pulse'
+                : 'bg-admin-danger'
             }`}
+            style={connectionStatus === 'connected' ? { boxShadow: '0 0 6px var(--admin-success)' } : {}}
           />
           <span className="text-sm text-admin-muted">
             {connectionStatus === 'connected'
@@ -48,11 +49,12 @@ export function DashboardPage() {
         </div>
       </div>
 
+      {/* ── Stat Cards ────────────────────────────── */}
       <div className="grid grid-cols-4 gap-4">
         <div className="admin-card p-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-12 h-12 stat-icon-blue rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -62,7 +64,7 @@ export function DashboardPage() {
               </svg>
             </div>
             <div>
-              <p className="text-2xl font-bold text-admin-text">{stats.total}</p>
+              <p className="text-2xl font-bold text-admin-text font-mono">{stats.total}</p>
               <p className="text-sm text-admin-muted">Total stations</p>
             </div>
           </div>
@@ -70,8 +72,8 @@ export function DashboardPage() {
 
         <div className="admin-card p-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-12 h-12 stat-icon-green rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -81,7 +83,7 @@ export function DashboardPage() {
               </svg>
             </div>
             <div>
-              <p className="text-2xl font-bold text-admin-text">{stats.online}</p>
+              <p className="text-2xl font-bold text-admin-success font-mono">{stats.online}</p>
               <p className="text-sm text-admin-muted">Online</p>
             </div>
           </div>
@@ -89,8 +91,8 @@ export function DashboardPage() {
 
         <div className="admin-card p-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-12 h-12 stat-icon-gray rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -100,7 +102,7 @@ export function DashboardPage() {
               </svg>
             </div>
             <div>
-              <p className="text-2xl font-bold text-admin-text">{stats.total - stats.online}</p>
+              <p className="text-2xl font-bold text-admin-muted font-mono">{stats.total - stats.online}</p>
               <p className="text-sm text-admin-muted">Offline</p>
             </div>
           </div>
@@ -108,8 +110,8 @@ export function DashboardPage() {
 
         <div className="admin-card p-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-12 h-12 stat-icon-red rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -119,13 +121,14 @@ export function DashboardPage() {
               </svg>
             </div>
             <div>
-              <p className="text-2xl font-bold text-admin-text">{stats.async}</p>
+              <p className="text-2xl font-bold text-admin-danger font-mono">{stats.async}</p>
               <p className="text-sm text-admin-muted">With asynchrony</p>
             </div>
           </div>
         </div>
       </div>
 
+      {/* ── Stations Preview ──────────────────────── */}
       <div>
         <h2 className="text-lg font-semibold text-admin-text mb-4">Stations preview</h2>
         <div className="grid grid-cols-3 gap-4">
@@ -137,6 +140,7 @@ export function DashboardPage() {
         </div>
       </div>
 
+      {/* ── All Stations Table ────────────────────── */}
       <div>
         <h2 className="text-lg font-semibold text-admin-text mb-4">All stations</h2>
         <StationsTable stations={stations} />

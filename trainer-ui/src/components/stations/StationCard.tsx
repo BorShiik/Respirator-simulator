@@ -25,9 +25,13 @@ export function StationCard({ station }: StationCardProps) {
     return stationId.replace('station-', 'Stanowisko ');
   };
 
+  const hasAsync = station.status === 'online' && station.asynchrony?.active;
+
   return (
     <div
-      className="admin-card p-4 cursor-pointer transition-shadow hover:shadow-lg hover:ring-2 hover:ring-admin-accent/30"
+      className={`admin-card p-4 cursor-pointer transition-all duration-300 hover:shadow-lg hover:ring-2 hover:ring-admin-accent/30 ${
+        hasAsync ? 'async-glow' : ''
+      }`}
       onClick={() => navigate(`/stations/${station.stationId}`)}
       role="button"
       tabIndex={0}
@@ -67,8 +71,8 @@ export function StationCard({ station }: StationCardProps) {
           <div
             className={`px-3 py-1.5 rounded-full text-xs font-semibold ${
               station.asynchrony.active
-                ? 'bg-red-100 text-red-800'
-                : 'bg-green-100 text-green-800'
+                ? 'badge-red'
+                : 'badge-green'
             }`}
           >
             {station.asynchrony.active ? 'Asynchronia' : 'Synchronia'}
@@ -79,19 +83,19 @@ export function StationCard({ station }: StationCardProps) {
       {station.status === 'online' && station.settings && (
         <>
           <div className="grid grid-cols-3 gap-2 mb-4 text-center">
-            <div className="bg-gray-50 rounded p-2">
+            <div className="bg-admin-surface rounded-lg p-2">
               <div className="text-xs text-admin-muted">IPAP</div>
               <div className="font-mono font-semibold text-admin-accent">
                 {station.settings.ipap}
               </div>
             </div>
-            <div className="bg-gray-50 rounded p-2">
+            <div className="bg-admin-surface rounded-lg p-2">
               <div className="text-xs text-admin-muted">PEEP</div>
               <div className="font-mono font-semibold text-admin-accent">
                 {station.settings.peep}
               </div>
             </div>
-            <div className="bg-gray-50 rounded p-2">
+            <div className="bg-admin-surface rounded-lg p-2">
               <div className="text-xs text-admin-muted">RR</div>
               <div className="font-mono font-semibold text-admin-accent">
                 {station.settings.rr}
@@ -102,13 +106,13 @@ export function StationCard({ station }: StationCardProps) {
           <div className="grid grid-cols-2 gap-2 mb-2">
             <div>
               <div className="text-xs text-admin-muted mb-1">Tryb</div>
-              <div className="text-sm font-medium">
+              <div className="text-sm font-medium text-admin-text">
                 {MODE_LABELS[station.settings.mode]}
               </div>
             </div>
             <div>
               <div className="text-xs text-admin-muted mb-1">Scenariusz</div>
-              <div className="text-sm font-medium">
+              <div className="text-sm font-medium text-admin-text">
                 {station.scenarioName || 'Brak'}
               </div>
             </div>
@@ -121,7 +125,7 @@ export function StationCard({ station }: StationCardProps) {
                   <Line
                     type="monotone"
                     dataKey="value"
-                    stroke={station.asynchrony?.active ? '#dc2626' : '#0066cc'}
+                    stroke={station.asynchrony?.active ? 'var(--chart-danger)' : 'var(--chart-pressure)'}
                     strokeWidth={1.5}
                     dot={false}
                     isAnimationActive={false}
