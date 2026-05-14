@@ -67,6 +67,15 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
         });
     });
 
+    this.simulationService.on('patient_updated', (stationId, patient) => {
+        if (stationId === this.currentStudentName) {
+            this.broadcast({
+                type: 'status',
+                patientParams: patient
+            });
+        }
+    });
+
     // Listen to trainer commands forwarded by StudentLinkService
     // This ensures start/stop/reset always use the unified callback
     // (which sends telemetry to both UI AND master)

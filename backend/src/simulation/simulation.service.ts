@@ -243,6 +243,8 @@ export class SimulationService extends EventEmitter {
     if (parameters.PressureRaiseT !== undefined) state.patient.PressureRaiseT = Math.max(0, parameters.PressureRaiseT);
     if (parameters.DoubleTriggeringTime !== undefined) state.patient.DoubleTriggeringTime = Math.max(0, parameters.DoubleTriggeringTime);
     if (parameters.knobDisable !== undefined) state.patient.knobDisable = parameters.knobDisable;
+
+    this.emit('patient_updated', stationId, state.patient);
   }
 
   /**
