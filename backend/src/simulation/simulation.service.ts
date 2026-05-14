@@ -41,6 +41,11 @@ interface SimulationState {
   baselinePatient: PatientModel | null;
   currentAsynchronyEvent: any | null;
 
+  // Scenario completion tracking
+  scenarioDuration: number;       // Total scenario duration (seconds), 0 = unlimited
+  scenarioCompleted: boolean;     // Whether the scenario has completed
+  scenarioCompletesAt: number;    // Scheduled early-completion time (totalTime value), 0 = not scheduled
+
   // Telemetry Buffers
   pressureBuffer: number[];
   flowBuffer: number[];
@@ -115,6 +120,9 @@ export class SimulationService extends EventEmitter {
       baselineSettings: null,
       baselinePatient: null,
       currentAsynchronyEvent: null,
+      scenarioDuration: 0,
+      scenarioCompleted: false,
+      scenarioCompletesAt: 0,
       pressureBuffer: [],
       flowBuffer: [],
       volumeBuffer: [],
@@ -182,6 +190,8 @@ export class SimulationService extends EventEmitter {
     this.leakingBreathCPAPSTInit(state, true);
     state.totalTime = 0;
     state.breathCount = 0;
+    state.scenarioCompleted = false;
+    state.scenarioCompletesAt = 0;
     state.pressureBuffer = [];
     state.flowBuffer = [];
     state.volumeBuffer = [];
@@ -250,12 +260,15 @@ export class SimulationService extends EventEmitter {
   /**
    * Apply scenario events scheduled timeline
    */
-  applyScenarioEvents(stationId: string, blocks: any[]): void {
+  applyScenarioEvents(stationId: string, blocks: any[], durationSeconds: number = 0): void {
      const state = this.states.get(stationId);
      if (state) {
-        console.log(`[SimulationService] Applied ${blocks.length} scenario blocks for ${stationId}:`,
+        console.log(`[SimulationService] Applied ${blocks.length} scenario blocks (duration=${durationSeconds}s) for ${stationId}:`,
           blocks.map(b => `${b.type}(${b.asynchronyType || 'normal'} @ ${b.startTime}s)`).join(', '));
         state.scenarioBlocks = [...blocks];
+        state.scenarioDuration = durationSeconds;
+        state.scenarioCompleted = false;
+        state.scenarioCompletesAt = 0;
         state.time = 0;
         state.totalTime = 0;
         state.breathTime = 0.1;
@@ -529,11 +542,35 @@ export class SimulationService extends EventEmitter {
        state.asynchrony = { active: false, type: null };
        state.baselineSettings = null;
        state.baselinePatient = null;
-       if (state.currentAsynchronyEvent) {
-          state.currentAsynchronyEvent._resolved = true;
-          state.currentAsynchronyEvent = null;
+
+       const resolvedBlock = state.currentAsynchronyEvent;
+       if (resolvedBlock) {
+          resolvedBlock._resolved = true;
        }
+       state.currentAsynchronyEvent = null;
        this.emit('asynchrony_resolved', stationId, resolvedType);
+
+       // ─── Dynamic block progression: advance to next async after 5s ──
+       if (state.scenarioBlocks && resolvedBlock) {
+         const nextAsyncBlock = state.scenarioBlocks.find(b =>
+           b.type === 'ASYNCHRONY' &&
+           !b._resolved &&
+           b.startTime > resolvedBlock.startTime
+         );
+
+         if (nextAsyncBlock) {
+           // Move next async block to 5 seconds from now (only if earlier than scheduled)
+           const earlyStart = state.totalTime + 5;
+           if (earlyStart < nextAsyncBlock.startTime) {
+             console.log(`[SimulationService] Early resolution! Moving next async from ${nextAsyncBlock.startTime}s to ${earlyStart.toFixed(1)}s`);
+             nextAsyncBlock.startTime = earlyStart;
+           }
+         } else {
+           // All asynchronies resolved — schedule scenario completion in 5s
+           state.scenarioCompletesAt = state.totalTime + 5;
+           console.log(`[SimulationService] All asynchronies resolved! Scenario completes at ${state.scenarioCompletesAt.toFixed(1)}s`);
+         }
+       }
     }
 
     // ─── 17. Send telemetry ──────────────────────────────────────────
@@ -551,6 +588,9 @@ export class SimulationService extends EventEmitter {
         asynchrony: state.asynchrony,
         scenarioName: state.scenarioName,
         difficulty: state.difficulty,
+        totalTime: state.totalTime,
+        scenarioDuration: state.scenarioDuration,
+        scenarioCompleted: state.scenarioCompleted,
       };
 
       callback(telemetry);
@@ -607,6 +647,7 @@ export class SimulationService extends EventEmitter {
 
   private processScheduledEvents(stationId: string, state: SimulationState): void {
      if (!state.scenarioBlocks || state.scenarioBlocks.length === 0) return;
+     if (state.scenarioCompleted) return; // Already completed — skip processing
 
      const currentTime = state.totalTime;
 
@@ -635,6 +676,24 @@ export class SimulationService extends EventEmitter {
          const expiredType = state.asynchrony.type;
          this.injectAsynchrony(stationId, null);
          this.emit('asynchrony_resolved', stationId, expiredType);
+     }
+
+     // ─── Scenario completion checks ─────────────────────────────────
+     // Path A: Early completion — all asynchronies resolved, 5s cooldown passed
+     if (state.scenarioCompletesAt > 0 && currentTime >= state.scenarioCompletesAt) {
+       state.scenarioCompleted = true;
+       if (state.asynchrony.active) this.injectAsynchrony(stationId, null);
+       console.log(`[SimulationService] Scenario '${state.scenarioName}' COMPLETED (all asynchronies resolved) at t=${currentTime.toFixed(1)}s`);
+       this.emit('scenario_completed', stationId, state.scenarioName);
+       return;
+     }
+     // Path B: Natural completion — durationSeconds elapsed
+     if (state.scenarioDuration > 0 && currentTime >= state.scenarioDuration) {
+       state.scenarioCompleted = true;
+       if (state.asynchrony.active) this.injectAsynchrony(stationId, null);
+       console.log(`[SimulationService] Scenario '${state.scenarioName}' COMPLETED (duration ${state.scenarioDuration}s reached) at t=${currentTime.toFixed(1)}s`);
+       this.emit('scenario_completed', stationId, state.scenarioName);
+       return;
      }
 
      for (const iterBlock of state.scenarioBlocks) {
