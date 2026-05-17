@@ -159,13 +159,13 @@ export const MODE_LABELS: Record<VentilatorMode, string> = {
 };
 
 export const DEFAULT_SETTINGS: VentilatorSettings = {
-  ipap: 12,
-  epap: 4,
-  peep: 4,
+  ipap: 20,
+  epap: 5,
+  peep: 5,
   rr: 15,
   ti: 1.0,
   trigger: 2,
   vt: 500,
-  pinsp: 12,
+  pinsp: 20,
   mode: 'PC-CMV',
 };

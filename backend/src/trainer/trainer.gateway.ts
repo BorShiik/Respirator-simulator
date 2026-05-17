@@ -274,6 +274,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
                       // Scenario completed — mark session as completed for analytics
                       this.logger.log(`Scenario completed for station ${client.stationId} — completing session ${activeSession.id}`);
                       await this.sessionsService.complete(activeSession.id, activeSession.initialSettings);
+                      this.broadcastSessionsUpdate();
                       this.broadcastEventLog({
                         stationId: client.stationId!,
                         studentName: client.studentName,
@@ -333,10 +334,11 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
          const act = async () => {
              const stationId = client.stationId!;
              const activeSession = await this.sessionsService.findActiveSession(stationId);
-             if (activeSession) {
-                 await this.sessionsService.complete(activeSession.id, activeSession.initialSettings);
-                 this.logger.log(`Completed session ${activeSession.id} for ${stationId}`);
-             }
+              if (activeSession) {
+                  await this.sessionsService.complete(activeSession.id, activeSession.initialSettings);
+                  this.logger.log(`Completed session ${activeSession.id} for ${stationId}`);
+                  this.broadcastSessionsUpdate();
+              }
 
              this.broadcastEventLog({
                  stationId: stationId,
@@ -411,6 +413,11 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
       type: 'eventLog',
       entry,
     });
+  }
+
+  // Notify all trainer UIs that session data has changed (so they can re-fetch)
+  public broadcastSessionsUpdate() {
+    this.broadcast({ type: 'sessions_updated' });
   }
 
   // Called locally by ScenariosService or SessionsService when Trainer initiates a scenario change etc.

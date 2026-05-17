@@ -95,27 +95,27 @@ export interface PatientModel {
 
 // Default values
 export const DEFAULT_SETTINGS: VentilatorSettings = {
-  ipap: 12,
-  epap: 4,
-  peep: 4,
+  ipap: 20,
+  epap: 5,
+  peep: 5,
   rr: 15,
   ti: 1.0,
   trigger: 2,
   vt: 500,
-  pinsp: 12,
+  pinsp: 20,
   mode: 'PC-CMV',
   pressureRaiseT: 0,
 };
 
 export const DEFAULT_PATIENT: PatientModel = {
   compliance: 50,      // Normal: 50-100 mL/cmH2O
-  resistance: 10,      // cmH2O/(L/s) (ILSim default)
+  resistance: 10,      // cmH2O/(L/s) — patient airway resistance
   spontaneousRate: 0,  // No spontaneous breathing by default
   effort: 0,
-  rin: 1,              // Inspiratory resistance (ILSim default)
-  rout: 20,            // Expiratory resistance (ILSim default)
-  p01: 3,              // Baseline patient effort — creates visible trigger dips
-  Tcykl: 4.0,          // Patient cycle = machine cycle (60/15 = 4.0s) — synchronized
+  rin: 1,              // Low inspiratory circuit resistance — Pp tracks IPAP closely
+  rout: 5,             // Moderate expiratory resistance — proper passive expiration
+  p01: 0,              // No patient effort at baseline — clean mandatory breaths
+  Tcykl: 4.0,          // Patient cycle = machine cycle (60/15 = 4.0s)
   PTi: 1.0,            // Patient inspiratory time
   PriorityPR: 0,       // No auto-triggering override
   PressureRaiseT: 0,   // Instant pressure rise

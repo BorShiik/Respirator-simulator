@@ -159,7 +159,7 @@ export interface EventLogEntry {
 }
 
 export interface TrainerWebSocketMessage {
-  type: 'stationUpdate' | 'stationsSnapshot' | 'eventLog';
+  type: 'stationUpdate' | 'stationsSnapshot' | 'eventLog' | 'sessions_updated';
   stations?: StationLiveStatus[];
   station?: StationLiveStatus;
   entry?: EventLogEntry;
@@ -221,20 +221,20 @@ export const DIFFICULTY_COLORS: Record<Scenario['difficulty'], string> = {
 };
 
 export const DEFAULT_SETTINGS: VentilatorSettings = {
-  ipap: 12,
-  epap: 4,
-  peep: 4,
+  ipap: 20,
+  epap: 5,
+  peep: 5,
   rr: 15,
   ti: 1.0,
   trigger: 2,
   vt: 500,
-  pinsp: 12,
+  pinsp: 20,
   mode: 'PC-CMV',
 };
 
 export const DEFAULT_PATIENT_PARAMS: PatientParams = {
   rin: 1,
-  rout: 20,
+  rout: 5,
   p01: 0,
   Tcykl: 3.0,
   PTi: 1.0,
