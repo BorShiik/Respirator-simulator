@@ -91,18 +91,33 @@ export function SettingsPanel({ settings, selectedParameter, onParameterSelect, 
       </div>
       
       <div className="grid grid-cols-1 gap-2 flex-1">
-        {PARAMETER_CONFIGS.map((config) => (
-          <ParameterDisplay
-            key={config.key}
-            config={config}
-            value={settings[config.key]}
-            isSelected={selectedParameter === config.key}
-            onSelect={() => onParameterSelect(
-              selectedParameter === config.key ? null : config.key
-            )}
-            isDisabled={isDisabled}
-          />
-        ))}
+        {PARAMETER_CONFIGS.map((config) => {
+          let isConfigDisabled = isDisabled;
+          const mode = settings.mode;
+
+          if (!isConfigDisabled) {
+             if (mode.startsWith('PC-')) {
+               if (config.key === 'vt') isConfigDisabled = true;
+             } else if (mode.startsWith('VC-')) {
+               if (config.key === 'ipap') isConfigDisabled = true;
+             } else if (mode === 'PSV' || mode === 'CPAP') {
+               if (config.key === 'vt' || config.key === 'rr' || config.key === 'ti') isConfigDisabled = true;
+             }
+          }
+
+          return (
+            <ParameterDisplay
+              key={config.key}
+              config={config}
+              value={settings[config.key]}
+              isSelected={selectedParameter === config.key}
+              onSelect={() => onParameterSelect(
+                selectedParameter === config.key ? null : config.key
+              )}
+              isDisabled={isConfigDisabled}
+            />
+          );
+        })}
       </div>
     </div>
   );
