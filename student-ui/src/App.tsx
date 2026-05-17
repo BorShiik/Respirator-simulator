@@ -244,8 +244,22 @@ function MainScreen({ studentName, roomCode, onLogout }: { studentName: string; 
   };
 
   return (
-    <StudentLayout
-      isDark={isDark}
+    <>
+      {simulationStatus === 'scenario_completed' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-emerald-900/90 border border-emerald-500/50 rounded-2xl p-8 max-w-md text-center shadow-2xl">
+            <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg className="w-10 h-10 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">Scenariusz Ukończony!</h2>
+            <p className="text-emerald-100 mb-6">Dobra robota! Trener otrzymał statystyki z Twojego zadania. Oczekuj na kolejne instrukcje.</p>
+          </div>
+        </div>
+      )}
+      <StudentLayout
+        isDark={isDark}
       onToggleTheme={toggleTheme}
       leftPanel={
         <SettingsPanel 
@@ -287,6 +301,7 @@ function MainScreen({ studentName, roomCode, onLogout }: { studentName: string; 
         />
       }
     />
+    </>
   );
 }
 
