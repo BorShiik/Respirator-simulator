@@ -1,4 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import Keyboard from 'react-simple-keyboard';
+import 'react-simple-keyboard/build/css/index.css';
+
 import { StudentLayout } from './components/layout/StudentLayout';
 import { PressureChart } from './components/charts/PressureChart';
 import { FlowChart } from './components/charts/FlowChart';
@@ -44,6 +47,22 @@ function StudentRegistration({
   const [lastName, setLastName] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [savedName, setSavedName] = useState<string | null>(null);
+  
+  // Virtual Keyboard state
+  const [activeInput, setActiveInput] = useState<string | null>(null);
+  const [layoutName, setLayoutName] = useState("default");
+
+  const onKeyboardChange = (input: string) => {
+    if (activeInput === 'firstName') setFirstName(input);
+    if (activeInput === 'lastName') setLastName(input);
+    if (activeInput === 'roomCode') setRoomCode(input.replace(/\D/g, '').slice(0, 6));
+  };
+
+  const onKeyPress = (button: string) => {
+    if (button === "{shift}" || button === "{lock}") {
+      setLayoutName(layoutName === "default" ? "shift" : "default");
+    }
+  };
 
   useEffect(() => {
     const stored = localStorage.getItem('studentName');
@@ -73,9 +92,16 @@ function StudentRegistration({
     }
   };
 
+  const getKeyboardInput = () => {
+    if (activeInput === 'firstName') return firstName;
+    if (activeInput === 'lastName') return lastName;
+    if (activeInput === 'roomCode') return roomCode;
+    return '';
+  };
+
   return (
-    <div className="min-h-screen bg-clinical-bg flex items-center justify-center">
-      <div className="bg-clinical-panel rounded-2xl shadow-lg p-8 w-full max-w-md border border-clinical-border">
+    <div className="min-h-screen bg-clinical-bg flex flex-col md:flex-row items-center justify-center p-4 gap-8">
+      <div className="bg-clinical-panel rounded-2xl shadow-lg p-8 w-full max-w-md border border-clinical-border flex-shrink-0">
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-clinical-accent rounded-full flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -105,9 +131,10 @@ function StudentRegistration({
               type="text"
               id="firstName"
               value={firstName}
+              onFocus={() => setActiveInput('firstName')}
               onChange={(e) => setFirstName(e.target.value)}
               placeholder="np. Jan"
-              className="w-full px-4 py-3 border border-clinical-border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white"
+              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white ${activeInput === 'firstName' ? 'border-clinical-accent ring-2 ring-clinical-accent/30' : 'border-clinical-border'}`}
               required
             />
           </div>
@@ -120,9 +147,10 @@ function StudentRegistration({
               type="text"
               id="lastName"
               value={lastName}
+              onFocus={() => setActiveInput('lastName')}
               onChange={(e) => setLastName(e.target.value)}
               placeholder="np. Kowalski"
-              className="w-full px-4 py-3 border border-clinical-border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white"
+              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white ${activeInput === 'lastName' ? 'border-clinical-accent ring-2 ring-clinical-accent/30' : 'border-clinical-border'}`}
               required
             />
           </div>
@@ -135,9 +163,10 @@ function StudentRegistration({
               type="text"
               id="roomCode"
               value={roomCode}
+              onFocus={() => setActiveInput('roomCode')}
               onChange={(e) => setRoomCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
               placeholder="np. 123456"
-              className="w-full px-4 py-3 border border-clinical-border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white text-center tracking-[0.5em] text-lg font-mono"
+              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white text-center tracking-[0.5em] text-lg font-mono ${activeInput === 'roomCode' ? 'border-clinical-accent ring-2 ring-clinical-accent/30' : 'border-clinical-border'}`}
               maxLength={6}
               required
             />
@@ -195,6 +224,56 @@ function StudentRegistration({
           </div>
         )}
       </div>
+
+      {activeInput && (
+        <div className="w-full max-w-2xl bg-white p-4 rounded-2xl shadow-xl border border-clinical-border animate-fade-in">
+          <div className="flex justify-between items-center mb-2 px-2">
+            <span className="text-sm font-semibold text-clinical-muted uppercase tracking-wider">
+              Klawiatura Ekranowa
+            </span>
+            <button 
+              onClick={() => setActiveInput(null)}
+              className="text-clinical-muted hover:text-clinical-accent"
+            >
+              ✕ Zamknij
+            </button>
+          </div>
+          <Keyboard
+            keyboardRef={(r: any) => {}}
+            layoutName={layoutName}
+            onChange={onKeyboardChange}
+            onKeyPress={onKeyPress}
+            input={getKeyboardInput()}
+            display={{
+              "{bksp}": "⌫ Usuń",
+              "{enter}": "↵ Enter",
+              "{shift}": "⇧ Shift",
+              "{space}": "Spacja",
+              "{lock}": "Caps",
+              "{tab}": "Tab"
+            }}
+            layout={{
+              default: activeInput === 'roomCode' 
+                ? ["1 2 3", "4 5 6", "7 8 9", "{bksp} 0 {enter}"]
+                : [
+                  "1 2 3 4 5 6 7 8 9 0 {bksp}",
+                  "q w e r t y u i o p",
+                  "a s d f g h j k l {enter}",
+                  "{shift} z x c v b n m",
+                  "{space}"
+                ],
+              shift: [
+                  "1 2 3 4 5 6 7 8 9 0 {bksp}",
+                  "Q W E R T Y U I O P",
+                  "A S D F G H J K L {enter}",
+                  "{shift} Z X C V B N M",
+                  "{space}"
+              ]
+            }}
+            theme={"hg-theme-default myTheme"}
+          />
+        </div>
+      )}
     </div>
   );
 }
