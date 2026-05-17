@@ -105,6 +105,18 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
         this.logger.log(`Trainer connection status: ${connected ? 'CONNECTED' : 'DISCONNECTED'}`);
         this.broadcast({ type: 'trainerStatus', connected });
     });
+
+    // Notify student UI when scenario completes
+    this.simulationService.on('scenario_completed', (stationId: string, scenarioName: string) => {
+        if (stationId === this.currentStudentName) {
+            this.logger.log(`Scenario '${scenarioName}' completed — notifying student UI`);
+            this.broadcast({
+                type: 'status',
+                status: 'scenario_completed',
+                scenarioName,
+            });
+        }
+    });
   }
 
   handleConnection(client: WebSocket) {

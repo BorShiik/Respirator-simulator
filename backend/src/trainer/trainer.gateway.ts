@@ -263,6 +263,17 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
                          state.assignedAsynchronyType = msg.asynchronyType;
                       }
                       await this.sessionsService.logAsynchronyStart(activeSession.id, msg.asynchronyType);
+                 } else if (msg.event === 'scenario_completed') {
+                      // Scenario completed — mark session as completed for analytics
+                      this.logger.log(`Scenario completed for station ${client.stationId} — completing session ${activeSession.id}`);
+                      await this.sessionsService.complete(activeSession.id, activeSession.initialSettings);
+                      this.broadcastEventLog({
+                        stationId: client.stationId!,
+                        studentName: client.studentName,
+                        timestamp: Date.now(),
+                        event: 'SCENARIO_COMPLETED',
+                        details: { scenarioName: msg.scenarioName },
+                      });
                  }
              }
          };

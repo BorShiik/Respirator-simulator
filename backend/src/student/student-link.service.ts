@@ -71,6 +71,21 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
        }
     });
 
+    this.simulationService.on('scenario_completed', (stationId, scenarioName) => {
+       if (stationId === this.currentStudentName && this.ws?.readyState === 1) {
+          this.logger.log(`Scenario '${scenarioName}' completed — notifying trainer`);
+          this.ws.send(JSON.stringify({
+             type: 'student_event',
+             stationId: this.currentStationId,
+             studentName: this.currentStudentName,
+             event: 'scenario_completed',
+             scenarioName,
+          }));
+          // Notify trainer to complete the session
+          this.notifySessionStop();
+       }
+    });
+
     // If TRAINER_URL is explicitly set, connect directly
     // Otherwise, auto-discover trainer via UDP beacon
     if (this.trainerUrl) {
@@ -265,7 +280,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
                 if (state) {
                    state.scenarioName = msg.scenario.name;
                    state.difficulty = msg.difficulty || msg.scenario.difficulty || 'EASY';
-                   this.simulationService.applyScenarioEvents(this.currentStudentName, msg.scenario.blocks || []);
+                   this.simulationService.applyScenarioEvents(this.currentStudentName, msg.scenario.blocks || [], msg.scenario.durationSeconds || 0);
                 }
              }
           } else if (msg.command === 'reset') {

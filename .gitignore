@@ -175,3 +175,6 @@ vite.config.ts.timestamp-*
 # Kiosk launcher
 .chromium-kiosk/
 logs/
+
+# Lokalne repo referencyjne (osobny projekt)
+ILSim-dev/

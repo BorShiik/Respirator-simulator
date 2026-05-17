@@ -41,6 +41,9 @@ export interface TelemetryData {
   asynchrony: AsynchronyStatus;
   scenarioName: string;
   difficulty?: string;   // Difficulty level (EASY, MEDIUM, HARD)
+  totalTime?: number;        // Current simulation time (seconds)
+  scenarioDuration?: number; // Scenario total duration (seconds), 0 = unlimited
+  scenarioCompleted?: boolean; // Whether the scenario has completed
 }
 
 // WebSocket message types
