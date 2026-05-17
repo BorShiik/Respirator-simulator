@@ -59,6 +59,22 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
        }
     });
 
+    this.simulationService.on('setting_changed', (stationId, parameter, previousValue, newValue, wasAsynchronyActive, asynchronyType) => {
+       if (stationId === this.currentStudentName && this.ws?.readyState === 1) {
+          this.ws.send(JSON.stringify({
+             type: 'student_event',
+             stationId: this.currentStationId,
+             studentName: this.currentStudentName,
+             event: 'setting_change',
+             parameter,
+             previousValue,
+             newValue,
+             wasAsynchronyActive,
+             asynchronyType
+          }));
+       }
+    });
+
     this.simulationService.on('asynchrony_resolved', (stationId, type) => {
        if (stationId === this.currentStudentName && this.ws?.readyState === 1) {
           this.ws.send(JSON.stringify({
@@ -261,6 +277,20 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
       }
 
       switch (msg.type) {
+        case 'update_settings':
+          this.logger.log(`Received update_settings (scenario=${msg.scenarioName || 'none'}, difficulty=${msg.difficulty || 'none'}, blocks=${msg.scenario?.blocks?.length || 0})`);
+          if (msg.settings) {
+            this.simulationService.updateSettings(this.currentStudentName, msg.settings);
+          }
+          if (msg.scenario) {
+            const state = this.simulationService.getState(this.currentStudentName);
+            if (state) {
+               state.scenarioName = msg.scenario.name;
+               state.difficulty = msg.difficulty || msg.scenario.difficulty || 'EASY';
+               this.simulationService.applyScenarioEvents(this.currentStudentName, msg.scenario.blocks || [], msg.scenario.durationSeconds || 0);
+            }
+          }
+          break;
         case 'set_asynchrony':
           this.simulationService.injectAsynchrony(this.currentStudentName, msg.asynchronyType);
           break;

@@ -320,12 +320,18 @@ export class SimulationService extends EventEmitter {
           state.patient.Tcykl = 3.0;
           break;
         case 'DOUBLE_TRIGGER':
-          state.patient.DoubleTriggeringTime = 0.5;
+          // True physics of double trigger: Patient neural Ti outlasts machine Ti, causing immediate re-trigger.
+          state.patient.PTi = state.settings.ti + 0.6;
+          state.patient.p01 = 8;
+          state.patient.effort = 100;
+          state.patient.Tcykl = state.settings.ti + 2.5; 
           break;
         case 'FLOW_MISMATCH':
           state.patient.PressureRaiseT = 0.3;
           break;
         case 'REVERSE_TRIGGER':
+          // Machine triggers first, patient effort follows mid-breath.
+          state.patient.PriorityPR = 0; // Disable independent spontaneous breathing
           break;
       }
 
@@ -333,9 +339,6 @@ export class SimulationService extends EventEmitter {
     } else if (type === null) {
       if (state.baselinePatient) {
         state.patient = { ...state.baselinePatient };
-      }
-      if (state.baselineSettings) {
-        state.settings = { ...state.baselineSettings };
       }
       state.asynchrony = { active: false, type: null };
       state.baselineSettings = null;
@@ -355,8 +358,8 @@ export class SimulationService extends EventEmitter {
 
     switch (state.asynchrony.type) {
       case 'INEFFECTIVE_TRIGGER':
-        return current.trigger <= base.trigger - 1.0 + 0.001 ||
-               current.ipap <= base.ipap - 2 + 0.001;
+        // Backend forces trigger=6. Student just needs to lower it enough (<4.0) to detect p01=5
+        return current.trigger <= 4.0 || current.ipap <= base.ipap - 2 + 0.001;
       case 'AUTO_TRIGGER':
         return current.trigger >= base.trigger + 1.0 - 0.001;
       case 'DELAYED_CYCLING':
@@ -364,9 +367,13 @@ export class SimulationService extends EventEmitter {
       case 'PREMATURE_CYCLING':
         return current.ti >= base.ti + 0.2 - 0.001;
       case 'DOUBLE_TRIGGER':
-        return current.ti >= base.ti + 0.2 - 0.001;
+        // Student can increase Ti or VT
+        return current.ti >= base.ti + 0.2 - 0.001 || (current.vt !== undefined && base.vt !== undefined && current.vt >= base.vt + 50);
       case 'FLOW_MISMATCH':
         return current.ipap >= base.ipap + 2 - 0.001;
+      case 'REVERSE_TRIGGER':
+        // Break entrainment by changing RR significantly (e.g. increase or decrease by 3)
+        return Math.abs(current.rr - base.rr) >= 3;
       default:
         return false;
     }
@@ -461,7 +468,21 @@ export class SimulationService extends EventEmitter {
 
     // ─── 5. Calculate Pmus (muscle pressure) ─────────────────────────
     let Pm = 0;
-    if (this.roundTo(state.T, 2) >= this.roundTo(state.patient.Tcykl, 2)) {
+    if (state.asynchrony.active && state.asynchrony.type === 'REVERSE_TRIGGER') {
+      // Reverse triggering: patient effort starts shortly after machine inspiration
+      // e.g. 0.3s after machine cycle starts
+      const delay = 0.3;
+      if (actual_cycle_time >= delay && actual_cycle_time < delay + state.patient.PTi) {
+         const localBreathTime = actual_cycle_time - delay;
+         Pm = this.calculateMusclePressure(
+           state.patient.p01 * 1.5, // strong entrained effort
+           localBreathTime,
+           state.patient.Tcykl,
+           state.patient.PTi,
+           true
+         );
+      }
+    } else if (this.roundTo(state.T, 2) >= this.roundTo(state.patient.Tcykl, 2)) {
       Pm = this.calculateMusclePressure(
         state.patient.p01,
         state.breathTime,
