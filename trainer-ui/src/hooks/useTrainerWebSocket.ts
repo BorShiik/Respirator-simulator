@@ -16,6 +16,7 @@ interface UseTrainerWebSocketReturn {
   reconnect: () => void;
   eventLog: EventLogEntry[];
   clearEventLog: () => void;
+  sessionsVersion: number;
 }
 
 const RECONNECT_DELAY = 3000;
@@ -58,6 +59,7 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [error, setError] = useState<string | null>(null);
   const [eventLog, setEventLog] = useState<EventLogEntry[]>([]);
+  const [sessionsVersion, setSessionsVersion] = useState(0);
   
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -224,6 +226,8 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
             });
           } else if (message.type === 'eventLog' && message.entry) {
             setEventLog(prev => [message.entry!, ...prev].slice(0, 200));
+          } else if (message.type === 'sessions_updated') {
+            setSessionsVersion(v => v + 1);
           }
         } catch (parseError) {
           console.error('Failed to parse Trainer WebSocket message:', parseError);
@@ -282,6 +286,7 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
     reconnect,
     eventLog,
     clearEventLog,
+    sessionsVersion,
   };
 }
 

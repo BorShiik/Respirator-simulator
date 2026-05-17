@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { LearningCurveChart } from '../components/analytics/LearningCurveChart';
 import { Session, LearningCurveDataPoint, ASYNCHRONY_LABELS } from '../types/trainer';
 import { trainerApi } from '../api/trainerApi';
+import { useTrainerWebSocket } from '../hooks/useTrainerWebSocket';
 
 export function AnalyticsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -11,9 +12,18 @@ export function AnalyticsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const { sessionsVersion } = useTrainerWebSocket();
+
   useEffect(() => {
     loadSessions();
   }, []);
+
+  // Re-fetch sessions whenever the backend notifies us of a status change
+  useEffect(() => {
+    if (sessionsVersion > 0) {
+      loadSessions();
+    }
+  }, [sessionsVersion]);
 
   const loadSessions = async () => {
     setIsLoading(true);

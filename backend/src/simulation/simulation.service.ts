@@ -299,39 +299,53 @@ export class SimulationService extends EventEmitter {
 
       switch (type) {
         case 'INEFFECTIVE_TRIGGER':
-          state.patient.p01 = 5;       // Strong enough to create visible dips below PEEP
+          // Patient effort visible as dips in pressure/flow but ALWAYS fails to trigger.
+          // Pmus formula amplifies p01: Pmax ≈ p01/(1-exp(-k)) ≈ 2x p01.
+          // So with p01=6, Pmax ≈ 10. Trigger must be >10 to prevent triggering.
+          state.patient.p01 = 6;       // Moderate effort — visible dips on pressure curve
           state.patient.effort = 100;
-          state.patient.Tcykl = 2.5;   // Patient wants to breathe faster than machine
-          state.settings.trigger = 6;  // Just above p01 — visible effort but fails to trigger
+          state.patient.Tcykl = 2.0;   // Patient attempts 30 bpm vs machine 15 bpm
+          state.settings.trigger = 15; // Well above Pmax (~10) — effort always fails
           break;
         case 'AUTO_TRIGGER':
-          state.patient.PriorityPR = 30;
+          // Machine fires too often — rapid shallow breaths
+          state.patient.PriorityPR = 35;
           break;
         case 'DELAYED_CYCLING':
-          state.patient.PTi = 0.6;     // Patient wants short inspiration (0.6s) but machine gives 1.0s
-          state.patient.p01 = 3;
+          // Machine keeps pushing air after patient finished inhaling
+          state.patient.PTi = 0.5;     // Patient wants 0.5s but machine gives 1.0s
+          state.patient.p01 = 6;       // Strong expiratory effort against machine
           state.patient.effort = 100;
-          state.patient.Tcykl = 4.0;   // Match machine period to avoid breath stacking
+          state.patient.Tcykl = 4.0;
           break;
         case 'PREMATURE_CYCLING':
-          state.patient.PTi = 1.3;
-          state.patient.p01 = 3;
+          // Machine stops too early — patient still wants air
+          state.patient.PTi = 1.5;     // Patient wants 1.5s but machine only gives 1.0s
+          state.patient.p01 = 6;
           state.patient.effort = 100;
-          state.patient.Tcykl = 3.0;
+          state.patient.Tcykl = 3.5;
           break;
         case 'DOUBLE_TRIGGER':
-          // True physics of double trigger: Patient neural Ti outlasts machine Ti, causing immediate re-trigger.
-          state.patient.PTi = state.settings.ti + 0.6;
-          state.patient.p01 = 8;
+          // Patient effort outlasts machine Ti → immediate re-trigger = breath stacking
+          state.patient.PTi = state.settings.ti + 0.8;
+          state.patient.p01 = 10;      // Very strong effort to ensure re-triggering
           state.patient.effort = 100;
           state.patient.Tcykl = state.settings.ti + 2.5; 
           break;
         case 'FLOW_MISMATCH':
-          state.patient.PressureRaiseT = 0.3;
+          // Slow pressure rise — patient starved of flow
+          state.patient.PressureRaiseT = 0.5;  // 500ms ramp instead of instant
+          state.patient.p01 = 5;       // Patient pulls against insufficient flow
+          state.patient.effort = 100;
+          state.patient.Tcykl = 4.0;
           break;
         case 'REVERSE_TRIGGER':
-          // Machine triggers first, patient effort follows mid-breath.
-          state.patient.PriorityPR = 0; // Disable independent spontaneous breathing
+          // Machine triggers first, patient effort follows mid-breath
+          state.patient.PriorityPR = 0;
+          state.patient.p01 = 5;
+          state.patient.effort = 100;
+          state.patient.PTi = 0.8;
+          state.patient.Tcykl = 4.0;
           break;
       }
 
@@ -358,8 +372,8 @@ export class SimulationService extends EventEmitter {
 
     switch (state.asynchrony.type) {
       case 'INEFFECTIVE_TRIGGER':
-        // Backend forces trigger=6. Student just needs to lower it enough (<4.0) to detect p01=5
-        return current.trigger <= 4.0 || current.ipap <= base.ipap - 2 + 0.001;
+        // Backend forces trigger=15. Student needs to lower it below Pmax (~10) to detect effort
+        return current.trigger <= 9.0 || current.ipap <= base.ipap - 2 + 0.001;
       case 'AUTO_TRIGGER':
         return current.trigger >= base.trigger + 1.0 - 0.001;
       case 'DELAYED_CYCLING':
@@ -625,7 +639,15 @@ export class SimulationService extends EventEmitter {
     }
 
     // ─── 17. Send telemetry ──────────────────────────────────────────
-    state.pressureBuffer.push(Math.round(Pp * 10) / 10);
+    // Pressure display: Pp + ventilator servo impedance correction.
+    // Real ventilators can't maintain perfect pressure during sudden flow demand
+    // from patient effort. This creates brief dips at the airway pressure sensor.
+    // Modeled as: ΔPaw = Pm × (R_servo / R_airway), where R_servo ≈ 3 cmH₂O/(L/s).
+    // With R_airway = 10: factor = 3/10 = 0.3.
+    const R_SERVO_FACTOR = 0.3; // R_servo / R_airway
+    const displayPressure = Pp - state.musclePressure * R_SERVO_FACTOR;
+    state.pressureBuffer.push(Math.round(displayPressure * 10) / 10);
+    // Flow: raw physics output — already includes Pm effects via Pp equation (line 580)
     state.flowBuffer.push(Math.round(state.dUp * 60 * 10) / 10);
     state.volumeBuffer.push(Math.round(state.currentVolume * 1000));
 
