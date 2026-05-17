@@ -62,9 +62,9 @@ export class SimulationService extends EventEmitter {
   private intervals: Map<string, NodeJS.Timeout> = new Map();
   private callbacks: Map<string, (data: TelemetryData) => void> = new Map();
 
-  // Sampling rate — ILSim uses h=0.1 (10 Hz)
-  private readonly SAMPLE_RATE = 10;
-  private readonly DT = 0.1;
+  // Sampling rate — ILSim uses h=0.1 (10 Hz), but we need 50Hz (0.02) for realistic medical waveforms
+  private readonly SAMPLE_RATE = 50;
+  private readonly DT = 0.02;
 
   /**
    * Start simulation for a station
@@ -85,7 +85,7 @@ export class SimulationService extends EventEmitter {
     const patient = { ...DEFAULT_PATIENT };
 
     // Calculate initial T
-    const T = this.roundTo(60 / settings.rr, 1);
+    const T = this.roundTo(60 / settings.rr, 2);
 
     // Calculate initial physics state (like ILSim leakingBreathCPAPSTInit)
     const R = patient.resistance;
@@ -99,7 +99,7 @@ export class SimulationService extends EventEmitter {
     const state: SimulationState = {
       time: 0,
       totalTime: 0,
-      breathTime: 0.1, // ILSim initializes breathTime to 0.1
+      breathTime: 0.02, // ILSim initializes breathTime to DT
       breathCount: 0,
       breath: false,
       currentPressure: settings.peep,
@@ -271,7 +271,7 @@ export class SimulationService extends EventEmitter {
         state.scenarioCompletesAt = 0;
         state.time = 0;
         state.totalTime = 0;
-        state.breathTime = 0.1;
+        state.breathTime = 0.02;
         state.breathCount = 0;
         state.breath = false;
      }
@@ -299,19 +299,19 @@ export class SimulationService extends EventEmitter {
 
       switch (type) {
         case 'INEFFECTIVE_TRIGGER':
-          state.patient.p01 = 3;
+          state.patient.p01 = 5;       // Strong enough to create visible dips below PEEP
           state.patient.effort = 100;
-          state.patient.Tcykl = 2.5;
-          state.settings.trigger = 10;
+          state.patient.Tcykl = 2.5;   // Patient wants to breathe faster than machine
+          state.settings.trigger = 6;  // Just above p01 — visible effort but fails to trigger
           break;
         case 'AUTO_TRIGGER':
           state.patient.PriorityPR = 30;
           break;
         case 'DELAYED_CYCLING':
-          state.patient.PTi = 0.6;
+          state.patient.PTi = 0.6;     // Patient wants short inspiration (0.6s) but machine gives 1.0s
           state.patient.p01 = 3;
           state.patient.effort = 100;
-          state.patient.Tcykl = 3.0;
+          state.patient.Tcykl = 4.0;   // Match machine period to avoid breath stacking
           break;
         case 'PREMATURE_CYCLING':
           state.patient.PTi = 1.3;
@@ -378,7 +378,7 @@ export class SimulationService extends EventEmitter {
     state.time = 0;
 
     if (breathReset) {
-      state.breathTime = 0.1;
+      state.breathTime = 0.02;
     }
 
     // Recalculate physics constants from current parameters
@@ -391,9 +391,9 @@ export class SimulationService extends EventEmitter {
 
     // Calculate T
     if (state.patient.PriorityPR !== 0) {
-      state.T = this.roundTo(60 / state.patient.PriorityPR, 1);
+      state.T = this.roundTo(60 / state.patient.PriorityPR, 2);
     } else {
-      state.T = this.roundTo(60 / state.settings.rr, 1);
+      state.T = this.roundTo(60 / state.settings.rr, 2);
     }
 
     // Initial alveolar pressure from IPAP
@@ -408,9 +408,9 @@ export class SimulationService extends EventEmitter {
 
     // Recalculate T with PriorityPR override
     if (state.patient.PriorityPR !== 0) {
-      state.T = this.roundTo(60 / state.patient.PriorityPR, 1);
+      state.T = this.roundTo(60 / state.patient.PriorityPR, 2);
     } else {
-      state.T = this.roundTo(60 / state.settings.rr, 1);
+      state.T = this.roundTo(60 / state.settings.rr, 2);
     }
 
     // Recalculate denominator
@@ -440,12 +440,12 @@ export class SimulationService extends EventEmitter {
     if (!state || !callback) return;
 
     // ─── 1. Check for new cycle start (ILSim: time % T == 0) ────────
-    if (this.roundTo(state.time, 1) % this.roundTo(state.T, 1) === 0.0) {
+    if (this.roundTo(state.time, 2) % this.roundTo(state.T, 2) === 0.0) {
       this.startNewCycle(state, false);
     }
 
     // ─── 2. Calculate actual_cycle_time ──────────────────────────────
-    const actual_cycle_time = this.roundTo(state.time, 1) % this.roundTo(state.T, 1);
+    const actual_cycle_time = this.roundTo(state.time, 2) % this.roundTo(state.T, 2);
 
     // ─── 3. Determine Pin (machine inlet pressure) ───────────────────
     let Pin = actual_cycle_time >= state.settings.ti
@@ -454,14 +454,14 @@ export class SimulationService extends EventEmitter {
 
     // ─── 4. Patient breath cycle reset (ILSim breath flag) ───────────
     if (this.roundTo(
-          this.roundTo(state.breathTime, 1) % this.roundTo(state.patient.Tcykl, 1),
-        1) === 0) {
+          this.roundTo(state.breathTime, 2) % this.roundTo(state.patient.Tcykl, 2),
+        2) === 0) {
       state.breath = false;
     }
 
     // ─── 5. Calculate Pmus (muscle pressure) ─────────────────────────
     let Pm = 0;
-    if (this.roundTo(state.T, 1) >= this.roundTo(state.patient.Tcykl, 1)) {
+    if (this.roundTo(state.T, 2) >= this.roundTo(state.patient.Tcykl, 2)) {
       Pm = this.calculateMusclePressure(
         state.patient.p01,
         state.breathTime,
@@ -478,19 +478,19 @@ export class SimulationService extends EventEmitter {
       state.breath = true;
 
       // Recalculate Pin after cycle reset
-      const new_actual_cycle_time = this.roundTo(state.time, 1) % this.roundTo(state.T, 1);
+      const new_actual_cycle_time = this.roundTo(state.time, 2) % this.roundTo(state.T, 2);
       Pin = new_actual_cycle_time >= state.settings.ti
         ? state.settings.epap
         : state.settings.ipap;
     }
 
     // ─── 7. PressureRaiseT — linear ramp (ILSim logic) ──────────────
-    const actual_cycle_time2 = this.roundTo(state.time, 1) % this.roundTo(state.T, 1);
+    const actual_cycle_time2 = this.roundTo(state.time, 2) % this.roundTo(state.T, 2);
     if ((state.patient.PressureRaiseT > actual_cycle_time2 ||
-         actual_cycle_time2 === this.roundTo(state.T, 1)) &&
+         actual_cycle_time2 === this.roundTo(state.T, 2)) &&
         state.patient.PressureRaiseT !== 0) {
       let actual_raise_time = 0;
-      if (actual_cycle_time2 !== this.roundTo(state.T, 1)) {
+      if (actual_cycle_time2 !== this.roundTo(state.T, 2)) {
         actual_raise_time = actual_cycle_time2;
       }
       Pin = state.settings.epap + state.raisingForce * actual_raise_time * (1 / this.DT);
@@ -524,7 +524,7 @@ export class SimulationService extends EventEmitter {
     // ─── 13. Advance time AFTER physics (ILSim order) ────────────────
     state.time += this.DT;
     state.breathTime += this.DT;
-    state.totalTime = this.roundTo(state.totalTime + this.DT, 1);
+    state.totalTime = this.roundTo(state.totalTime + this.DT, 2);
 
     // ─── 14. Update telemetry values ─────────────────────────────────
     state.currentPressure = Pp;
@@ -578,7 +578,7 @@ export class SimulationService extends EventEmitter {
     state.flowBuffer.push(Math.round(state.dUp * 60 * 10) / 10);
     state.volumeBuffer.push(Math.round(state.currentVolume * 1000));
 
-    if (state.pressureBuffer.length >= 1) {
+    if (state.pressureBuffer.length >= 5) {
       const telemetry: TelemetryData = {
         timestamp: Date.now(),
         pressure: [...state.pressureBuffer],
@@ -619,13 +619,17 @@ export class SimulationService extends EventEmitter {
 
     const Pmax = P01 / (1 - Math.exp(-(0.1 * (fv + 4 * P01)) / 10));
 
-    const t = this.roundTo(time % PmusTime, 1);
+    const t = this.roundTo(time % PmusTime, 2);
     let lung = 0;
 
+    const kRise = (fv + 4 * P01) / 10;
+    const kFall = (fv + P01 / 2) / 10;
+
     if (t <= TiLoc) {
-      lung = Pmax * (1 - Math.exp(-(fv + 4 * P01) / 10 * t));
+      lung = Pmax * (1 - Math.exp(-kRise * t));
     } else {
-      lung = Pmax * Math.exp(-((fv + P01 / 2) / 10) * (t - (TiLoc - 0.1)));
+      const peakValue = Pmax * (1 - Math.exp(-kRise * TiLoc));
+      lung = peakValue * Math.exp(-kFall * (t - TiLoc));
     }
 
     if (noise) {

@@ -90,26 +90,29 @@ export function StationDetailsPage() {
   }, []);
 
   const chartData = useMemo(() => {
-    if (!station?.pressure) return [];
-    return station.pressure.map((value, index) => ({
+    const data = station?.pressure || [];
+    const padded = new Array(Math.max(0, 500 - data.length)).fill(null).concat(data);
+    return padded.map((value, index) => ({
       index,
-      value,
+      value: value
     }));
   }, [station?.pressure]);
 
   const flowData = useMemo(() => {
-    if (!station?.flow) return [];
-    return station.flow.map((value, index) => ({
+    const data = station?.flow || [];
+    const padded = new Array(Math.max(0, 500 - data.length)).fill(null).concat(data);
+    return padded.map((value, index) => ({
       index,
-      value: value !== null && value !== undefined ? value : 0,
+      value: value
     }));
   }, [station?.flow]);
 
   const volumeData = useMemo(() => {
-    if (!station?.volume) return [];
-    return station.volume.map((value, index) => ({
+    const data = station?.volume || [];
+    const padded = new Array(Math.max(0, 500 - data.length)).fill(null).concat(data);
+    return padded.map((value, index) => ({
       index,
-      value: value !== null && value !== undefined ? value : 0,
+      value: value
     }));
   }, [station?.volume]);
 
@@ -248,7 +251,7 @@ export function StationDetailsPage() {
                     <LineChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
                       <XAxis dataKey="index" tick={false} />
-                      <YAxis domain={[0, 40]} tick={{ fontSize: 11, fill: chartColors.muted }} />
+                      <YAxis domain={[-5, 40]} allowDataOverflow={true} tick={{ fontSize: 11, fill: chartColors.muted }} />
                       <ReferenceLine y={station?.settings?.peep || 5} stroke={chartColors.success} strokeDasharray="5 5" />
                       <Line
                         type="monotone"
@@ -268,7 +271,7 @@ export function StationDetailsPage() {
                     <LineChart data={flowData}>
                       <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
                       <XAxis dataKey="index" tick={false} />
-                      <YAxis domain={[-100, 100]} tick={{ fontSize: 11, fill: chartColors.muted }} />
+                      <YAxis domain={[-100, 100]} allowDataOverflow={true} tick={{ fontSize: 11, fill: chartColors.muted }} />
                       <ReferenceLine y={0} stroke={chartColors.ref} />
                       <Line
                         type="monotone"
@@ -288,7 +291,7 @@ export function StationDetailsPage() {
                     <LineChart data={volumeData}>
                       <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
                       <XAxis dataKey="index" tick={false} />
-                      <YAxis domain={[0, 1000]} tick={{ fontSize: 11, fill: chartColors.muted }} />
+                      <YAxis domain={[0, 800]} allowDataOverflow={true} tick={{ fontSize: 11, fill: chartColors.muted }} />
                       <ReferenceLine y={station?.settings?.vt || 500} stroke={chartColors.success} strokeDasharray="5 5" />
                       <Line
                         type="monotone"
