@@ -27,6 +27,14 @@ export class TrainerController {
     // Send command to remote student via websocket
     this.trainerGateway.sendCommandToStudent(studentName, body.command, { scenarioId: body.scenarioId });
     
+    // Broadcast event to trainer UI clients
+    this.trainerGateway.broadcastEventLog({
+      stationId: studentName,
+      timestamp: Date.now(),
+      event: 'TRAINER_COMMAND',
+      details: { command: body.command },
+    });
+    
     // If starting a simulation, change the pending session for this station to running to start analytics logic
     if (body.command === 'continue') {
         const pendingSession = await this.sessionsService.findPendingSession(studentName);
@@ -148,6 +156,13 @@ export class TrainerController {
         }
       }
     }
+
+    this.trainerGateway.broadcastEventLog({
+      stationId: studentName,
+      timestamp: Date.now(),
+      event: 'SCENARIO_ASSIGNED',
+      details: { scenarioName: scenario.name },
+    });
 
     return {
       success: true,

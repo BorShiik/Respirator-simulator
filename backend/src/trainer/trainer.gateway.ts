@@ -316,6 +316,14 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
                      this.logger.log(`Created & started new session for ${stationId} (${scenarioName})`);
                  }
              }
+
+             this.broadcastEventLog({
+                 stationId: stationId,
+                 studentName: studentName,
+                 timestamp: Date.now(),
+                 event: 'SESSION_START',
+                 details: { scenarioName },
+             });
          };
          act().catch(e => console.error('Failed to handle student_session_start', e));
          return;
@@ -329,6 +337,14 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
                  await this.sessionsService.complete(activeSession.id, activeSession.initialSettings);
                  this.logger.log(`Completed session ${activeSession.id} for ${stationId}`);
              }
+
+             this.broadcastEventLog({
+                 stationId: stationId,
+                 studentName: client.studentName,
+                 timestamp: Date.now(),
+                 event: 'SESSION_STOP',
+                 details: {},
+             });
          };
          act().catch(e => console.error('Failed to handle student_session_stop', e));
          return;
