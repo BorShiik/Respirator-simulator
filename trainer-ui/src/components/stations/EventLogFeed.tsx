@@ -80,6 +80,56 @@ export function EventLogFeed({ logs, stationId }: EventLogFeedProps) {
             </div>
           </div>
         );
+      case 'TRAINER_COMMAND':
+        return (
+          <div className="flex items-start gap-3">
+            <div className="mt-1 w-2 h-2 rounded-full bg-admin-warning" />
+            <div>
+              <p className="text-sm text-admin-text">
+                Polecenie trenera: <span className="font-semibold uppercase text-admin-warning">{log.details.command}</span>
+              </p>
+            </div>
+          </div>
+        );
+      case 'SESSION_START':
+        return (
+          <div className="flex items-start gap-3">
+            <div className="mt-1 w-2 h-2 rounded-full bg-blue-400" />
+            <div>
+              <p className="text-sm font-medium text-blue-400">
+                Rozpoczęcie sesji (Start)
+              </p>
+              <p className="text-xs text-admin-muted mt-0.5">
+                Scenariusz: {log.details.scenarioName || 'Free Practice'}
+              </p>
+            </div>
+          </div>
+        );
+      case 'SCENARIO_ASSIGNED':
+        return (
+          <div className="flex items-start gap-3">
+            <div className="mt-1 w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.5)]" />
+            <div>
+              <p className="text-sm font-medium text-purple-400">
+                Przypisano nowy scenariusz
+              </p>
+              <p className="text-xs text-admin-muted mt-0.5">
+                Scenariusz: <span className="font-semibold text-admin-text">{log.details.scenarioName}</span>
+              </p>
+            </div>
+          </div>
+        );
+      case 'SESSION_STOP':
+        return (
+          <div className="flex items-start gap-3">
+            <div className="mt-1 w-2 h-2 rounded-full bg-gray-400" />
+            <div>
+              <p className="text-sm font-medium text-gray-400">
+                Zakończenie scenariusza / Stop
+              </p>
+            </div>
+          </div>
+        );
       default:
         return (
           <div className="flex items-start gap-3">
