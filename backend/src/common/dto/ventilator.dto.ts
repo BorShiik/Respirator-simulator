@@ -114,8 +114,8 @@ export const DEFAULT_PATIENT: PatientModel = {
   effort: 0,
   rin: 1,              // Inspiratory resistance (ILSim default)
   rout: 20,            // Expiratory resistance (ILSim default)
-  p01: 0,              // No patient effort by default (ILSim default)
-  Tcykl: 3.0,          // Patient respiratory cycle period
+  p01: 3,              // Baseline patient effort — creates visible trigger dips
+  Tcykl: 4.0,          // Patient cycle = machine cycle (60/15 = 4.0s) — synchronized
   PTi: 1.0,            // Patient inspiratory time
   PriorityPR: 0,       // No auto-triggering override
   PressureRaiseT: 0,   // Instant pressure rise

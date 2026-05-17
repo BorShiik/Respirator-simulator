@@ -4,6 +4,7 @@ import {
   LineChart,
   Line,
   ResponsiveContainer,
+  YAxis,
 } from 'recharts';
 import { StationLiveStatus, MODE_LABELS } from '../../types/trainer';
 
@@ -15,9 +16,11 @@ export function StationCard({ station }: StationCardProps) {
   const navigate = useNavigate();
 
   const chartData = useMemo(() => {
-    return station.pressure.map((value, index) => ({
+    const data = station.pressure || [];
+    const padded = new Array(Math.max(0, 500 - data.length)).fill(null).concat(data);
+    return padded.map((value, index) => ({
       index,
-      value,
+      value: value
     }));
   }, [station.pressure]);
 
@@ -122,6 +125,7 @@ export function StationCard({ station }: StationCardProps) {
             <div className="h-16 mt-3 border-t border-admin-border pt-3">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
+                  <YAxis domain={[-5, 40]} hide={true} allowDataOverflow={true} />
                   <Line
                     type="monotone"
                     dataKey="value"
