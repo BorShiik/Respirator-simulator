@@ -34,7 +34,7 @@ export class RoomsService {
   }
 
   async findByCode(code: string): Promise<RoomEntity | null> {
-    return await this.roomRepository.findOne({ where: { code, isActive: true } });
+    return await this.roomRepository.findOne({ where: { code } });
   }
 
   async close(id: string): Promise<RoomEntity> {

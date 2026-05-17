@@ -100,6 +100,11 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
         this.broadcast({ type: 'registered', studentName: this.currentStudentName, stationId: this.currentStationId, status: 'idle' });
     });
 
+    this.linkService.on('registration_error', (message: string) => {
+        this.logger.warn(`Registration failed: ${message}`);
+        this.broadcast({ type: 'error', message });
+    });
+
     // Forward trainer connection status to student UI
     this.linkService.on('trainer_connection_status', (connected: boolean) => {
         this.logger.log(`Trainer connection status: ${connected ? 'CONNECTED' : 'DISCONNECTED'}`);
@@ -204,26 +209,36 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
         this.currentStationId = null;
         this.broadcast({ type: 'loggedOut', status: 'idle' });
         break;
+
+      case 'set_asynchrony':
+        if (this.currentStudentName && message.asynchronyType !== undefined) {
+          this.simulationService.injectAsynchrony(this.currentStudentName, message.asynchronyType);
+        }
+        break;
     }
   }
 
   public registerStudent(name: string, roomCode?: string) {
     this.currentStudentName = name;
-    // We no longer generate a random station ID locally. 
-    // We wait for the Trainer to assign an incrementing numeric ID.
-    this.currentStationId = null; 
     
-    this.broadcast({ type: 'registered', studentName: name, status: 'idle' });
-    
-    // Register upstream - Trainer will assign an ID and send it back
-    this.linkService.registerWithMaster(name, roomCode);
+    if (roomCode === 'LEARN') {
+      this.currentStationId = 'LEARN';
+      this.broadcast({ type: 'registered', studentName: name, stationId: 'LEARN', status: 'idle' });
+    } else {
+      // We no longer generate a random station ID locally. 
+      // We wait for the Trainer to assign an incrementing numeric ID.
+      this.currentStationId = null; 
+      
+      // Register upstream - Trainer will assign an ID and send it back
+      this.linkService.registerWithMaster(name, roomCode);
+    }
 
     // Check if simulation already exists
     const existingState = this.simulationService.getState(name);
     if (existingState) {
        this.resumeSimulation();
     } else {
-       this.startSimulation('Free Practice');
+       this.startSimulation(roomCode === 'LEARN' ? 'Tryb Nauki' : 'Free Practice');
     }
   }
 

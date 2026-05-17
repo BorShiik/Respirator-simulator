@@ -5,6 +5,7 @@ import { FlowChart } from './components/charts/FlowChart';
 import { VolumeChart } from './components/charts/VolumeChart';
 import { SettingsPanel, ParameterKey, PARAMETER_CONFIGS } from './components/panels/SettingsPanel';
 import { StatusPanel } from './components/panels/StatusPanel';
+import { LearningPanel } from './components/panels/LearningPanel';
 import { useStudentWebSocket } from './hooks/useStudentWebSocket';
 import { DEFAULT_SETTINGS, VentilatorSettings } from './types/student';
 
@@ -30,7 +31,15 @@ function useTheme() {
   return { isDark, toggle };
 }
 
-function StudentRegistration({ onRegister }: { onRegister: (studentName: string, roomCode: string) => void }) {
+function StudentRegistration({ 
+  onRegister,
+  error,
+  isConnecting
+}: { 
+  onRegister: (studentName: string, roomCode: string) => void;
+  error?: string | null;
+  isConnecting?: boolean;
+}) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [roomCode, setRoomCode] = useState('');
@@ -49,7 +58,7 @@ function StudentRegistration({ onRegister }: { onRegister: (studentName: string,
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (firstName.trim() && lastName.trim() && roomCode.trim().length === 6) {
+    if (firstName.trim() && lastName.trim() && roomCode.trim().length === 6 && !isConnecting) {
       const fullName = `${firstName.trim()} ${lastName.trim()}`;
       localStorage.setItem('studentName', fullName);
       localStorage.setItem('roomCode', roomCode.trim());
@@ -58,7 +67,7 @@ function StudentRegistration({ onRegister }: { onRegister: (studentName: string,
   };
 
   const handleUseSaved = () => {
-    if (savedName && roomCode.trim().length === 6) {
+    if (savedName && roomCode.trim().length === 6 && !isConnecting) {
       localStorage.setItem('roomCode', roomCode.trim());
       onRegister(savedName, roomCode.trim());
     }
@@ -80,6 +89,12 @@ function StudentRegistration({ onRegister }: { onRegister: (studentName: string,
             Wprowadź swoje dane, aby rozpocząć
           </p>
         </div>
+
+        {error && (
+          <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-red-500 text-sm mb-6 text-center">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -130,10 +145,37 @@ function StudentRegistration({ onRegister }: { onRegister: (studentName: string,
 
           <button
             type="submit"
-            disabled={!firstName.trim() || !lastName.trim() || roomCode.length !== 6}
-            className="w-full control-button control-button-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!firstName.trim() || !lastName.trim() || roomCode.length !== 6 || isConnecting}
+            className="w-full control-button control-button-primary disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
           >
-            Rozpocznij symulację
+            {isConnecting ? (
+              <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : null}
+            {isConnecting ? 'Łączenie...' : 'Rozpocznij symulację'}
+          </button>
+          
+          <div className="relative flex items-center py-2">
+            <div className="flex-grow border-t border-clinical-border"></div>
+            <span className="flex-shrink-0 mx-4 text-clinical-muted text-sm">lub</span>
+            <div className="flex-grow border-t border-clinical-border"></div>
+          </div>
+          
+          <button
+            type="button"
+            onClick={() => {
+              if (firstName.trim() && lastName.trim() && !isConnecting) {
+                const fullName = `${firstName.trim()} ${lastName.trim()}`;
+                localStorage.setItem('studentName', fullName);
+                onRegister(fullName, 'LEARN');
+              }
+            }}
+            disabled={!firstName.trim() || !lastName.trim() || isConnecting}
+            className="w-full control-button border border-clinical-accent text-clinical-accent hover:bg-clinical-accent/10 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
+          >
+            Tryb nauki (Solo)
           </button>
         </form>
 
@@ -145,7 +187,7 @@ function StudentRegistration({ onRegister }: { onRegister: (studentName: string,
             <button
               type="button"
               onClick={handleUseSaved}
-              disabled={roomCode.length !== 6}
+              disabled={roomCode.length !== 6 || isConnecting}
               className="w-full px-4 py-3 border border-clinical-accent text-clinical-accent rounded-lg hover:bg-blue-50 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {savedName}
@@ -157,20 +199,46 @@ function StudentRegistration({ onRegister }: { onRegister: (studentName: string,
   );
 }
 
-function MainScreen({ studentName, roomCode, onLogout }: { studentName: string; roomCode: string; onLogout: () => void }) {
+function MainScreen({ 
+  studentName, 
+  roomCode, 
+  onLogout,
+  onRegistered,
+  onError,
+  isRegisteredState
+}: { 
+  studentName: string; 
+  roomCode: string; 
+  onLogout: () => void;
+  onRegistered: () => void;
+  onError: (err: string) => void;
+  isRegisteredState: boolean;
+}) {
   const [selectedParameter, setSelectedParameter] = useState<ParameterKey | null>(null);
   const [localSettings, setLocalSettings] = useState<VentilatorSettings>(DEFAULT_SETTINGS);
   const { isDark, toggle: toggleTheme } = useTheme();
   
-  const { telemetry, connectionStatus, trainerConnectionStatus, isRegistered, error, logout, updateSettings, selectParameter, externalSelectedParameter, simulationStatus, difficulty, patientParams } = useStudentWebSocket(studentName, roomCode, localSettings);
+  const { telemetry, connectionStatus, trainerConnectionStatus, isRegistered, error, logout, updateSettings, selectParameter, setAsynchrony, externalSelectedParameter, simulationStatus, difficulty, patientParams } = useStudentWebSocket(studentName, roomCode, localSettings);
+
+  useEffect(() => {
+    if (isRegistered) {
+      onRegistered();
+    }
+  }, [isRegistered, onRegistered]);
 
   // If there's an error during connection (e.g. invalid room code), show an alert and logout
   useEffect(() => {
-    if (error === 'Invalid or inactive room code') {
-      alert('Nieprawidłowy lub nieaktywny kod pokoju!');
-      onLogout();
+    if (error) {
+      onError(error);
+      const isFatal = error === 'Nie znaleziono pokoju o podanym kodzie.' || error === 'Pokój został już zamknięty przez trenera.';
+      if (isFatal) {
+        if (isRegisteredState) {
+          alert(error);
+        }
+        onLogout();
+      }
     }
-  }, [error, onLogout]);
+  }, [error, isRegisteredState, onLogout, onError]);
 
   // Синхронизация с настройками от сервера (если не в mock режиме)
   useEffect(() => {
@@ -243,6 +311,10 @@ function MainScreen({ studentName, roomCode, onLogout }: { studentName: string; 
     onLogout();
   };
 
+  if (!isRegisteredState) {
+    return null;
+  }
+
   return (
     <>
       {simulationStatus === 'scenario_completed' && (
@@ -287,18 +359,26 @@ function MainScreen({ studentName, roomCode, onLogout }: { studentName: string; 
         <VolumeChart targetVt={localSettings.vt} isDark={isDark} />
       }
       rightPanel={
-        <StatusPanel
-          scenarioName={scenarioName}
-          asynchrony={asynchrony}
-          studentName={studentName}
-          connectionStatus={connectionStatus}
-          trainerConnectionStatus={trainerConnectionStatus}
-          isRegistered={isRegistered}
-          onLogout={handleLogout}
-          simulationStatus={simulationStatus}
-          difficulty={difficulty}
-          patientParams={patientParams}
-        />
+        roomCode === 'LEARN' ? (
+          <LearningPanel 
+            currentAsynchrony={asynchrony} 
+            onSetAsynchrony={setAsynchrony} 
+            isDark={isDark} 
+          />
+        ) : (
+          <StatusPanel
+            scenarioName={scenarioName}
+            asynchrony={asynchrony}
+            studentName={studentName}
+            connectionStatus={connectionStatus}
+            trainerConnectionStatus={trainerConnectionStatus}
+            isRegistered={isRegistered}
+            onLogout={handleLogout}
+            simulationStatus={simulationStatus}
+            difficulty={difficulty}
+            patientParams={patientParams}
+          />
+        )
       }
     />
     </>
@@ -307,16 +387,41 @@ function MainScreen({ studentName, roomCode, onLogout }: { studentName: string; 
 
 function App() {
   const [studentInfo, setStudentInfo] = useState<{name: string, room: string} | null>(null);
+  const [isRegistered, setIsRegistered] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   const handleLogout = () => {
     setStudentInfo(null);
+    setIsRegistered(false);
   };
 
-  if (!studentInfo) {
-    return <StudentRegistration onRegister={(name, room) => setStudentInfo({name, room})} />;
-  }
-
-  return <MainScreen studentName={studentInfo.name} roomCode={studentInfo.room} onLogout={handleLogout} />;
+  return (
+    <>
+      {!isRegistered && (
+        <StudentRegistration 
+          onRegister={(name, room) => {
+            setLoginError(null);
+            setStudentInfo({name, room});
+          }} 
+          error={loginError}
+          isConnecting={!!studentInfo && !isRegistered && !loginError}
+        />
+      )}
+      {studentInfo && (
+        <MainScreen 
+          studentName={studentInfo.name} 
+          roomCode={studentInfo.room} 
+          onLogout={handleLogout}
+          onRegistered={() => {
+            setLoginError(null);
+            setIsRegistered(true);
+          }}
+          onError={(err) => setLoginError(err)}
+          isRegisteredState={isRegistered}
+        />
+      )}
+    </>
+  );
 }
 
 export default App;

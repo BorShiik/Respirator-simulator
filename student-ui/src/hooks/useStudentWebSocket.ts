@@ -21,6 +21,7 @@ interface UseStudentWebSocketReturn {
   logout: () => void;
   updateSettings: (settings: VentilatorSettings) => void;
   selectParameter: (param: string | null) => void;
+  setAsynchrony: (type: string | null) => void;
   externalSelectedParameter: string | null;
   simulationStatus: string | null;
   difficulty: DifficultyLevel;
@@ -60,7 +61,6 @@ export function useStudentWebSocket(studentName: string | null, roomCode: string
   const [difficulty, setDifficulty] = useState<DifficultyLevel>('EASY');
   const [patientParams, setPatientParams] = useState<PatientParams | null>(null);
   const [trainerConnectionStatus, setTrainerConnectionStatus] = useState<boolean>(false);
-
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<number | null>(null);
@@ -227,7 +227,6 @@ export function useStudentWebSocket(studentName: string | null, roomCode: string
                 settings: message.settings,
               } : null);
               break;
-
             case 'parameterSelected':
               console.log('Backend selected parameter:', message.parameter);
               setExternalSelectedParameter(message.parameter);
@@ -316,6 +315,25 @@ export function useStudentWebSocket(studentName: string | null, roomCode: string
     }
   }, []);
 
+  const setAsynchrony = useCallback((type: string | null) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'set_asynchrony',
+        asynchronyType: type
+      }));
+    }
+  }, []);
+
+  const sendParameterSelect = useCallback((parameter: string | null) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'parameterSelect', data: { parameter } }));
+    }
+  }, []);
+
+  const acknowledgeEncoderButton = useCallback(() => {
+    setEncoderButtonAction(null);
+  }, []);
+
   return {
     telemetry,
     connectionStatus,
@@ -326,6 +344,7 @@ export function useStudentWebSocket(studentName: string | null, roomCode: string
     logout,
     updateSettings,
     selectParameter,
+    setAsynchrony,
     externalSelectedParameter,
     simulationStatus,
     difficulty,

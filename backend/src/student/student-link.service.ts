@@ -265,6 +265,12 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
           return;
       }
 
+      if (msg.type === 'registration_error') {
+          this.logger.error(`Registration error from Trainer: ${msg.message}`);
+          this.emit('registration_error', msg.message);
+          return;
+      }
+
       if (!this.currentStudentName) {
           this.logger.warn('Received message from Trainer but no student name is set locally');
           return;

@@ -90,7 +90,14 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
          if (!room) {
            this.sendToClient(client, {
               type: 'registration_error',
-              message: 'Invalid or inactive room code'
+              message: 'Nie znaleziono pokoju o podanym kodzie.'
+           });
+           return;
+         }
+         if (!room.isActive) {
+           this.sendToClient(client, {
+              type: 'registration_error',
+              message: 'Pokój został już zamknięty przez trenera.'
            });
            return;
          }

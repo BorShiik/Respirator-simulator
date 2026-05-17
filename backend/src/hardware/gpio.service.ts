@@ -25,7 +25,6 @@ export class GpioService extends EventEmitter implements OnModuleDestroy {
   private encoderValues: Map<string, number> = new Map();
   private mockInterval: NodeJS.Timeout | null = null;
   private isRealGpio = false;
-  
   private pythonProcess: ChildProcessWithoutNullStreams | null = null;
   
   // Текущий выбранный параметр (для изменения энкодером)
