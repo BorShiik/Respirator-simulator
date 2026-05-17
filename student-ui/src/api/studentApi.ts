@@ -1,7 +1,15 @@
 import { CommandRequest, CommandResponse, CommandType } from '../types/student';
 
-const DEFAULT_BACKEND_HOST = `${window.location.hostname}:8080`;
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `http://${DEFAULT_BACKEND_HOST}`;
+function getApiBaseUrl(): string {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && envUrl.includes('localhost') && window.location.hostname !== 'localhost') {
+    return envUrl.replace('localhost', window.location.hostname);
+  }
+  const host = window.location.hostname === 'localhost' ? '127.0.0.1' : window.location.hostname;
+  return envUrl || `http://${host}:8080`;
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 export async function sendCommand(studentName: string, command: CommandType): Promise<CommandResponse> {
   const url = `${API_BASE_URL}/api/students/${encodeURIComponent(studentName)}/command`;
@@ -38,7 +46,13 @@ export async function sendCommand(studentName: string, command: CommandType): Pr
 
 export function getWebSocketUrl(): string {
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsHost = import.meta.env.VITE_WS_HOST || DEFAULT_BACKEND_HOST;
+  let wsHost = import.meta.env.VITE_WS_HOST;
+  if (wsHost && wsHost.includes('localhost') && window.location.hostname !== 'localhost') {
+    wsHost = wsHost.replace('localhost', window.location.hostname);
+  } else if (!wsHost) {
+    const host = window.location.hostname === 'localhost' ? '127.0.0.1' : window.location.hostname;
+    wsHost = `${host}:8080`;
+  }
   return `${wsProtocol}//${wsHost}/api/stations/ws`;
 }
 
@@ -46,9 +60,9 @@ export const studentApi = {
   sendCommand,
   getWebSocketUrl,
   
-  start: (studentName: string) => sendCommand(studentName, 'start'),
-  stop: (studentName: string) => sendCommand(studentName, 'stop'),
   reset: (studentName: string) => sendCommand(studentName, 'reset'),
+  pause: (studentName: string) => sendCommand(studentName, 'pause'),
+  continue: (studentName: string) => sendCommand(studentName, 'continue'),
 };
 
 export default studentApi;

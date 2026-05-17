@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { EventEmitter } from 'events';
 import {
   VentilatorSettings,
   PatientModel,
@@ -7,31 +8,63 @@ import {
   TelemetryData,
   DEFAULT_SETTINGS,
   DEFAULT_PATIENT,
-} from '../common/dto';
+} from '../common/dto/ventilator.dto';
 
 interface SimulationState {
-  time: number;           // Current simulation time in ms
-  phase: 'inspiration' | 'expiration';
-  phaseTime: number;      // Time within current phase
+  time: number;           // Current simulation time in seconds (resets each cycle — physics only)
+  totalTime: number;      // Monotonically increasing time (like ILSim _serviceRunTime) — for scenarios
+  breathTime: number;     // Time for patient breathing cycle (Pmus)
   breathCount: number;
-  currentPressure: number;
-  currentFlow: number;
-  currentVolume: number;
+  breath: boolean;        // ILSim breath flag — prevents re-triggering within same patient cycle
+
+  currentPressure: number; // Pp — alveolar pressure (cmH2O)
+  currentFlow: number;     // dUp — net flow (L/s)
+  currentVolume: number;   // Up — integrated volume (L)
+  musclePressure: number;  // Pmus (cmH2O)
+  alveolarPressure: number; // Pp (cmH2O)
+  dUp: number;             // Flow derivative for numerical integration
+
+  // Cached physics constants (recalculated at cycle start)
+  denominator: number;
+  raisingForce: number;
+  T: number;               // Breath period (seconds), = 60/PR or 60/PriorityPR
+
   settings: VentilatorSettings;
   patient: PatientModel;
   asynchrony: AsynchronyStatus;
   scenarioName: string;
+  difficulty: string;
+  scenarioBlocks?: any[];
+
+  // Asynchrony resolution tracking
+  baselineSettings: VentilatorSettings | null;
+  baselinePatient: PatientModel | null;
+  currentAsynchronyEvent: any | null;
+
+  // Scenario completion tracking
+  scenarioDuration: number;       // Total scenario duration (seconds), 0 = unlimited
+  scenarioCompleted: boolean;     // Whether the scenario has completed
+  scenarioCompletesAt: number;    // Scheduled early-completion time (totalTime value), 0 = not scheduled
+
+  // Telemetry Buffers
+  pressureBuffer: number[];
+  flowBuffer: number[];
+  volumeBuffer: number[];
+
+  // NIV / VEXP (ILSim metrics)
+  NIV: number;
+  VEXP: number;
 }
 
 @Injectable()
-export class SimulationService {
+export class SimulationService extends EventEmitter {
   private states: Map<string, SimulationState> = new Map();
   private intervals: Map<string, NodeJS.Timeout> = new Map();
   private callbacks: Map<string, (data: TelemetryData) => void> = new Map();
 
-  // Sampling rate (samples per second)
-  private readonly SAMPLE_RATE = 50; // 50 Hz
-  private readonly SAMPLE_INTERVAL = 1000 / this.SAMPLE_RATE; // 20ms
+  // Sampling rate — ILSim uses h=0.1 (10 Hz)
+  private readonly SAMPLE_RATE = 10;
+  private readonly DT = 0.1;
 
   /**
    * Start simulation for a station
@@ -41,31 +74,68 @@ export class SimulationService {
     scenarioName: string,
     onTelemetry: (data: TelemetryData) => void,
   ): void {
-    // Stop existing simulation if any
     this.stopSimulation(stationId);
 
-    // Initialize state
+    const existingState = this.states.get(stationId);
+    const preservedBlocks = (existingState && existingState.scenarioName === scenarioName)
+      ? existingState.scenarioBlocks
+      : [];
+
+    const settings = { ...DEFAULT_SETTINGS };
+    const patient = { ...DEFAULT_PATIENT };
+
+    // Calculate initial T
+    const T = this.roundTo(60 / settings.rr, 1);
+
+    // Calculate initial physics state (like ILSim leakingBreathCPAPSTInit)
+    const R = patient.resistance;
+    const Rin = patient.rin;
+    const Rout = patient.rout;
+    const C = patient.compliance / 1000;
+    const denominator = (1/R + 1/Rin + 1/Rout);
+    const Pp0 = (settings.ipap / Rin) / denominator;
+    const dUp0 = Pp0 / Rout;
+
     const state: SimulationState = {
       time: 0,
-      phase: 'inspiration',
-      phaseTime: 0,
+      totalTime: 0,
+      breathTime: 0.1, // ILSim initializes breathTime to 0.1
       breathCount: 0,
-      currentPressure: DEFAULT_SETTINGS.peep,
+      breath: false,
+      currentPressure: settings.peep,
       currentFlow: 0,
       currentVolume: 0,
-      settings: { ...DEFAULT_SETTINGS },
-      patient: { ...DEFAULT_PATIENT },
+      musclePressure: 0,
+      alveolarPressure: settings.peep,
+      dUp: dUp0,
+      denominator,
+      raisingForce: 0,
+      T,
+      settings,
+      patient,
       asynchrony: { active: false, type: null },
       scenarioName,
+      difficulty: 'EASY',
+      scenarioBlocks: preservedBlocks,
+      baselineSettings: null,
+      baselinePatient: null,
+      currentAsynchronyEvent: null,
+      scenarioDuration: 0,
+      scenarioCompleted: false,
+      scenarioCompletesAt: 0,
+      pressureBuffer: [],
+      flowBuffer: [],
+      volumeBuffer: [],
+      NIV: 0,
+      VEXP: 0,
     };
 
     this.states.set(stationId, state);
     this.callbacks.set(stationId, onTelemetry);
 
-    // Start the simulation loop
     const interval = setInterval(() => {
       this.simulationTick(stationId);
-    }, this.SAMPLE_INTERVAL);
+    }, this.DT * 1000);
 
     this.intervals.set(stationId, interval);
   }
@@ -84,26 +154,127 @@ export class SimulationService {
   }
 
   /**
-   * Update ventilator settings
+   * Pause simulation for a station
    */
-  updateSettings(stationId: string, settings: Partial<VentilatorSettings>): void {
-    const state = this.states.get(stationId);
-    if (state) {
-      state.settings = { ...state.settings, ...settings };
+  pauseSimulation(stationId: string): void {
+    const interval = this.intervals.get(stationId);
+    if (interval) {
+      clearInterval(interval);
+      this.intervals.delete(stationId);
     }
   }
 
   /**
-   * Inject asynchrony (called by scenario)
+   * Resume simulation for a station
    */
-  injectAsynchrony(stationId: string, type: AsynchronyType | null): void {
+  resumeSimulation(stationId: string): void {
+    if (this.intervals.has(stationId)) return;
     const state = this.states.get(stationId);
-    if (state) {
-      state.asynchrony = {
-        active: type !== null,
-        type,
-      };
+    if (!state) return;
+
+    const interval = setInterval(() => {
+      this.simulationTick(stationId);
+    }, this.DT * 1000);
+
+    this.intervals.set(stationId, interval);
+  }
+
+  /**
+   * Reset simulation for a station without changing scenario or settings
+   */
+  resetSimulation(stationId: string): void {
+    const state = this.states.get(stationId);
+    if (!state) return;
+
+    // Reset physics and time
+    this.leakingBreathCPAPSTInit(state, true);
+    state.totalTime = 0;
+    state.breathCount = 0;
+    state.scenarioCompleted = false;
+    state.scenarioCompletesAt = 0;
+    state.pressureBuffer = [];
+    state.flowBuffer = [];
+    state.volumeBuffer = [];
+
+    // Reset scenario blocks so they can be re-applied
+    if (state.scenarioBlocks) {
+      for (const block of state.scenarioBlocks) {
+        block._applied = false;
+        block._resolved = false;
+      }
     }
+
+    // Clear any active asynchrony so it can be re-triggered by the timeline
+    if (state.asynchrony.active) {
+       this.injectAsynchrony(stationId, null);
+    }
+  }
+
+  /**
+   * Update ventilator settings
+   */
+  updateSettings(stationId: string, settings: Partial<VentilatorSettings>): void {
+    const state = this.states.get(stationId);
+    if (!state) return;
+
+    for (const key of Object.keys(settings)) {
+       const typedKey = key as keyof VentilatorSettings;
+       if (state.settings[typedKey] !== settings[typedKey]) {
+           const prev = state.settings[typedKey] as number;
+           const curr = settings[typedKey] as number;
+           this.emit('setting_changed', stationId, typedKey, prev, curr, state.asynchrony.active, state.asynchrony.type);
+       }
+    }
+
+    state.settings = { ...state.settings, ...settings };
+  }
+
+  /**
+   * Update patient parameters with sanitization
+   */
+  updatePatientParameters(stationId: string, parameters: Partial<PatientModel>): void {
+    const state = this.states.get(stationId);
+    if (!state) return;
+
+    if (parameters.resistance !== undefined) {
+      state.patient.resistance = Math.max(0.5, parameters.resistance);
+    }
+    if (parameters.compliance !== undefined) {
+      state.patient.compliance = Math.max(1, parameters.compliance);
+    }
+    if (parameters.effort !== undefined) state.patient.effort = Math.max(0, parameters.effort);
+    if (parameters.spontaneousRate !== undefined) state.patient.spontaneousRate = Math.max(0, parameters.spontaneousRate);
+    if (parameters.rin !== undefined) state.patient.rin = Math.max(0.1, parameters.rin);
+    if (parameters.rout !== undefined) state.patient.rout = Math.max(0.1, parameters.rout);
+    if (parameters.p01 !== undefined) state.patient.p01 = Math.max(0, parameters.p01);
+    if (parameters.Tcykl !== undefined) state.patient.Tcykl = Math.max(0.5, parameters.Tcykl);
+    if (parameters.PTi !== undefined) state.patient.PTi = Math.max(0, parameters.PTi);
+    if (parameters.PriorityPR !== undefined) state.patient.PriorityPR = Math.max(0, parameters.PriorityPR);
+    if (parameters.PressureRaiseT !== undefined) state.patient.PressureRaiseT = Math.max(0, parameters.PressureRaiseT);
+    if (parameters.DoubleTriggeringTime !== undefined) state.patient.DoubleTriggeringTime = Math.max(0, parameters.DoubleTriggeringTime);
+    if (parameters.knobDisable !== undefined) state.patient.knobDisable = parameters.knobDisable;
+
+    this.emit('patient_updated', stationId, state.patient);
+  }
+
+  /**
+   * Apply scenario events scheduled timeline
+   */
+  applyScenarioEvents(stationId: string, blocks: any[], durationSeconds: number = 0): void {
+     const state = this.states.get(stationId);
+     if (state) {
+        console.log(`[SimulationService] Applied ${blocks.length} scenario blocks (duration=${durationSeconds}s) for ${stationId}:`,
+          blocks.map(b => `${b.type}(${b.asynchronyType || 'normal'} @ ${b.startTime}s)`).join(', '));
+        state.scenarioBlocks = [...blocks];
+        state.scenarioDuration = durationSeconds;
+        state.scenarioCompleted = false;
+        state.scenarioCompletesAt = 0;
+        state.time = 0;
+        state.totalTime = 0;
+        state.breathTime = 0.1;
+        state.breathCount = 0;
+        state.breath = false;
+     }
   }
 
   /**
@@ -114,199 +285,469 @@ export class SimulationService {
   }
 
   /**
-   * Main simulation tick - generates waveforms
+   * Inject asynchrony
+   */
+  injectAsynchrony(stationId: string, type: AsynchronyType | null): void {
+    const state = this.states.get(stationId);
+    if (!state) return;
+
+    if (type !== null && state.asynchrony.type !== type) {
+      state.asynchrony = { active: true, type };
+      state.baselineSettings = { ...state.settings };
+      state.baselinePatient = { ...state.patient };
+      state.currentAsynchronyEvent = null;
+
+      switch (type) {
+        case 'INEFFECTIVE_TRIGGER':
+          state.patient.p01 = 3;
+          state.patient.effort = 100;
+          state.patient.Tcykl = 2.5;
+          state.settings.trigger = 10;
+          break;
+        case 'AUTO_TRIGGER':
+          state.patient.PriorityPR = 30;
+          break;
+        case 'DELAYED_CYCLING':
+          state.patient.PTi = 0.6;
+          state.patient.p01 = 3;
+          state.patient.effort = 100;
+          state.patient.Tcykl = 3.0;
+          break;
+        case 'PREMATURE_CYCLING':
+          state.patient.PTi = 1.3;
+          state.patient.p01 = 3;
+          state.patient.effort = 100;
+          state.patient.Tcykl = 3.0;
+          break;
+        case 'DOUBLE_TRIGGER':
+          state.patient.DoubleTriggeringTime = 0.5;
+          break;
+        case 'FLOW_MISMATCH':
+          state.patient.PressureRaiseT = 0.3;
+          break;
+        case 'REVERSE_TRIGGER':
+          break;
+      }
+
+      this.emit('asynchrony_injected', stationId, type);
+    } else if (type === null) {
+      if (state.baselinePatient) {
+        state.patient = { ...state.baselinePatient };
+      }
+      if (state.baselineSettings) {
+        state.settings = { ...state.baselineSettings };
+      }
+      state.asynchrony = { active: false, type: null };
+      state.baselineSettings = null;
+      state.baselinePatient = null;
+      state.currentAsynchronyEvent = null;
+    }
+  }
+
+  /**
+   * Check if student fixed the asynchrony by adjusting settings
+   */
+  private checkIfAsynchronyFixed(state: SimulationState): boolean {
+    if (!state.asynchrony.active || !state.asynchrony.type || !state.baselineSettings) return false;
+
+    const current = state.settings;
+    const base = state.baselineSettings;
+
+    switch (state.asynchrony.type) {
+      case 'INEFFECTIVE_TRIGGER':
+        return current.trigger <= base.trigger - 1.0 + 0.001 ||
+               current.ipap <= base.ipap - 2 + 0.001;
+      case 'AUTO_TRIGGER':
+        return current.trigger >= base.trigger + 1.0 - 0.001;
+      case 'DELAYED_CYCLING':
+        return current.ti <= base.ti - 0.2 + 0.001;
+      case 'PREMATURE_CYCLING':
+        return current.ti >= base.ti + 0.2 - 0.001;
+      case 'DOUBLE_TRIGGER':
+        return current.ti >= base.ti + 0.2 - 0.001;
+      case 'FLOW_MISMATCH':
+        return current.ipap >= base.ipap + 2 - 0.001;
+      default:
+        return false;
+    }
+  }
+
+  // ─── ILSim-equivalent: leakingBreathCPAPSTInit ─────────────────────
+  private leakingBreathCPAPSTInit(state: SimulationState, breathReset: boolean = true): void {
+    state.breath = false;
+    state.time = 0;
+
+    if (breathReset) {
+      state.breathTime = 0.1;
+    }
+
+    // Recalculate physics constants from current parameters
+    const R = state.patient.resistance;
+    const Rin = state.patient.rin;
+    const Rout = state.patient.rout;
+    const C = state.patient.compliance / 1000;
+
+    state.denominator = (1/R + 1/Rin + 1/Rout);
+
+    // Calculate T
+    if (state.patient.PriorityPR !== 0) {
+      state.T = this.roundTo(60 / state.patient.PriorityPR, 1);
+    } else {
+      state.T = this.roundTo(60 / state.settings.rr, 1);
+    }
+
+    // Initial alveolar pressure from IPAP
+    const Pp = (state.settings.ipap / Rin) / state.denominator;
+    state.dUp = Pp / Rout;
+    state.currentVolume = 0;
+  }
+
+  // ─── ILSim-equivalent: startNewCycle ───────────────────────────────
+  private startNewCycle(state: SimulationState, breathReset: boolean = true): void {
+    this.leakingBreathCPAPSTInit(state, breathReset);
+
+    // Recalculate T with PriorityPR override
+    if (state.patient.PriorityPR !== 0) {
+      state.T = this.roundTo(60 / state.patient.PriorityPR, 1);
+    } else {
+      state.T = this.roundTo(60 / state.settings.rr, 1);
+    }
+
+    // Recalculate denominator
+    const R = state.patient.resistance;
+    const Rin = state.patient.rin;
+    const Rout = state.patient.rout;
+    state.denominator = (1/R + 1/Rin + 1/Rout);
+
+    // Reset dUp after init (ILSim does this)
+    state.dUp = 0;
+
+    // Calculate raising_force for PressureRaiseT
+    if (state.patient.PressureRaiseT !== 0) {
+      state.raisingForce = (state.settings.ipap - state.settings.epap) * this.DT / state.patient.PressureRaiseT;
+    }
+
+    state.breath = true;
+    state.breathCount++;
+  }
+
+  /**
+   * Main simulation tick — follows ILSim nextLeakingBreathCPAPST exactly
    */
   private simulationTick(stationId: string): void {
     const state = this.states.get(stationId);
     const callback = this.callbacks.get(stationId);
     if (!state || !callback) return;
 
-    const { settings, patient } = state;
-    const breathPeriod = 60000 / settings.rr; // ms per breath
-    const inspiratoryTime = settings.ti * 1000; // ms
-    const expiratoryTime = breathPeriod - inspiratoryTime;
-
-    // Pressure/flow/volume accumulators for this packet
-    const pressureSamples: number[] = [];
-    const flowSamples: number[] = [];
-    const volumeSamples: number[] = [];
-
-    // Generate samples for this tick
-    for (let i = 0; i < 1; i++) {
-      // Update phase timing
-      state.phaseTime += this.SAMPLE_INTERVAL;
-      state.time += this.SAMPLE_INTERVAL;
-
-      // Check for phase transition
-      if (state.phase === 'inspiration' && state.phaseTime >= inspiratoryTime) {
-        state.phase = 'expiration';
-        state.phaseTime = 0;
-      } else if (state.phase === 'expiration' && state.phaseTime >= expiratoryTime) {
-        state.phase = 'inspiration';
-        state.phaseTime = 0;
-        state.breathCount++;
-        state.currentVolume = 0; // Reset volume at start of breath
-      }
-
-      // Calculate waveforms based on mode and phase
-      this.calculateWaveforms(state, settings, patient);
-
-      // Apply asynchrony effects
-      this.applyAsynchrony(state);
-
-      pressureSamples.push(Math.round(state.currentPressure * 10) / 10);
-      flowSamples.push(Math.round(state.currentFlow * 10) / 10);
-      volumeSamples.push(Math.round(state.currentVolume));
+    // ─── 1. Check for new cycle start (ILSim: time % T == 0) ────────
+    if (this.roundTo(state.time, 1) % this.roundTo(state.T, 1) === 0.0) {
+      this.startNewCycle(state, false);
     }
 
-    // Send telemetry
-    const telemetry: TelemetryData = {
-      timestamp: Date.now(),
-      pressure: pressureSamples,
-      flow: flowSamples,
-      volume: volumeSamples,
-      settings: state.settings,
-      asynchrony: state.asynchrony,
-      scenarioName: state.scenarioName,
-    };
+    // ─── 2. Calculate actual_cycle_time ──────────────────────────────
+    const actual_cycle_time = this.roundTo(state.time, 1) % this.roundTo(state.T, 1);
 
-    callback(telemetry);
+    // ─── 3. Determine Pin (machine inlet pressure) ───────────────────
+    let Pin = actual_cycle_time >= state.settings.ti
+      ? state.settings.epap
+      : state.settings.ipap;
+
+    // ─── 4. Patient breath cycle reset (ILSim breath flag) ───────────
+    if (this.roundTo(
+          this.roundTo(state.breathTime, 1) % this.roundTo(state.patient.Tcykl, 1),
+        1) === 0) {
+      state.breath = false;
+    }
+
+    // ─── 5. Calculate Pmus (muscle pressure) ─────────────────────────
+    let Pm = 0;
+    if (this.roundTo(state.T, 1) >= this.roundTo(state.patient.Tcykl, 1)) {
+      Pm = this.calculateMusclePressure(
+        state.patient.p01,
+        state.breathTime,
+        state.patient.Tcykl,
+        state.patient.PTi,
+        true,
+      );
+    }
+    state.musclePressure = Pm;
+
+    // ─── 6. Patient trigger (ILSim logic) ────────────────────────────
+    if (Math.abs(Pm) > state.settings.trigger && !state.breath) {
+      this.startNewCycle(state, false);
+      state.breath = true;
+
+      // Recalculate Pin after cycle reset
+      const new_actual_cycle_time = this.roundTo(state.time, 1) % this.roundTo(state.T, 1);
+      Pin = new_actual_cycle_time >= state.settings.ti
+        ? state.settings.epap
+        : state.settings.ipap;
+    }
+
+    // ─── 7. PressureRaiseT — linear ramp (ILSim logic) ──────────────
+    const actual_cycle_time2 = this.roundTo(state.time, 1) % this.roundTo(state.T, 1);
+    if ((state.patient.PressureRaiseT > actual_cycle_time2 ||
+         actual_cycle_time2 === this.roundTo(state.T, 1)) &&
+        state.patient.PressureRaiseT !== 0) {
+      let actual_raise_time = 0;
+      if (actual_cycle_time2 !== this.roundTo(state.T, 1)) {
+        actual_raise_time = actual_cycle_time2;
+      }
+      Pin = state.settings.epap + state.raisingForce * actual_raise_time * (1 / this.DT);
+    }
+
+    // ─── 8. DoubleTriggeringTime — Pin drops to EPAP ─────────────────
+    if (actual_cycle_time2 === state.patient.DoubleTriggeringTime &&
+        state.patient.DoubleTriggeringTime !== 0) {
+      Pin = state.settings.epap;
+    }
+
+    // ─── 9. Physics: Volume integration ──────────────────────────────
+    const R = state.patient.resistance;
+    const Rin = state.patient.rin;
+    const Rout = state.patient.rout;
+    const C = state.patient.compliance / 1000;
+
+    state.currentVolume = state.currentVolume + state.dUp * this.DT;
+
+    // ─── 10. Alveolar Pressure (Pp) ──────────────────────────────────
+    const Pp = (state.currentVolume / (R * C) + Pin / Rin - Pm / R) / state.denominator;
+    state.alveolarPressure = Pp;
+
+    // ─── 11. Flows ───────────────────────────────────────────────────
+    const Iout = Pp / Rout;
+    const Iin = (Pin - Pp) / Rin;
+
+    // ─── 12. Update dUp for next step ────────────────────────────────
+    state.dUp = Iin - Iout;
+
+    // ─── 13. Advance time AFTER physics (ILSim order) ────────────────
+    state.time += this.DT;
+    state.breathTime += this.DT;
+    state.totalTime = this.roundTo(state.totalTime + this.DT, 1);
+
+    // ─── 14. Update telemetry values ─────────────────────────────────
+    state.currentPressure = Pp;
+    state.currentFlow = state.dUp;
+
+    // ─── 15. Process scheduled scenario events ───────────────────────
+    this.processScheduledEvents(stationId, state);
+
+    // ─── 16. Check if student fixed the asynchrony ───────────────────
+    if (this.checkIfAsynchronyFixed(state)) {
+       const resolvedType = state.asynchrony.type;
+       if (state.baselinePatient) {
+         state.patient = { ...state.baselinePatient };
+       }
+       state.asynchrony = { active: false, type: null };
+       state.baselineSettings = null;
+       state.baselinePatient = null;
+
+       const resolvedBlock = state.currentAsynchronyEvent;
+       if (resolvedBlock) {
+          resolvedBlock._resolved = true;
+       }
+       state.currentAsynchronyEvent = null;
+       this.emit('asynchrony_resolved', stationId, resolvedType);
+
+       // ─── Dynamic block progression: advance to next async after 5s ──
+       if (state.scenarioBlocks && resolvedBlock) {
+         const nextAsyncBlock = state.scenarioBlocks.find(b =>
+           b.type === 'ASYNCHRONY' &&
+           !b._resolved &&
+           b.startTime > resolvedBlock.startTime
+         );
+
+         if (nextAsyncBlock) {
+           // Move next async block to 5 seconds from now (only if earlier than scheduled)
+           const earlyStart = state.totalTime + 5;
+           if (earlyStart < nextAsyncBlock.startTime) {
+             console.log(`[SimulationService] Early resolution! Moving next async from ${nextAsyncBlock.startTime}s to ${earlyStart.toFixed(1)}s`);
+             nextAsyncBlock.startTime = earlyStart;
+           }
+         } else {
+           // All asynchronies resolved — schedule scenario completion in 5s
+           state.scenarioCompletesAt = state.totalTime + 5;
+           console.log(`[SimulationService] All asynchronies resolved! Scenario completes at ${state.scenarioCompletesAt.toFixed(1)}s`);
+         }
+       }
+    }
+
+    // ─── 17. Send telemetry ──────────────────────────────────────────
+    state.pressureBuffer.push(Math.round(Pp * 10) / 10);
+    state.flowBuffer.push(Math.round(state.dUp * 60 * 10) / 10);
+    state.volumeBuffer.push(Math.round(state.currentVolume * 1000));
+
+    if (state.pressureBuffer.length >= 1) {
+      const telemetry: TelemetryData = {
+        timestamp: Date.now(),
+        pressure: [...state.pressureBuffer],
+        flow: [...state.flowBuffer],
+        volume: [...state.volumeBuffer],
+        settings: state.settings,
+        asynchrony: state.asynchrony,
+        scenarioName: state.scenarioName,
+        difficulty: state.difficulty,
+        totalTime: state.totalTime,
+        scenarioDuration: state.scenarioDuration,
+        scenarioCompleted: state.scenarioCompleted,
+      };
+
+      callback(telemetry);
+
+      state.pressureBuffer = [];
+      state.flowBuffer = [];
+      state.volumeBuffer = [];
+    }
   }
 
   /**
-   * Calculate pressure, flow, volume based on ventilator mode
+   * Calculate Muscle Pressure (Pmus) — exact ILSim implementation.
+   * P01 is passed directly (no effort scaling — ILSim has no effort parameter).
    */
-  private calculateWaveforms(
-    state: SimulationState,
-    settings: VentilatorSettings,
-    patient: PatientModel,
-  ): void {
-    const { compliance, resistance } = patient;
-    const timeConstant = (compliance * resistance) / 1000; // seconds
+  private calculateMusclePressure(
+    P01: number,
+    time: number,
+    PmusTime: number,
+    Ti: number,
+    noise: boolean = false,
+  ): number {
+    if (P01 === 0) return 0;
 
-    if (state.phase === 'inspiration') {
-      // Inspiration phase
-      const targetPressure = settings.pinsp + settings.peep;
-      const phaseProgress = state.phaseTime / (settings.ti * 1000);
+    const fv = 60 / PmusTime;
+    const TiLoc = Ti !== 0 ? Ti : (0.0125 * fv + 0.125) * PmusTime;
 
-      switch (settings.mode) {
-        case 'PC-CMV':
-        case 'PC-SIMV':
-          // Pressure-controlled: pressure rises quickly, flow decays
-          state.currentPressure = settings.peep + 
-            (targetPressure - settings.peep) * (1 - Math.exp(-phaseProgress * 3));
-          
-          // Flow = (Pressure - PEEP) / Resistance, decaying exponentially
-          const pressureDiff = state.currentPressure - settings.peep;
-          state.currentFlow = (pressureDiff / resistance) * 60 * 
-            Math.exp(-state.phaseTime / (timeConstant * 1000));
-          break;
+    const Pmax = P01 / (1 - Math.exp(-(0.1 * (fv + 4 * P01)) / 10));
 
-        case 'VC-CMV':
-        case 'VC-SIMV':
-          // Volume-controlled: constant flow, pressure rises
-          const targetFlow = (settings.vt / settings.ti) / 1000 * 60; // L/min
-          state.currentFlow = targetFlow;
-          state.currentPressure = settings.peep + 
-            (state.currentFlow / 60 * resistance) + 
-            (state.currentVolume / compliance);
-          break;
+    const t = this.roundTo(time % PmusTime, 1);
+    let lung = 0;
 
-        case 'PSV':
-          // Pressure support: similar to PC but flow-triggered
-          state.currentPressure = settings.peep + settings.pinsp;
-          state.currentFlow = ((settings.pinsp) / resistance) * 60 * 
-            Math.exp(-state.phaseTime / (timeConstant * 1000));
-          break;
-
-        case 'CPAP':
-          // Continuous positive pressure
-          state.currentPressure = settings.peep;
-          state.currentFlow = patient.effort * 0.5; // Patient-driven
-          break;
-      }
-
-      // Integrate volume
-      state.currentVolume += (state.currentFlow / 60) * this.SAMPLE_INTERVAL;
-
+    if (t <= TiLoc) {
+      lung = Pmax * (1 - Math.exp(-(fv + 4 * P01) / 10 * t));
     } else {
-      // Expiration phase
-      const phaseProgress = state.phaseTime / (60000 / settings.rr - settings.ti * 1000);
-
-      // Pressure decays to PEEP
-      const excessPressure = state.currentPressure - settings.peep;
-      state.currentPressure = settings.peep + 
-        excessPressure * Math.exp(-phaseProgress * 4);
-
-      // Flow is negative (exhalation), decays exponentially
-      const peakExpFlow = -(state.currentVolume / (timeConstant * 1000)) * 60;
-      state.currentFlow = peakExpFlow * Math.exp(-state.phaseTime / (timeConstant * 1000));
-
-      // Volume decreases
-      state.currentVolume += (state.currentFlow / 60) * this.SAMPLE_INTERVAL;
-      if (state.currentVolume < 0) state.currentVolume = 0;
+      lung = Pmax * Math.exp(-((fv + P01 / 2) / 10) * (t - (TiLoc - 0.1)));
     }
 
-    // Clamp values
-    state.currentPressure = Math.max(0, state.currentPressure);
-    state.currentFlow = Math.max(-100, Math.min(100, state.currentFlow));
+    if (noise) {
+      lung += this.addNoise(Pmax, 2);
+    }
+
+    return lung;
   }
 
-  /**
-   * Apply asynchrony effects to the waveforms
-   */
-  private applyAsynchrony(state: SimulationState): void {
-    if (!state.asynchrony.active) return;
+  private addNoise(value: number, percent: number): number {
+    const noise = Math.random() * (value / 100 * percent);
+    return Math.random() > 0.5 ? noise : -noise;
+  }
 
-    switch (state.asynchrony.type) {
-      case 'INEFFECTIVE_TRIGGER':
-        // Patient effort doesn't trigger breath - add small pressure dip
-        if (state.phase === 'expiration' && Math.random() < 0.1) {
-          state.currentPressure -= 2 + Math.random() * 2;
-        }
-        break;
+  private roundTo(value: number, decimals: number): number {
+    const factor = Math.pow(10, decimals);
+    return Math.round(value * factor) / factor;
+  }
 
-      case 'DOUBLE_TRIGGER':
-        // Two breaths in quick succession
-        if (state.phase === 'expiration' && state.phaseTime < 200 && Math.random() < 0.3) {
-          state.currentFlow = Math.abs(state.currentFlow) * 0.5;
-        }
-        break;
+  private processScheduledEvents(stationId: string, state: SimulationState): void {
+     if (!state.scenarioBlocks || state.scenarioBlocks.length === 0) return;
+     if (state.scenarioCompleted) return; // Already completed — skip processing
 
-      case 'AUTO_TRIGGER':
-        // Ventilator triggers without patient effort
-        if (state.phase === 'expiration' && Math.random() < 0.05) {
-          state.phase = 'inspiration';
-          state.phaseTime = 0;
-        }
-        break;
+     const currentTime = state.totalTime;
 
-      case 'DELAYED_CYCLING':
-        // Inspiration continues too long
-        // Effectively handled by extending Ti in the phase logic
-        break;
+     let expectedAsynchronyType: AsynchronyType | null = null;
+     let activeBlock: any = null;
 
-      case 'PREMATURE_CYCLING':
-        // Inspiration ends too early
-        if (state.phase === 'inspiration' && state.phaseTime > state.settings.ti * 500) {
-          if (Math.random() < 0.2) {
-            state.phase = 'expiration';
-            state.phaseTime = 0;
-          }
-        }
-        break;
+     for (const iterBlock of state.scenarioBlocks) {
+         if (iterBlock.type === 'ASYNCHRONY' && iterBlock.asynchronyType && !iterBlock._resolved) {
+             const startTime = iterBlock.startTime;
+             const duration = iterBlock.duration || 30;
+             const endTime = startTime + duration;
 
-      case 'FLOW_MISMATCH':
-        // Flow doesn't match patient demand
-        state.currentFlow *= 0.7 + Math.random() * 0.3;
-        break;
+             if (currentTime >= startTime && currentTime <= endTime) {
+                 expectedAsynchronyType = iterBlock.asynchronyType;
+                 activeBlock = iterBlock;
+                 break;
+             }
+         }
+     }
 
-      case 'REVERSE_TRIGGER':
-        // Ventilator triggers patient effort
-        if (state.phase === 'inspiration' && state.phaseTime < 100) {
-          state.currentPressure += 3;
-        }
-        break;
-    }
+     if (expectedAsynchronyType && state.asynchrony.type !== expectedAsynchronyType) {
+         console.log(`[SimulationService] Scheduled asynchrony ${expectedAsynchronyType} activated at t=${currentTime.toFixed(1)}s for ${stationId}`);
+         this.injectAsynchrony(stationId, expectedAsynchronyType);
+         state.currentAsynchronyEvent = activeBlock;
+     } else if (!expectedAsynchronyType && state.asynchrony.active && state.currentAsynchronyEvent) {
+         const expiredType = state.asynchrony.type;
+         this.injectAsynchrony(stationId, null);
+         this.emit('asynchrony_resolved', stationId, expiredType);
+     }
+
+     // ─── Scenario completion checks ─────────────────────────────────
+     // Path A: Early completion — all asynchronies resolved, 5s cooldown passed
+     if (state.scenarioCompletesAt > 0 && currentTime >= state.scenarioCompletesAt) {
+       state.scenarioCompleted = true;
+       if (state.asynchrony.active) this.injectAsynchrony(stationId, null);
+       console.log(`[SimulationService] Scenario '${state.scenarioName}' COMPLETED (all asynchronies resolved) at t=${currentTime.toFixed(1)}s`);
+       this.emit('scenario_completed', stationId, state.scenarioName);
+       return;
+     }
+     // Path B: Natural completion — durationSeconds elapsed
+     if (state.scenarioDuration > 0 && currentTime >= state.scenarioDuration) {
+       state.scenarioCompleted = true;
+       if (state.asynchrony.active) this.injectAsynchrony(stationId, null);
+       console.log(`[SimulationService] Scenario '${state.scenarioName}' COMPLETED (duration ${state.scenarioDuration}s reached) at t=${currentTime.toFixed(1)}s`);
+       this.emit('scenario_completed', stationId, state.scenarioName);
+       return;
+     }
+
+     for (const iterBlock of state.scenarioBlocks) {
+         const startTime = iterBlock.startTime;
+         if (currentTime >= startTime && !iterBlock._applied) {
+             // Skip ASYNCHRONY blocks — their patient params represent pre-asynchrony
+             // baselines and would overwrite the values that injectAsynchrony() just set.
+             if (iterBlock.type === 'ASYNCHRONY') {
+                 iterBlock._applied = true;
+                 continue;
+             }
+             if (iterBlock.parameterChanges && Object.keys(iterBlock.parameterChanges).length > 0) {
+                 state.settings = {
+                    ...state.settings,
+                    ...iterBlock.parameterChanges
+                 };
+             }
+             // Core patient parameters
+             if (iterBlock.compliance !== undefined) {
+                 state.patient.compliance = Math.max(1, iterBlock.compliance);
+             }
+             if (iterBlock.resistance !== undefined) {
+                 state.patient.resistance = Math.max(0.5, iterBlock.resistance);
+             }
+             // ILSim patient parameters
+             if (iterBlock.rin !== undefined) {
+                 state.patient.rin = Math.max(0.1, iterBlock.rin);
+             }
+             if (iterBlock.rout !== undefined) {
+                 state.patient.rout = Math.max(0.1, iterBlock.rout);
+             }
+             if (iterBlock.p01 !== undefined) {
+                 state.patient.p01 = Math.max(0, iterBlock.p01);
+             }
+             if (iterBlock.Tcykl !== undefined) {
+                 state.patient.Tcykl = Math.max(0.5, iterBlock.Tcykl);
+             }
+             if (iterBlock.PTi !== undefined) {
+                 state.patient.PTi = Math.max(0, iterBlock.PTi);
+             }
+             if (iterBlock.PriorityPR !== undefined) {
+                 state.patient.PriorityPR = Math.max(0, iterBlock.PriorityPR);
+             }
+             if (iterBlock.PressureRaiseT !== undefined) {
+                 state.patient.PressureRaiseT = Math.max(0, iterBlock.PressureRaiseT);
+             }
+             if (iterBlock.DoubleTriggeringTime !== undefined) {
+                 state.patient.DoubleTriggeringTime = Math.max(0, iterBlock.DoubleTriggeringTime);
+             }
+             if (iterBlock.knobDisable !== undefined) {
+                 state.patient.knobDisable = iterBlock.knobDisable;
+             }
+             iterBlock._applied = true;
+         }
+     }
   }
 }

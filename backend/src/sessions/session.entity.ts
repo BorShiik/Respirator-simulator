@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, OneToMany } from 'typeorm';
-import { VentilatorSettings, AsynchronyType } from '../common/dto';
+import { VentilatorSettings, AsynchronyType } from '../common/dto/ventilator.dto';
 
 @Entity('sessions')
 export class SessionEntity {
@@ -14,6 +14,9 @@ export class SessionEntity {
 
   @Column({ nullable: true })
   scenarioName: string;
+
+  @Column({ nullable: true })
+  roomId: string;
 
   @Column({ nullable: true })
   studentName: string;

@@ -1,14 +1,17 @@
 import { Module } from '@nestjs/common';
 import { TrainerGateway } from './trainer.gateway';
 import { TrainerController } from './trainer.controller';
-import { StationsModule } from '../stations/stations.module';
+import { DiscoveryService } from './discovery.service';
+
 import { ScenariosModule } from '../scenarios/scenarios.module';
 import { SessionsModule } from '../sessions/sessions.module';
 import { SimulationModule } from '../simulation/simulation.module';
+import { RoomsModule } from './rooms/rooms.module';
 
 @Module({
-  imports: [StationsModule, ScenariosModule, SessionsModule, SimulationModule],
+  imports: [ScenariosModule, SessionsModule, SimulationModule, RoomsModule],
   controllers: [TrainerController],
-  providers: [TrainerGateway],
+  providers: [TrainerGateway, DiscoveryService],
 })
 export class TrainerModule {}
+

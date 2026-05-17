@@ -26,6 +26,22 @@ export type AsynchronyType =
   | 'FLOW_MISMATCH'
   | 'REVERSE_TRIGGER';
 
+export type DifficultyLevel = 'EASY' | 'MEDIUM' | 'HARD';
+
+export interface PatientParams {
+  compliance: number;
+  resistance: number;
+  rin: number;
+  rout: number;
+  p01: number;
+  Tcykl: number;
+  PTi: number;
+  PriorityPR: number;
+  PressureRaiseT: number;
+  DoubleTriggeringTime: number;
+  knobDisable: boolean;
+}
+
 export interface TelemetryData {
   timestamp: number;
   pressure: number[];
@@ -34,6 +50,7 @@ export interface TelemetryData {
   settings: VentilatorSettings;
   asynchrony: AsynchronyStatus;
   scenarioName: string;
+  difficulty?: DifficultyLevel;
 }
 
 export interface TelemetryMessage {
@@ -45,6 +62,7 @@ export interface TelemetryMessage {
   settings: VentilatorSettings;
   asynchrony: AsynchronyStatus;
   scenarioName: string;
+  difficulty?: DifficultyLevel;
 }
 
 export interface SettingsUpdateMessage {
@@ -73,6 +91,8 @@ export interface StatusMessage {
   status: string;
   scenarioName?: string;
   studentName?: string;
+  difficulty?: DifficultyLevel;
+  patientParams?: PatientParams;
 }
 
 export interface ConnectedMessage {
@@ -80,26 +100,30 @@ export interface ConnectedMessage {
   status: string;
 }
 
-export type EncoderButtonAction = 'press' | 'release' | 'longPress';
+export interface ParameterSelectedMessage {
+  type: 'parameterSelected';
+  parameter: string;
+}
 
-export interface EncoderButtonMessage {
-  type: 'encoderButton';
-  action: EncoderButtonAction;
+export interface TrainerStatusMessage {
+  type: 'trainerStatus';
+  connected: boolean;
 }
 
 export type WebSocketMessage = 
   | TelemetryMessage 
   | SettingsUpdateMessage 
+  | ParameterSelectedMessage
   | RegisteredMessage 
   | LoggedOutMessage 
   | ErrorMessage 
   | StatusMessage
   | ConnectedMessage
-  | EncoderButtonMessage;
+  | TrainerStatusMessage;
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 
-export type CommandType = 'start' | 'stop' | 'reset';
+export type CommandType = 'reset' | 'pause' | 'continue';
 
 export interface CommandRequest {
   command: CommandType;
@@ -117,12 +141,12 @@ export interface ChartDataPoint {
 
 export const ASYNCHRONY_LABELS: Record<AsynchronyType, string> = {
   INEFFECTIVE_TRIGGER: 'Nieefektywny wyzwalacz',
-  DOUBLE_TRIGGER: 'Podwójne wyzwalanie',
-  AUTO_TRIGGER: 'Automatyczne wyzwalanie',
-  DELAYED_CYCLING: 'Opóźniona cykliczność',
-  PREMATURE_CYCLING: 'Przedwczesna cykliczność',
+  DOUBLE_TRIGGER: 'Podwójny wyzwalacz',
+  AUTO_TRIGGER: 'Autowyzwalacz',
+  DELAYED_CYCLING: 'Opóźnione przełączenie',
+  PREMATURE_CYCLING: 'Przedwczesne przełączenie',
   FLOW_MISMATCH: 'Niedopasowanie przepływu',
-  REVERSE_TRIGGER: 'Odwrócone wyzwalanie',
+  REVERSE_TRIGGER: 'Odwrócony wyzwalacz',
 };
 
 export const MODE_LABELS: Record<VentilatorMode, string> = {
@@ -135,13 +159,13 @@ export const MODE_LABELS: Record<VentilatorMode, string> = {
 };
 
 export const DEFAULT_SETTINGS: VentilatorSettings = {
-  ipap: 15,
-  epap: 5,
-  peep: 5,
-  rr: 14,
+  ipap: 12,
+  epap: 4,
+  peep: 4,
+  rr: 15,
   ti: 1.0,
   trigger: 2,
   vt: 500,
-  pinsp: 15,
+  pinsp: 12,
   mode: 'PC-CMV',
 };

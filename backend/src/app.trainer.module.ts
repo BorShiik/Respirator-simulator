@@ -1,26 +1,22 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { SimulationModule } from './simulation/simulation.module';
 import { ScenariosModule } from './scenarios/scenarios.module';
 import { SessionsModule } from './sessions/sessions.module';
-import { StationsModule } from './stations/stations.module';
 import { TrainerModule } from './trainer/trainer.module';
-import { HardwareModule } from './hardware/hardware.module';
+import { RoomsModule } from './trainer/rooms/rooms.module';
 
 @Module({
   imports: [
     TypeOrmModule.forRoot({
       type: 'sqlite',
-      database: 'respirator.db',
+      database: 'respirator-trainer.db',
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
       synchronize: true, // Auto-create tables (disable in production)
     }),
-    SimulationModule,
     ScenariosModule,
     SessionsModule,
-    StationsModule,
     TrainerModule,
-    HardwareModule,
+    RoomsModule,
   ],
 })
-export class AppModule {}
+export class AppTrainerModule {}

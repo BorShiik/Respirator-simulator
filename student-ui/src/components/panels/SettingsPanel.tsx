@@ -26,6 +26,8 @@ interface SettingsPanelProps {
   settings: VentilatorSettings;
   selectedParameter: ParameterKey | null;
   onParameterSelect: (key: ParameterKey | null) => void;
+  isDisabled?: boolean;
+  isDark?: boolean;
 }
 
 interface ParameterDisplayProps {
@@ -33,31 +35,42 @@ interface ParameterDisplayProps {
   value: number;
   isSelected: boolean;
   onSelect: () => void;
+  isDisabled?: boolean;
 }
 
-function ParameterDisplay({ config, value, isSelected, onSelect }: ParameterDisplayProps) {
+function ParameterDisplay({ config, value, isSelected, onSelect, isDisabled }: ParameterDisplayProps) {
   const displayValue = config.decimals === 0 
     ? Math.round(value) 
     : value.toFixed(config.decimals);
 
   return (
     <div 
-      className={`parameter-card cursor-pointer transition-all duration-200 select-none
-        ${isSelected 
-          ? 'border-clinical-accent border-2 bg-blue-50 ring-2 ring-clinical-accent ring-opacity-50' 
-          : 'hover:border-clinical-accent hover:border-opacity-50 active:scale-95'
+      className={`parameter-card transition-all duration-200 select-none
+        ${isDisabled 
+          ? 'opacity-50 grayscale-[0.6] cursor-not-allowed pointer-events-none' 
+          : 'cursor-pointer hover:border-opacity-50 active:scale-95'
+        }
+        ${isSelected && !isDisabled
+          ? 'border-2 ring-2 ring-opacity-50' 
+          : ''
         }`}
-      onClick={onSelect}
+      style={{
+        ...(isSelected && !isDisabled ? { 
+          borderColor: 'var(--color-accent)',
+          '--tw-ring-color': 'var(--color-accent)',
+        } as React.CSSProperties : {}),
+      }}
+      onClick={isDisabled ? undefined : onSelect}
     >
       <div className="parameter-label mb-1">{config.label}</div>
       <div className="flex items-baseline">
-        <span className={`parameter-value ${isSelected ? 'text-clinical-accent' : 'text-clinical-text'}`}>
+        <span className="parameter-value" style={isSelected ? { color: 'var(--color-accent)' } : { color: 'var(--color-text)' }}>
           {displayValue}
         </span>
         <span className="parameter-unit">{config.unit}</span>
       </div>
       {isSelected && (
-        <div className="text-xs text-clinical-accent mt-1 font-medium animate-pulse">
+        <div className="text-xs mt-1 font-medium animate-pulse" style={{ color: 'var(--color-accent)' }}>
           ↑↓ zmień wartość
         </div>
       )}
@@ -65,14 +78,14 @@ function ParameterDisplay({ config, value, isSelected, onSelect }: ParameterDisp
   );
 }
 
-export function SettingsPanel({ settings, selectedParameter, onParameterSelect }: SettingsPanelProps) {
+export function SettingsPanel({ settings, selectedParameter, onParameterSelect, isDisabled }: SettingsPanelProps) {
   return (
-    <div className="flex flex-col h-full">
+    <div className={`flex flex-col h-full ${isDisabled ? 'pointer-events-none' : ''}`}>
       <div className="text-center mb-3">
-        <span className="text-xs uppercase tracking-wider font-semibold text-clinical-muted">
+        <span className="text-xs uppercase tracking-wider font-semibold" style={{ color: 'var(--color-muted)' }}>
           Tryb wentylacji
         </span>
-        <div className="text-xl font-bold text-clinical-accent mt-1">
+        <div className="text-xl font-bold mt-1" style={{ color: 'var(--color-accent)' }}>
           {MODE_LABELS[settings.mode]}
         </div>
       </div>
@@ -87,6 +100,7 @@ export function SettingsPanel({ settings, selectedParameter, onParameterSelect }
             onSelect={() => onParameterSelect(
               selectedParameter === config.key ? null : config.key
             )}
+            isDisabled={isDisabled}
           />
         ))}
       </div>

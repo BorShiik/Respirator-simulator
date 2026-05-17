@@ -4,7 +4,9 @@ import {
   ScenarioBlock,
   VentilatorMode,
   AsynchronyType,
+  PatientParams,
   DEFAULT_SCENARIO,
+  DEFAULT_PATIENT_PARAMS,
   MODE_LABELS,
   ASYNCHRONY_LABELS,
   DIFFICULTY_LABELS,
@@ -28,6 +30,19 @@ const ASYNCHRONY_TYPES: AsynchronyType[] = [
   'REVERSE_TRIGGER',
 ];
 
+/** Labels for patient parameters in Polish */
+const PATIENT_PARAM_LABELS: Record<keyof PatientParams, { label: string; unit: string; min: number; max: number; step: number }> = {
+  rin:  { label: 'Rin (opór wdechowy)',       unit: 'cmH₂O/(L/s)', min: 0.1, max: 50,  step: 0.5 },
+  rout: { label: 'Rout (opór wydechowy)',      unit: 'cmH₂O/(L/s)', min: 0.1, max: 100, step: 1 },
+  p01:  { label: 'P01 (ciśnienie okluzji)',    unit: 'cmH₂O',       min: 0,   max: 10,  step: 0.5 },
+  Tcykl:{ label: 'Tcykl (cykl oddechowy pac.)',unit: 's',            min: 0.5, max: 10,  step: 0.1 },
+  PTi:  { label: 'PTi (czas wdechu pac.)',     unit: 's',            min: 0,   max: 5,   step: 0.1 },
+  PriorityPR:       { label: 'PriorityPR (częstość priorytetowa)', unit: '/min', min: 0, max: 60, step: 1 },
+  PressureRaiseT:   { label: 'PressureRaiseT (czas narastania)',   unit: 's',    min: 0, max: 2,  step: 0.1 },
+  DoubleTriggeringTime: { label: 'DoubleTriggeringTime (czas podwójnego wyzwalania)', unit: 's', min: 0, max: 3, step: 0.1 },
+  knobDisable:      { label: 'Blokada ręczek studenta', unit: '', min: 0, max: 1, step: 1 },
+};
+
 export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorProps) {
   const [formData, setFormData] = useState<Omit<Scenario, 'id' | 'createdAt' | 'updatedAt'>>(
     scenario
@@ -39,10 +54,14 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
           initialSettings: { ...scenario.initialSettings },
           initialResistance: scenario.initialResistance,
           initialCompliance: scenario.initialCompliance,
+          initialPatientParams: { ...(scenario.initialPatientParams || DEFAULT_PATIENT_PARAMS) },
           blocks: [...scenario.blocks],
         }
-      : { ...DEFAULT_SCENARIO, blocks: [] }
+      : { ...DEFAULT_SCENARIO, blocks: [], initialPatientParams: { ...DEFAULT_PATIENT_PARAMS } }
   );
+
+  // Track which blocks have their patient params section expanded
+  const [expandedBlocks, setExpandedBlocks] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (scenario) {
@@ -54,10 +73,11 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
         initialSettings: { ...scenario.initialSettings },
         initialResistance: scenario.initialResistance,
         initialCompliance: scenario.initialCompliance,
+        initialPatientParams: { ...(scenario.initialPatientParams || DEFAULT_PATIENT_PARAMS) },
         blocks: [...scenario.blocks],
       });
     } else {
-      setFormData({ ...DEFAULT_SCENARIO, blocks: [] });
+      setFormData({ ...DEFAULT_SCENARIO, blocks: [], initialPatientParams: { ...DEFAULT_PATIENT_PARAMS } });
     }
   }, [scenario]);
 
@@ -92,10 +112,34 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
       ...formData,
       blocks: formData.blocks.filter((_, i) => i !== index),
     });
+    const newExpanded = new Set(expandedBlocks);
+    newExpanded.delete(index);
+    setExpandedBlocks(newExpanded);
+  };
+
+  const toggleBlockExpanded = (index: number) => {
+    const newExpanded = new Set(expandedBlocks);
+    if (newExpanded.has(index)) {
+      newExpanded.delete(index);
+    } else {
+      newExpanded.add(index);
+    }
+    setExpandedBlocks(newExpanded);
+  };
+
+  const updatePatientParam = (key: keyof PatientParams, value: number | boolean) => {
+    setFormData({
+      ...formData,
+      initialPatientParams: {
+        ...formData.initialPatientParams,
+        [key]: value,
+      },
+    });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* ── Basic Information ───────────────────────────── */}
       <div className="admin-card p-6">
         <h3 className="text-lg font-semibold text-admin-text mb-4">Informacje podstawowe</h3>
 
@@ -140,7 +184,7 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
           </div>
 
           <div>
-            <label className="admin-label">Szacowany czas (sekundy)</label>
+            <label className="admin-label">Szacowany czas trwania (sekundy)</label>
             <input
               type="number"
               value={formData.estimatedDuration}
@@ -155,8 +199,9 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
         </div>
       </div>
 
+      {/* ── Initial Ventilator Settings ─────────────────── */}
       <div className="admin-card p-6">
-        <h3 className="text-lg font-semibold text-admin-text mb-4">Parametry początkowe</h3>
+        <h3 className="text-lg font-semibold text-admin-text mb-4">Parametry początkowe respiratora</h3>
 
         <div className="grid grid-cols-4 gap-4">
           <div>
@@ -320,6 +365,55 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
         </div>
       </div>
 
+      {/* ── Initial Patient Parameters ──────────────────── */}
+      <div className="admin-card p-6">
+        <h3 className="text-lg font-semibold text-admin-text mb-4">Parametry początkowe pacjenta</h3>
+        <p className="text-admin-muted text-sm mb-4">
+          Parametry fizjologiczne pacjenta wpływające na symulację oddychania (model ILSim).
+        </p>
+
+        <div className="grid grid-cols-3 gap-4">
+          {(Object.keys(PATIENT_PARAM_LABELS) as Array<keyof PatientParams>).map((key) => {
+            const config = PATIENT_PARAM_LABELS[key];
+
+            if (key === 'knobDisable') {
+              return (
+                <div key={key} className="flex items-center gap-3 col-span-3">
+                  <input
+                    type="checkbox"
+                    checked={!!formData.initialPatientParams.knobDisable}
+                    onChange={(e) => updatePatientParam('knobDisable', e.target.checked)}
+                    className="w-4 h-4 rounded border-admin-border"
+                    id="initial-knobDisable"
+                  />
+                  <label htmlFor="initial-knobDisable" className="admin-label mb-0 cursor-pointer">
+                    {config.label}
+                  </label>
+                </div>
+              );
+            }
+
+            return (
+              <div key={key}>
+                <label className="admin-label">
+                  {config.label} {config.unit && <span className="text-admin-muted font-normal">({config.unit})</span>}
+                </label>
+                <input
+                  type="number"
+                  value={formData.initialPatientParams[key] as number}
+                  onChange={(e) => updatePatientParam(key, parseFloat(e.target.value) || 0)}
+                  className="admin-input"
+                  min={config.min}
+                  max={config.max}
+                  step={config.step}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Scenario Blocks ─────────────────────────────── */}
       <div className="admin-card p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-admin-text">Bloki scenariusza</h3>
@@ -354,7 +448,7 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
                   </button>
                 </div>
 
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-6 gap-3">
                   <div>
                     <label className="admin-label">Typ</label>
                     <select
@@ -395,6 +489,36 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
                     />
                   </div>
 
+                  <div>
+                    <label className="admin-label">Opór (R) opcjonalnie</label>
+                    <input
+                      type="number"
+                      value={block.resistance || ''}
+                      onChange={(e) =>
+                        updateBlock(index, { resistance: e.target.value ? parseInt(e.target.value) : undefined })
+                      }
+                      className="admin-input"
+                      min="1"
+                      max="50"
+                      placeholder="bez zmian"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="admin-label">Podatność (C) opcjonalnie</label>
+                    <input
+                      type="number"
+                      value={block.compliance || ''}
+                      onChange={(e) =>
+                        updateBlock(index, { compliance: e.target.value ? parseInt(e.target.value) : undefined })
+                      }
+                      className="admin-input"
+                      min="10"
+                      max="100"
+                      placeholder="bez zmian"
+                    />
+                  </div>
+
                   {block.type === 'ASYNCHRONY' && (
                     <div>
                       <label className="admin-label">Typ asynchronii</label>
@@ -415,7 +539,7 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
                     </div>
                   )}
 
-                  <div className="col-span-4">
+                  <div className="col-span-6">
                     <label className="admin-label">Opis bloku</label>
                     <input
                       type="text"
@@ -425,6 +549,68 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
                       placeholder="Opcjonalny opis"
                     />
                   </div>
+                </div>
+
+                {/* ── Block Patient Parameters (collapsible) ── */}
+                <div className="mt-3 border-t border-admin-border pt-3">
+                  <button
+                    type="button"
+                    onClick={() => toggleBlockExpanded(index)}
+                    className="text-sm font-medium text-admin-accent hover:text-admin-accent/80 flex items-center gap-1"
+                  >
+                    <svg
+                      className={`w-4 h-4 transition-transform ${expandedBlocks.has(index) ? 'rotate-90' : ''}`}
+                      fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    Parametry pacjenta (opcjonalnie)
+                  </button>
+
+                  {expandedBlocks.has(index) && (
+                    <div className="grid grid-cols-3 gap-3 mt-3">
+                      {(Object.keys(PATIENT_PARAM_LABELS) as Array<keyof PatientParams>).map((key) => {
+                        const config = PATIENT_PARAM_LABELS[key];
+
+                        if (key === 'knobDisable') {
+                          return (
+                            <div key={key} className="flex items-center gap-3 col-span-3">
+                              <input
+                                type="checkbox"
+                                checked={!!block.knobDisable}
+                                onChange={(e) => updateBlock(index, { knobDisable: e.target.checked })}
+                                className="w-4 h-4 rounded border-admin-border"
+                                id={`block-${index}-knobDisable`}
+                              />
+                              <label htmlFor={`block-${index}-knobDisable`} className="admin-label mb-0 cursor-pointer text-sm">
+                                {config.label}
+                              </label>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div key={key}>
+                            <label className="admin-label text-xs">
+                              {config.label}
+                            </label>
+                            <input
+                              type="number"
+                              value={(block as any)[key] ?? ''}
+                              onChange={(e) =>
+                                updateBlock(index, { [key]: e.target.value ? parseFloat(e.target.value) : undefined } as any)
+                              }
+                              className="admin-input"
+                              min={config.min}
+                              max={config.max}
+                              step={config.step}
+                              placeholder="bez zmian"
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

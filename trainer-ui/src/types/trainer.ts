@@ -1,3 +1,11 @@
+export interface Room {
+  id: string;
+  code: string;
+  name: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
 export interface VentilatorSettings {
   ipap: number;
   epap: number;
@@ -44,9 +52,16 @@ export interface Station {
 export interface StationLiveStatus {
   stationId: string;
   status: StationStatus;
+  isRunning?: boolean;
   settings: VentilatorSettings | null;
   asynchrony: AsynchronyStatus | null;
   pressure: number[];
+  flow: number[];
+  volume: number[];
+  scenarioName?: string;
+  studentName?: string;
+  difficulty?: 'EASY' | 'MEDIUM' | 'HARD';
+  assignedAsynchronyType?: AsynchronyType | null;
   lastUpdate: number;
 }
 
@@ -62,6 +77,28 @@ export interface ScenarioBlock {
   asynchronyType?: AsynchronyType;
   resistance?: number;
   compliance?: number;
+  // Patient parameters (ILSim-style)
+  rin?: number;
+  rout?: number;
+  p01?: number;
+  Tcykl?: number;
+  PTi?: number;
+  PriorityPR?: number;
+  PressureRaiseT?: number;
+  DoubleTriggeringTime?: number;
+  knobDisable?: boolean;
+}
+
+export interface PatientParams {
+  rin: number;
+  rout: number;
+  p01: number;
+  Tcykl: number;
+  PTi: number;
+  PriorityPR: number;
+  PressureRaiseT: number;
+  DoubleTriggeringTime: number;
+  knobDisable: boolean;
 }
 
 export interface Scenario {
@@ -73,6 +110,7 @@ export interface Scenario {
   initialSettings: VentilatorSettings;
   initialResistance: number;
   initialCompliance: number;
+  initialPatientParams: PatientParams;
   blocks: ScenarioBlock[];
   createdAt: number;
   updatedAt: number;
@@ -85,9 +123,10 @@ export interface Session {
   traineeName: string;
   scenarioId: string;
   scenarioName: string;
+  roomId: string | null;
   startTime: number;
   endTime: number | null;
-  status: 'IN_PROGRESS' | 'COMPLETED' | 'ABORTED';
+  status: 'IN_PROGRESS' | 'COMPLETED' | 'ABORTED' | 'PENDING';
   metrics: SessionMetrics | null;
 }
 
@@ -111,13 +150,22 @@ export interface SessionDetails extends Session {
   timeline: SessionTimeline[];
 }
 
-export interface TrainerWebSocketMessage {
-  type: 'stationUpdate' | 'stationsSnapshot';
-  stations?: StationLiveStatus[];
-  station?: StationLiveStatus;
+export interface EventLogEntry {
+  stationId: string;
+  studentName?: string;
+  timestamp: number;
+  event: string;
+  details: Record<string, any>;
 }
 
-export type CommandType = 'start' | 'stop' | 'reset';
+export interface TrainerWebSocketMessage {
+  type: 'stationUpdate' | 'stationsSnapshot' | 'eventLog';
+  stations?: StationLiveStatus[];
+  station?: StationLiveStatus;
+  entry?: EventLogEntry;
+}
+
+export type CommandType = 'reset' | 'pause' | 'continue';
 
 export interface CommandRequest {
   command: CommandType;
@@ -143,12 +191,12 @@ export interface LearningCurveDataPoint {
 
 export const ASYNCHRONY_LABELS: Record<AsynchronyType, string> = {
   INEFFECTIVE_TRIGGER: 'Nieefektywny wyzwalacz',
-  DOUBLE_TRIGGER: 'Podwójne wyzwalanie',
-  AUTO_TRIGGER: 'Automatyczne wyzwalanie',
-  DELAYED_CYCLING: 'Opóźniona cykliczność',
-  PREMATURE_CYCLING: 'Przedwczesna cykliczność',
+  DOUBLE_TRIGGER: 'Podwójny wyzwalacz',
+  AUTO_TRIGGER: 'Autowyzwalacz',
+  DELAYED_CYCLING: 'Opóźnione przełączenie',
+  PREMATURE_CYCLING: 'Przedwczesne przełączenie',
   FLOW_MISMATCH: 'Niedopasowanie przepływu',
-  REVERSE_TRIGGER: 'Odwrócone wyzwalanie',
+  REVERSE_TRIGGER: 'Odwrócony wyzwalacz',
 };
 
 export const MODE_LABELS: Record<VentilatorMode, string> = {
@@ -173,15 +221,27 @@ export const DIFFICULTY_COLORS: Record<Scenario['difficulty'], string> = {
 };
 
 export const DEFAULT_SETTINGS: VentilatorSettings = {
-  ipap: 15,
-  epap: 5,
-  peep: 5,
-  rr: 14,
+  ipap: 12,
+  epap: 4,
+  peep: 4,
+  rr: 15,
   ti: 1.0,
   trigger: 2,
   vt: 500,
-  pinsp: 15,
+  pinsp: 12,
   mode: 'PC-CMV',
+};
+
+export const DEFAULT_PATIENT_PARAMS: PatientParams = {
+  rin: 1,
+  rout: 20,
+  p01: 0,
+  Tcykl: 3.0,
+  PTi: 1.0,
+  PriorityPR: 0,
+  PressureRaiseT: 0,
+  DoubleTriggeringTime: 0,
+  knobDisable: false,
 };
 
 export const DEFAULT_SCENARIO: Omit<Scenario, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -192,5 +252,6 @@ export const DEFAULT_SCENARIO: Omit<Scenario, 'id' | 'createdAt' | 'updatedAt'> 
   initialSettings: DEFAULT_SETTINGS,
   initialResistance: 10,
   initialCompliance: 50,
+  initialPatientParams: DEFAULT_PATIENT_PARAMS,
   blocks: [],
 };

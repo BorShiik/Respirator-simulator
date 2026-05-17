@@ -1,17 +1,17 @@
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
+import { AppStudentModule } from './app.student.module';
 import { ValidationPipe } from '@nestjs/common';
 import { WsAdapter } from '@nestjs/platform-ws';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppStudentModule);
   
-  // Use native WebSocket adapter (compatible with browser WebSocket)
+  // Use native WebSocket adapter
   app.useWebSocketAdapter(new WsAdapter(app));
   
-  // Enable CORS for frontend
+  // Enable CORS
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:3001'],
+    origin: true,
     credentials: true,
   });
   
@@ -26,7 +26,7 @@ async function bootstrap() {
   
   const port = process.env.PORT || 8080;
   await app.listen(port);
-  console.log(`🚀 Respirator Backend running on http://localhost:${port}`);
+  console.log(`🚀 Student Backend (Simulator) running on http://0.0.0.0:${port}`);
 }
 
 bootstrap();

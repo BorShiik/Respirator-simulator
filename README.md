@@ -2,9 +2,29 @@
 
 Edukacyjny symulator wentylacji mechanicznej do nauki rozpoznawania i eliminacji asynchronii pacjent–respirator.
 
+## Szybki start
+
+Wymagany **Node 20+** (np. `nvm use 20`).
+
+```bash
+# Backend studenta (port 8080)
+cd backend && npm install && npm run start:student:dev
+
+# Backend instruktora (port 8081)
+cd backend && npm install && npm run start:trainer:dev
+
+# Frontend studenta (port 5173)
+cd student-ui && npm install && npm run dev
+
+# Frontend instruktora (port 5174)
+cd trainer-ui && npm install && npm run dev
+```
+
+---
+
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Node](https://img.shields.io/badge/node-18+-green.svg)
-![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi%205-red.svg)
+![Node](https://img.shields.io/badge/node-20+-green.svg)
+![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi%204-red.svg)
 
 ## 🎯 Cel projektu
 

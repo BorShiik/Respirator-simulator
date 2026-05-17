@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   StationLiveStatus,
   TrainerWebSocketMessage,
+  EventLogEntry,
   DEFAULT_SETTINGS,
 } from '../types/trainer';
 import { getTrainerWebSocketUrl } from '../api/trainerApi';
@@ -13,6 +14,8 @@ interface UseTrainerWebSocketReturn {
   connectionStatus: ConnectionStatus;
   error: string | null;
   reconnect: () => void;
+  eventLog: EventLogEntry[];
+  clearEventLog: () => void;
 }
 
 const RECONNECT_DELAY = 3000;
@@ -39,7 +42,11 @@ function generateMockStations(): StationLiveStatus[] {
         type: hasAsynchrony ? 'INEFFECTIVE_TRIGGER' : null,
       } : null,
       pressure: isOnline ? Array.from({ length: 20 }, () => 5 + Math.random() * 15) : [],
+      flow: isOnline ? Array.from({ length: 20 }, () => -10 + Math.random() * 50) : [],
+      volume: isOnline ? Array.from({ length: 20 }, () => Math.random() * 500) : [],
+      scenarioName: isOnline ? 'Mock Scenario' : undefined,
       lastUpdate: Date.now(),
+      isRunning: isOnline,
     });
   }
   
@@ -50,11 +57,18 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
   const [stationsMap, setStationsMap] = useState<Map<string, StationLiveStatus>>(new Map());
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [error, setError] = useState<string | null>(null);
+  const [eventLog, setEventLog] = useState<EventLogEntry[]>([]);
   
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const mockIntervalRef = useRef<number | null>(null);
+  const stationsMapRef = useRef<Map<string, StationLiveStatus>>(new Map());
+
+  // Keep ref in sync
+  useEffect(() => {
+    stationsMapRef.current = stationsMap;
+  }, [stationsMap]);
 
   const cleanup = useCallback(() => {
     if (wsRef.current) {
@@ -95,7 +109,10 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
                 type: hasAsynchrony ? 'INEFFECTIVE_TRIGGER' : null,
               },
               pressure: Array.from({ length: 20 }, () => 5 + Math.random() * 15),
+              flow: Array.from({ length: 20 }, () => -10 + Math.random() * 50),
+              volume: Array.from({ length: 20 }, () => Math.random() * 500),
               lastUpdate: Date.now(),
+              isRunning: true,
             });
           }
         });
@@ -128,6 +145,9 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
         setConnectionStatus('connected');
         setError(null);
         reconnectAttemptsRef.current = 0;
+        
+        // Register as a trainer to receive telemetry updates
+        ws.send(JSON.stringify({ type: 'trainer_register' }));
       };
 
       ws.onmessage = (event) => {
@@ -136,14 +156,74 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
           
           if (message.type === 'stationsSnapshot' && message.stations) {
             const newMap = new Map<string, StationLiveStatus>();
-            message.stations.forEach(s => newMap.set(s.stationId, s));
+            
+            message.stations.forEach(s => {
+              const existing = stationsMapRef.current.get(s.stationId);
+              let pressureHistory = existing ? existing.pressure : [];
+              let flowHistory = existing ? existing.flow : [];
+              let volumeHistory = existing ? existing.volume : [];
+              
+              const newPressures = Array.isArray(s.pressure) ? s.pressure : [s.pressure];
+              const validPressures = newPressures.filter(p => p !== undefined && p !== null) as number[];
+              if (validPressures.length > 0) {
+                pressureHistory = [...pressureHistory, ...validPressures].slice(-100);
+              }
+
+              const newFlows = Array.isArray(s.flow) ? s.flow : (s.flow !== undefined ? [s.flow] : []);
+              const validFlows = newFlows.filter((f: number) => f !== undefined && f !== null) as number[];
+              if (validFlows.length > 0) {
+                flowHistory = [...flowHistory, ...validFlows].slice(-100);
+              }
+
+              const newVolumes = Array.isArray(s.volume) ? s.volume : (s.volume !== undefined ? [s.volume] : []);
+              const validVolumes = newVolumes.filter((v: number) => v !== undefined && v !== null) as number[];
+              if (validVolumes.length > 0) {
+                volumeHistory = [...volumeHistory, ...validVolumes].slice(-100);
+              }
+
+              s.pressure = pressureHistory;
+              s.flow = flowHistory;
+              s.volume = volumeHistory;
+              newMap.set(s.stationId, s);
+            });
+            
             setStationsMap(newMap);
           } else if (message.type === 'stationUpdate' && message.station) {
             setStationsMap(prev => {
               const newMap = new Map(prev);
-              newMap.set(message.station!.stationId, message.station!);
+              const s = message.station!; console.log('StationUpdate:', s);
+              const existing = newMap.get(s.stationId);
+              
+              let pressureHistory = existing ? existing.pressure : [];
+              let flowHistory = existing ? existing.flow : [];
+              let volumeHistory = existing ? existing.volume : [];
+
+              const newPressures = Array.isArray(s.pressure) ? s.pressure : [s.pressure];
+              const validPressures = newPressures.filter(p => p !== undefined && p !== null) as number[];
+              if (validPressures.length > 0) {
+                pressureHistory = [...pressureHistory, ...validPressures].slice(-100);
+              }
+
+              const newFlows = Array.isArray(s.flow) ? s.flow : (s.flow !== undefined ? [s.flow] : []);
+              const validFlows = newFlows.filter((f: number) => f !== undefined && f !== null) as number[];
+              if (validFlows.length > 0) {
+                flowHistory = [...flowHistory, ...validFlows].slice(-100);
+              }
+
+              const newVolumes = Array.isArray(s.volume) ? s.volume : (s.volume !== undefined ? [s.volume] : []);
+              const validVolumes = newVolumes.filter((v: number) => v !== undefined && v !== null) as number[];
+              if (validVolumes.length > 0) {
+                volumeHistory = [...volumeHistory, ...validVolumes].slice(-100);
+              }
+
+              s.pressure = pressureHistory;
+              s.flow = flowHistory;
+              s.volume = volumeHistory;
+              newMap.set(s.stationId, s);
               return newMap;
             });
+          } else if (message.type === 'eventLog' && message.entry) {
+            setEventLog(prev => [message.entry!, ...prev].slice(0, 200));
           }
         } catch (parseError) {
           console.error('Failed to parse Trainer WebSocket message:', parseError);
@@ -152,11 +232,12 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
 
       ws.onerror = (event) => {
         console.error('Trainer WebSocket error:', event);
-        setError('Błąd połączenia WebSocket');
+        setError('WebSocket connection error');
         setConnectionStatus('error');
       };
 
       ws.onclose = (event) => {
+        if (wsRef.current !== ws) return; // Prevent cleanup reconnect loop
         console.log('Trainer WebSocket closed:', event.code, event.reason);
         setConnectionStatus('disconnected');
         
@@ -168,13 +249,13 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
             connect();
           }, RECONNECT_DELAY);
         } else {
-          setError('Przekroczono maksymalną liczbę prób połączenia');
+          setError('Maximum reconnection attempts exceeded');
           startMockMode();
         }
       };
     } catch (err) {
       console.error('Failed to create Trainer WebSocket:', err);
-      setError('Nie można utworzyć połączenia WebSocket');
+      setError('Cannot create WebSocket connection');
       setConnectionStatus('error');
       startMockMode();
     }
@@ -190,11 +271,17 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
     return cleanup;
   }, [connect, cleanup]);
 
+  const clearEventLog = useCallback(() => {
+    setEventLog([]);
+  }, []);
+
   return {
     stationsMap,
     connectionStatus,
     error,
     reconnect,
+    eventLog,
+    clearEventLog,
   };
 }
 

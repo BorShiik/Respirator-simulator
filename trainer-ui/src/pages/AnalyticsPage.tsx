@@ -1,11 +1,15 @@
 import { useState, useEffect, useMemo } from 'react';
 import { LearningCurveChart } from '../components/analytics/LearningCurveChart';
 import { Session, LearningCurveDataPoint, ASYNCHRONY_LABELS } from '../types/trainer';
+import { trainerApi } from '../api/trainerApi';
 
 export function AnalyticsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [rooms, setRooms] = useState<{ id: string; name: string }[]>([]);
+  const [selectedRoom, setSelectedRoom] = useState<string>('all');
   const [selectedTrainee, setSelectedTrainee] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadSessions();
@@ -13,154 +17,22 @@ export function AnalyticsPage() {
 
   const loadSessions = async () => {
     setIsLoading(true);
-    
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const mockSessions: Session[] = [
-      {
-        id: 'session-1',
-        stationId: 'station-01',
-        traineeId: 'trainee-1',
-        traineeName: 'Jan Kowalski',
-        scenarioId: 'scenario-1',
-        scenarioName: 'Podstawowy trening',
-        startTime: Date.now() - 86400000 * 7,
-        endTime: Date.now() - 86400000 * 7 + 420000,
-        status: 'COMPLETED',
-        metrics: {
-          totalDuration: 420,
-          timeToResolveAsynchrony: 180,
-          numberOfSettingChanges: 12,
-          chaosIndex: 0.45,
-          asynchronyDetected: true,
-          asynchronyTypes: ['INEFFECTIVE_TRIGGER'],
-          successfulResolution: true,
-        },
-      },
-      {
-        id: 'session-2',
-        stationId: 'station-01',
-        traineeId: 'trainee-1',
-        traineeName: 'Jan Kowalski',
-        scenarioId: 'scenario-1',
-        scenarioName: 'Podstawowy trening',
-        startTime: Date.now() - 86400000 * 6,
-        endTime: Date.now() - 86400000 * 6 + 350000,
-        status: 'COMPLETED',
-        metrics: {
-          totalDuration: 350,
-          timeToResolveAsynchrony: 145,
-          numberOfSettingChanges: 9,
-          chaosIndex: 0.35,
-          asynchronyDetected: true,
-          asynchronyTypes: ['INEFFECTIVE_TRIGGER'],
-          successfulResolution: true,
-        },
-      },
-      {
-        id: 'session-3',
-        stationId: 'station-02',
-        traineeId: 'trainee-1',
-        traineeName: 'Jan Kowalski',
-        scenarioId: 'scenario-2',
-        scenarioName: 'Nieefektywny wyzwalacz',
-        startTime: Date.now() - 86400000 * 5,
-        endTime: Date.now() - 86400000 * 5 + 520000,
-        status: 'COMPLETED',
-        metrics: {
-          totalDuration: 520,
-          timeToResolveAsynchrony: 210,
-          numberOfSettingChanges: 15,
-          chaosIndex: 0.52,
-          asynchronyDetected: true,
-          asynchronyTypes: ['INEFFECTIVE_TRIGGER', 'DOUBLE_TRIGGER'],
-          successfulResolution: true,
-        },
-      },
-      {
-        id: 'session-4',
-        stationId: 'station-01',
-        traineeId: 'trainee-1',
-        traineeName: 'Jan Kowalski',
-        scenarioId: 'scenario-2',
-        scenarioName: 'Nieefektywny wyzwalacz',
-        startTime: Date.now() - 86400000 * 4,
-        endTime: Date.now() - 86400000 * 4 + 380000,
-        status: 'COMPLETED',
-        metrics: {
-          totalDuration: 380,
-          timeToResolveAsynchrony: 120,
-          numberOfSettingChanges: 7,
-          chaosIndex: 0.28,
-          asynchronyDetected: true,
-          asynchronyTypes: ['INEFFECTIVE_TRIGGER', 'DOUBLE_TRIGGER'],
-          successfulResolution: true,
-        },
-      },
-      {
-        id: 'session-5',
-        stationId: 'station-03',
-        traineeId: 'trainee-2',
-        traineeName: 'Anna Nowak',
-        scenarioId: 'scenario-1',
-        scenarioName: 'Podstawowy trening',
-        startTime: Date.now() - 86400000 * 3,
-        endTime: Date.now() - 86400000 * 3 + 480000,
-        status: 'COMPLETED',
-        metrics: {
-          totalDuration: 480,
-          timeToResolveAsynchrony: 220,
-          numberOfSettingChanges: 14,
-          chaosIndex: 0.55,
-          asynchronyDetected: true,
-          asynchronyTypes: ['INEFFECTIVE_TRIGGER'],
-          successfulResolution: true,
-        },
-      },
-      {
-        id: 'session-6',
-        stationId: 'station-01',
-        traineeId: 'trainee-1',
-        traineeName: 'Jan Kowalski',
-        scenarioId: 'scenario-3',
-        scenarioName: 'Problemy z cyklicznością',
-        startTime: Date.now() - 86400000 * 2,
-        endTime: Date.now() - 86400000 * 2 + 650000,
-        status: 'COMPLETED',
-        metrics: {
-          totalDuration: 650,
-          timeToResolveAsynchrony: 280,
-          numberOfSettingChanges: 18,
-          chaosIndex: 0.62,
-          asynchronyDetected: true,
-          asynchronyTypes: ['DELAYED_CYCLING', 'PREMATURE_CYCLING'],
-          successfulResolution: true,
-        },
-      },
-      {
-        id: 'session-7',
-        stationId: 'station-02',
-        traineeId: 'trainee-2',
-        traineeName: 'Anna Nowak',
-        scenarioId: 'scenario-1',
-        scenarioName: 'Podstawowy trening',
-        startTime: Date.now() - 86400000,
-        endTime: Date.now() - 86400000 + 320000,
-        status: 'COMPLETED',
-        metrics: {
-          totalDuration: 320,
-          timeToResolveAsynchrony: 95,
-          numberOfSettingChanges: 6,
-          chaosIndex: 0.22,
-          asynchronyDetected: true,
-          asynchronyTypes: ['INEFFECTIVE_TRIGGER'],
-          successfulResolution: true,
-        },
-      },
-    ];
-
-    setSessions(mockSessions);
-    setIsLoading(false);
+    setError(null);
+    try {
+      const [sessionsData, roomsData] = await Promise.all([
+        trainerApi.getAllSessions(),
+        trainerApi.getRooms()
+      ]);
+      setSessions(sessionsData);
+      setRooms(roomsData);
+    } catch (err) {
+      console.error('Failed to load analytics data:', err);
+      setError('Failed to fetch analytics data from server. Ensure the backend is running.');
+      setSessions([]);
+      setRooms([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const trainees = useMemo(() => {
@@ -174,26 +46,37 @@ export function AnalyticsPage() {
   }, [sessions]);
 
   const filteredSessions = useMemo(() => {
-    if (selectedTrainee === 'all') return sessions;
-    return sessions.filter(s => s.traineeId === selectedTrainee);
-  }, [sessions, selectedTrainee]);
+    let result = sessions;
+    if (selectedRoom !== 'all') {
+      result = result.filter(s => s.roomId === selectedRoom);
+    }
+    if (selectedTrainee !== 'all') {
+      result = result.filter(s => s.traineeId === selectedTrainee);
+    }
+    return result;
+  }, [sessions, selectedRoom, selectedTrainee]);
+
+  // Filter out Free Practice sessions for analytics
+  const analyticsSessions = useMemo(() => {
+    return filteredSessions.filter(s => s.scenarioName !== 'Free Practice');
+  }, [filteredSessions]);
 
   const learningCurveData: LearningCurveDataPoint[] = useMemo(() => {
-    return filteredSessions
+    return analyticsSessions
       .filter(s => s.status === 'COMPLETED' && s.metrics)
       .sort((a, b) => a.startTime - b.startTime)
       .map((session, index) => ({
         sessionIndex: index + 1,
         scenarioName: session.scenarioName,
-        date: new Date(session.startTime).toLocaleDateString('pl-PL'),
+        date: new Date(session.startTime).toLocaleDateString('en-US'),
         timeToResolve: session.metrics?.timeToResolveAsynchrony || null,
         settingChanges: session.metrics?.numberOfSettingChanges || 0,
         successful: session.metrics?.successfulResolution || false,
       }));
-  }, [filteredSessions]);
+  }, [analyticsSessions]);
 
   const stats = useMemo(() => {
-    const completed = filteredSessions.filter(s => s.status === 'COMPLETED');
+    const completed = analyticsSessions.filter(s => s.status === 'COMPLETED');
     const avgTime = completed.length > 0
       ? completed.reduce((sum, s) => sum + (s.metrics?.timeToResolveAsynchrony || 0), 0) / completed.length
       : 0;
@@ -205,13 +88,13 @@ export function AnalyticsPage() {
       : 0;
 
     return {
-      totalSessions: filteredSessions.length,
+      totalSessions: analyticsSessions.length,
       completedSessions: completed.length,
       avgTimeToResolve: Math.round(avgTime),
       avgSettingChanges: Math.round(avgChanges * 10) / 10,
       successRate: Math.round(successRate),
     };
-  }, [filteredSessions]);
+  }, [analyticsSessions]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -227,20 +110,66 @@ export function AnalyticsPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <svg className="w-12 h-12 text-admin-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+        </svg>
+        <p className="text-admin-muted text-center max-w-md">{error}</p>
+        <button onClick={loadSessions} className="admin-btn admin-btn-primary">
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  if (sessions.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-admin-text">Analityka</h1>
+          <p className="text-admin-muted mt-1">Analiza postępów i wyników studentów</p>
+        </div>
+        <div className="admin-card flex flex-col items-center justify-center py-16 gap-4">
+          <svg className="w-16 h-16 text-admin-muted opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+          <p className="text-lg font-medium text-admin-text">Brak danych analitycznych</p>
+          <p className="text-admin-muted text-center max-w-md">
+            Nie przeprowadzono jeszcze żadnych sesji treningowych. Przypisz scenariusz do stanowiska i rozpocznij symulację, aby zobaczyć wyniki.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-admin-text">Analityka</h1>
-          <p className="text-admin-muted mt-1">Analiza postępów i wyników kursantów</p>
+          <h1 className="text-2xl font-bold text-admin-text">Analytics</h1>
+          <p className="text-admin-muted mt-1">Analysis of trainee progress and results</p>
         </div>
-        <div>
+        <div className="flex gap-4">
+          <select
+            value={selectedRoom}
+            onChange={(e) => setSelectedRoom(e.target.value)}
+            className="admin-input min-w-[200px]"
+          >
+            <option value="all">Wszystkie pokoje</option>
+            {rooms.map((room) => (
+              <option key={room.id} value={room.id}>
+                {room.name}
+              </option>
+            ))}
+          </select>
           <select
             value={selectedTrainee}
             onChange={(e) => setSelectedTrainee(e.target.value)}
-            className="admin-input"
+            className="admin-input min-w-[200px]"
           >
-            <option value="all">Wszyscy kursanci</option>
+            <option value="all">Wszyscy studenci</option>
             {trainees.map((trainee) => (
               <option key={trainee.id} value={trainee.id}>
                 {trainee.name}
@@ -250,29 +179,31 @@ export function AnalyticsPage() {
         </div>
       </div>
 
+      {/* ── Stat Cards ────────────────────────────── */}
       <div className="grid grid-cols-5 gap-4">
         <div className="admin-card p-4">
-          <div className="text-sm text-admin-muted mb-1">Sesje ogółem</div>
-          <div className="text-2xl font-bold text-admin-text">{stats.totalSessions}</div>
+          <div className="text-sm text-admin-muted mb-1">Wszystkie sesje</div>
+          <div className="text-2xl font-bold text-admin-text font-mono">{stats.totalSessions}</div>
         </div>
         <div className="admin-card p-4">
-          <div className="text-sm text-admin-muted mb-1">Ukończone</div>
-          <div className="text-2xl font-bold text-admin-success">{stats.completedSessions}</div>
+          <div className="text-sm text-admin-muted mb-1">Zakończone</div>
+          <div className="text-2xl font-bold text-admin-success font-mono">{stats.completedSessions}</div>
         </div>
         <div className="admin-card p-4">
-          <div className="text-sm text-admin-muted mb-1">Śr. czas rozwiązania</div>
-          <div className="text-2xl font-bold text-admin-accent">{formatDuration(stats.avgTimeToResolve)}</div>
+          <div className="text-sm text-admin-muted mb-1">Śr. czas reakcji</div>
+          <div className="text-2xl font-bold text-admin-accent font-mono">{formatDuration(stats.avgTimeToResolve)}</div>
         </div>
         <div className="admin-card p-4">
           <div className="text-sm text-admin-muted mb-1">Śr. liczba zmian</div>
-          <div className="text-2xl font-bold text-admin-text">{stats.avgSettingChanges}</div>
+          <div className="text-2xl font-bold text-admin-text font-mono">{stats.avgSettingChanges}</div>
         </div>
         <div className="admin-card p-4">
           <div className="text-sm text-admin-muted mb-1">Skuteczność</div>
-          <div className="text-2xl font-bold text-admin-success">{stats.successRate}%</div>
+          <div className="text-2xl font-bold text-admin-success font-mono">{stats.successRate}%</div>
         </div>
       </div>
 
+      {/* ── Learning Curve ────────────────────────── */}
       <div className="admin-card p-6">
         <h2 className="text-lg font-semibold text-admin-text mb-4">Krzywa uczenia się</h2>
         <div className="h-80">
@@ -280,6 +211,7 @@ export function AnalyticsPage() {
         </div>
       </div>
 
+      {/* ── Session History ───────────────────────── */}
       <div className="admin-card overflow-hidden">
         <div className="p-4 border-b border-admin-border">
           <h2 className="text-lg font-semibold text-admin-text">Historia sesji</h2>
@@ -288,10 +220,10 @@ export function AnalyticsPage() {
           <thead>
             <tr>
               <th>Data</th>
-              <th>Kursant</th>
+              <th>Student</th>
               <th>Scenariusz</th>
               <th>Czas trwania</th>
-              <th>Czas do rozwiązania</th>
+              <th>Czas reakcji</th>
               <th>Liczba zmian</th>
               <th>Typy asynchronii</th>
               <th>Status</th>
@@ -310,7 +242,7 @@ export function AnalyticsPage() {
                 .map((session) => (
                   <tr key={session.id}>
                     <td className="font-mono text-sm">
-                      {new Date(session.startTime).toLocaleDateString('pl-PL')}
+                      {new Date(session.startTime).toLocaleDateString('en-US')}
                     </td>
                     <td>{session.traineeName}</td>
                     <td>{session.scenarioName}</td>
@@ -330,7 +262,7 @@ export function AnalyticsPage() {
                         {session.metrics?.asynchronyTypes.map((type) => (
                           <span
                             key={type}
-                            className="px-2 py-0.5 bg-red-50 text-red-700 rounded text-xs"
+                            className="px-2 py-0.5 badge-red rounded text-xs"
                           >
                             {ASYNCHRONY_LABELS[type]}
                           </span>
@@ -342,20 +274,24 @@ export function AnalyticsPage() {
                         className={`px-2 py-1 rounded text-xs font-medium ${
                           session.status === 'COMPLETED'
                             ? session.metrics?.successfulResolution
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-yellow-100 text-yellow-800'
+                              ? 'badge-green'
+                              : 'badge-yellow'
                             : session.status === 'IN_PROGRESS'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-gray-100 text-gray-800'
+                            ? 'badge-blue'
+                            : session.status === 'PENDING'
+                            ? 'badge-purple'
+                            : 'badge-gray'
                         }`}
                       >
-                        {session.status === 'COMPLETED'
+                      {session.status === 'COMPLETED'
                           ? session.metrics?.successfulResolution
                             ? 'Sukces'
-                            : 'Zakończono'
+                            : 'Zakończona'
                           : session.status === 'IN_PROGRESS'
-                          ? 'W trakcie'
-                          : 'Przerwano'}
+                          ? 'W toku'
+                          : session.status === 'PENDING'
+                          ? 'Oczekuje'
+                          : 'Przerwana'}
                       </span>
                     </td>
                   </tr>

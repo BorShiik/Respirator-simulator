@@ -6,9 +6,18 @@ import {
   CommandType,
   CommandResponse,
   AssignScenarioRequest,
+  Room,
 } from '../types/trainer';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+function getApiBaseUrl(): string {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && envUrl.includes('localhost') && window.location.hostname !== 'localhost') {
+    return envUrl.replace('localhost', window.location.hostname);
+  }
+  return envUrl || `http://${window.location.hostname}:8081`;
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 async function fetchApi<T>(
   endpoint: string,
@@ -26,14 +35,14 @@ async function fetchApi<T>(
   
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`API Error: ${response.status} - ${errorText}`);
+    throw new Error(`Błąd API: ${response.status} - ${errorText}`);
   }
   
   return response.json();
 }
 
 export async function getStations(): Promise<Station[]> {
-  return fetchApi<Station[]>('/api/trainer/stations');
+  return fetchApi<Station[]>('/api/trainer/students');
 }
 
 export async function getScenarios(): Promise<Scenario[]> {
@@ -66,21 +75,21 @@ export async function deleteScenario(scenarioId: string): Promise<void> {
 
 export async function assignScenario(stationId: string, scenarioId: string): Promise<CommandResponse> {
   const body: AssignScenarioRequest = { scenarioId };
-  return fetchApi<CommandResponse>(`/api/trainer/stations/${stationId}/assign`, {
+  return fetchApi<CommandResponse>(`/api/trainer/students/${stationId}/assign`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
 }
 
 export async function sendCommand(stationId: string, command: CommandType): Promise<CommandResponse> {
-  return fetchApi<CommandResponse>(`/api/trainer/stations/${stationId}/command`, {
+  return fetchApi<CommandResponse>(`/api/trainer/students/${stationId}/command`, {
     method: 'POST',
     body: JSON.stringify({ command }),
   });
 }
 
 export async function getStationSessions(stationId: string): Promise<Session[]> {
-  return fetchApi<Session[]>(`/api/trainer/stations/${stationId}/sessions`);
+  return fetchApi<Session[]>(`/api/trainer/students/${stationId}/sessions`);
 }
 
 export async function getSessionDetails(sessionId: string): Promise<SessionDetails> {
@@ -91,9 +100,47 @@ export async function getTraineeSessions(traineeId: string): Promise<Session[]> 
   return fetchApi<Session[]>(`/api/trainer/trainees/${traineeId}/sessions`);
 }
 
+export async function getAllSessions(): Promise<Session[]> {
+  return fetchApi<Session[]>('/api/trainer/sessions');
+}
+
+// === Rooms ===
+
+export async function getRooms(): Promise<Room[]> {
+  return fetchApi<Room[]>('/api/trainer/rooms');
+}
+
+export async function createRoom(name: string): Promise<Room> {
+  return fetchApi<Room>('/api/trainer/rooms', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function closeRoom(roomId: string): Promise<Room> {
+  return fetchApi<Room>(`/api/trainer/rooms/${roomId}/close`, {
+    method: 'PATCH',
+  });
+}
+
+export async function updatePatientParams(
+  stationId: string,
+  parameters: Record<string, number | boolean>,
+): Promise<CommandResponse> {
+  return fetchApi<CommandResponse>(`/api/trainer/students/${stationId}/patient`, {
+    method: 'POST',
+    body: JSON.stringify({ parameters }),
+  });
+}
+
 export function getTrainerWebSocketUrl(): string {
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsHost = import.meta.env.VITE_WS_HOST || window.location.host;
+  let wsHost = import.meta.env.VITE_WS_HOST;
+  if (wsHost && wsHost.includes('localhost') && window.location.hostname !== 'localhost') {
+    wsHost = wsHost.replace('localhost', window.location.hostname);
+  } else if (!wsHost) {
+    wsHost = `${window.location.hostname}:8081`;
+  }
   return `${wsProtocol}//${wsHost}/api/trainer/ws`;
 }
 
@@ -109,11 +156,17 @@ export const trainerApi = {
   getStationSessions,
   getSessionDetails,
   getTraineeSessions,
+  getAllSessions,
+  getRooms,
+  createRoom,
+  closeRoom,
   getTrainerWebSocketUrl,
+  updatePatientParams,
   
-  startStation: (stationId: string) => sendCommand(stationId, 'start'),
-  stopStation: (stationId: string) => sendCommand(stationId, 'stop'),
+  pauseStation: (stationId: string) => sendCommand(stationId, 'pause'),
+  continueStation: (stationId: string) => sendCommand(stationId, 'continue'),
   resetStation: (stationId: string) => sendCommand(stationId, 'reset'),
 };
 
 export default trainerApi;
+

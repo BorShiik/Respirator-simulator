@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { StudentLayout } from './components/layout/StudentLayout';
 import { PressureChart } from './components/charts/PressureChart';
 import { FlowChart } from './components/charts/FlowChart';
@@ -8,30 +8,59 @@ import { StatusPanel } from './components/panels/StatusPanel';
 import { useStudentWebSocket } from './hooks/useStudentWebSocket';
 import { DEFAULT_SETTINGS, VentilatorSettings } from './types/student';
 
-function StudentRegistration({ onRegister }: { onRegister: (studentName: string) => void }) {
+// ─── Theme Hook ──────────────────────────────────────────────────
+function useTheme() {
+  const [isDark, setIsDark] = useState(() => {
+    const saved = localStorage.getItem('theme');
+    return saved ? saved === 'dark' : true; // Default to dark
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (isDark) {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  }, [isDark]);
+
+  const toggle = useCallback(() => setIsDark(prev => !prev), []);
+
+  return { isDark, toggle };
+}
+
+function StudentRegistration({ onRegister }: { onRegister: (studentName: string, roomCode: string) => void }) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [roomCode, setRoomCode] = useState('');
   const [savedName, setSavedName] = useState<string | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem('studentName');
+    const storedRoom = localStorage.getItem('roomCode');
     if (stored) {
       setSavedName(stored);
     }
-  }, []);
+    if (storedRoom) {
+      setRoomCode(storedRoom);
+    }
+  }, [onRegister]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (firstName.trim() && lastName.trim()) {
+    if (firstName.trim() && lastName.trim() && roomCode.trim().length === 6) {
       const fullName = `${firstName.trim()} ${lastName.trim()}`;
       localStorage.setItem('studentName', fullName);
-      onRegister(fullName);
+      localStorage.setItem('roomCode', roomCode.trim());
+      onRegister(fullName, roomCode.trim());
     }
   };
 
   const handleUseSaved = () => {
-    if (savedName) {
-      onRegister(savedName);
+    if (savedName && roomCode.trim().length === 6) {
+      localStorage.setItem('roomCode', roomCode.trim());
+      onRegister(savedName, roomCode.trim());
     }
   };
 
@@ -83,9 +112,25 @@ function StudentRegistration({ onRegister }: { onRegister: (studentName: string)
             />
           </div>
 
+          <div>
+            <label htmlFor="roomCode" className="block text-sm font-medium text-clinical-text mb-2">
+              Kod pokoju (6 cyfr)
+            </label>
+            <input
+              type="text"
+              id="roomCode"
+              value={roomCode}
+              onChange={(e) => setRoomCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="np. 123456"
+              className="w-full px-4 py-3 border border-clinical-border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white text-center tracking-[0.5em] text-lg font-mono"
+              maxLength={6}
+              required
+            />
+          </div>
+
           <button
             type="submit"
-            disabled={!firstName.trim() || !lastName.trim()}
+            disabled={!firstName.trim() || !lastName.trim() || roomCode.length !== 6}
             className="w-full control-button control-button-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Rozpocznij symulację
@@ -95,12 +140,13 @@ function StudentRegistration({ onRegister }: { onRegister: (studentName: string)
         {savedName && (
           <div className="pt-4 border-t border-clinical-border mt-4">
             <p className="text-xs text-clinical-muted mb-2 text-center">
-              Ostatnio zalogowany
+              Zaloguj jako ostatni użytkownik
             </p>
             <button
               type="button"
               onClick={handleUseSaved}
-              className="w-full px-4 py-3 border border-clinical-accent text-clinical-accent rounded-lg hover:bg-blue-50 transition-colors font-medium"
+              disabled={roomCode.length !== 6}
+              className="w-full px-4 py-3 border border-clinical-accent text-clinical-accent rounded-lg hover:bg-blue-50 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {savedName}
             </button>
@@ -111,19 +157,20 @@ function StudentRegistration({ onRegister }: { onRegister: (studentName: string)
   );
 }
 
-function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: () => void }) {
+function MainScreen({ studentName, roomCode, onLogout }: { studentName: string; roomCode: string; onLogout: () => void }) {
   const [selectedParameter, setSelectedParameter] = useState<ParameterKey | null>(null);
   const [localSettings, setLocalSettings] = useState<VentilatorSettings>(DEFAULT_SETTINGS);
+  const { isDark, toggle: toggleTheme } = useTheme();
   
-  const {
-    telemetry,
-    connectionStatus,
-    isRegistered,
-    logout,
-    sendParameterSelect,
-    encoderButtonAction,
-    acknowledgeEncoderButton,
-  } = useStudentWebSocket(studentName, localSettings);
+  const { telemetry, connectionStatus, trainerConnectionStatus, isRegistered, error, logout, updateSettings, selectParameter, externalSelectedParameter, simulationStatus, difficulty, patientParams } = useStudentWebSocket(studentName, roomCode, localSettings);
+
+  // If there's an error during connection (e.g. invalid room code), show an alert and logout
+  useEffect(() => {
+    if (error === 'Invalid or inactive room code') {
+      alert('Nieprawidłowy lub nieaktywny kod pokoju!');
+      onLogout();
+    }
+  }, [error, onLogout]);
 
   // Синхронизация с настройками от сервера (если не в mock режиме)
   useEffect(() => {
@@ -132,10 +179,17 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
     }
   }, [telemetry?.settings]);
 
+  // Синхронизация фокуса с энкодером Raspberry Pi
+  useEffect(() => {
+    if (externalSelectedParameter !== undefined && !import.meta.env.VITE_USE_MOCK) {
+      setSelectedParameter(externalSelectedParameter as ParameterKey | null);
+    }
+  }, [externalSelectedParameter]);
+
   // Обработка клавиш ↑↓ для изменения параметров
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!selectedParameter) return;
+      if (!selectedParameter || simulationStatus === 'paused') return;
       
       const config = PARAMETER_CONFIGS.find(c => c.key === selectedParameter);
       if (!config) return;
@@ -147,7 +201,7 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
         delta = -config.step;
       } else if (e.key === 'Escape') {
         setSelectedParameter(null);
-        sendParameterSelect(null);
+        selectParameter(null);
         return;
       } else {
         return;
@@ -155,37 +209,27 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
       
       e.preventDefault();
       
-      setLocalSettings(prev => {
-        const currentValue = prev[selectedParameter];
-        const newValue = Math.min(config.max, Math.max(config.min, currentValue + delta));
-        // Округляем до нужного количества знаков
-        const roundedValue = Math.round(newValue * Math.pow(10, config.decimals)) / Math.pow(10, config.decimals);
-        
-        const newSettings = { ...prev, [selectedParameter]: roundedValue };
-        
-        // Синхронизируем связанные параметры
-        if (selectedParameter === 'ipap') {
-          newSettings.pinsp = roundedValue;
-        } else if (selectedParameter === 'epap') {
-          newSettings.peep = roundedValue;
-        }
-        
-        return newSettings;
-      });
+      const currentValue = localSettings[selectedParameter] as number;
+      const newValue = Math.min(config.max, Math.max(config.min, currentValue + delta));
+      // Округляем до нужного количества знаков
+      const roundedValue = Math.round(newValue * Math.pow(10, config.decimals)) / Math.pow(10, config.decimals);
+      
+      const newSettings = { ...localSettings, [selectedParameter]: roundedValue };
+      
+      // Синхронизируем связанные параметры
+      if (selectedParameter === 'ipap') {
+        newSettings.pinsp = roundedValue;
+      } else if (selectedParameter === 'epap') {
+        newSettings.peep = roundedValue;
+      }
+      
+      setLocalSettings(newSettings);
+      updateSettings(newSettings);
     };
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedParameter, sendParameterSelect]);
-
-  useEffect(() => {
-    if (!encoderButtonAction) return;
-    if (selectedParameter) {
-      setSelectedParameter(null);
-      sendParameterSelect(null);
-    }
-    acknowledgeEncoderButton();
-  }, [encoderButtonAction, selectedParameter, sendParameterSelect, acknowledgeEncoderButton]);
+  }, [selectedParameter, localSettings, updateSettings, selectParameter, simulationStatus]);
 
   const pressure = telemetry?.pressure || [];
   const flow = telemetry?.flow || [];
@@ -201,28 +245,33 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
 
   return (
     <StudentLayout
+      isDark={isDark}
+      onToggleTheme={toggleTheme}
       leftPanel={
         <SettingsPanel 
           settings={localSettings} 
           selectedParameter={selectedParameter}
-          onParameterSelect={(parameter) => {
-            setSelectedParameter(parameter);
-            sendParameterSelect(parameter);
+          onParameterSelect={(param) => {
+            setSelectedParameter(param);
+            selectParameter(param);
           }}
+          isDisabled={simulationStatus === 'paused'}
+          isDark={isDark}
         />
       }
       centerTop={
         <PressureChart 
           data={pressure} 
           peep={localSettings.peep || localSettings.epap} 
-          pip={localSettings.ipap || localSettings.pinsp} 
+          pip={localSettings.ipap || localSettings.pinsp}
+          isDark={isDark}
         />
       }
       centerMiddle={
-        <FlowChart data={flow} />
+        <FlowChart data={flow} isDark={isDark} />
       }
       centerBottom={
-        <VolumeChart data={volume} targetVt={localSettings.vt} />
+        <VolumeChart data={volume} targetVt={localSettings.vt} isDark={isDark} />
       }
       rightPanel={
         <StatusPanel
@@ -230,8 +279,12 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
           asynchrony={asynchrony}
           studentName={studentName}
           connectionStatus={connectionStatus}
+          trainerConnectionStatus={trainerConnectionStatus}
           isRegistered={isRegistered}
           onLogout={handleLogout}
+          simulationStatus={simulationStatus}
+          difficulty={difficulty}
+          patientParams={patientParams}
         />
       }
     />
@@ -239,17 +292,17 @@ function MainScreen({ studentName, onLogout }: { studentName: string; onLogout: 
 }
 
 function App() {
-  const [studentName, setStudentName] = useState<string | null>(null);
+  const [studentInfo, setStudentInfo] = useState<{name: string, room: string} | null>(null);
 
   const handleLogout = () => {
-    setStudentName(null);
+    setStudentInfo(null);
   };
 
-  if (!studentName) {
-    return <StudentRegistration onRegister={setStudentName} />;
+  if (!studentInfo) {
+    return <StudentRegistration onRegister={(name, room) => setStudentInfo({name, room})} />;
   }
 
-  return <MainScreen studentName={studentName} onLogout={handleLogout} />;
+  return <MainScreen studentName={studentInfo.name} roomCode={studentInfo.room} onLogout={handleLogout} />;
 }
 
 export default App;

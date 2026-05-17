@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useTheme } from '../../hooks/useTheme';
 
 interface TrainerLayoutProps {
   children: ReactNode;
@@ -39,10 +40,48 @@ const navItems: NavItem[] = [
       </svg>
     ),
   },
+  {
+    path: '/rooms',
+    label: 'Pokoje',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+      </svg>
+    ),
+  },
 ];
+
+/* ── Sun Icon ─────────────────────────────────────── */
+function SunIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+      />
+    </svg>
+  );
+}
+
+/* ── Moon Icon ────────────────────────────────────── */
+function MoonIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
+      />
+    </svg>
+  );
+}
 
 export function TrainerLayout({ children }: TrainerLayoutProps) {
   const location = useLocation();
+  const { theme, toggleTheme } = useTheme();
 
   const isActive = (path: string) => {
     if (path === '/') {
@@ -53,21 +92,24 @@ export function TrainerLayout({ children }: TrainerLayoutProps) {
 
   return (
     <div className="min-h-screen flex">
-      <aside className="w-64 bg-admin-sidebar flex flex-col">
-        <div className="p-6 border-b border-gray-700">
+      {/* ── Sidebar ──────────────────────────────── */}
+      <aside className="w-64 bg-admin-sidebar flex flex-col border-r border-admin-border theme-transition">
+        {/* Logo */}
+        <div className="p-6 border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-admin-accent rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-admin-accent rounded-lg flex items-center justify-center shadow-glow">
               <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
               </svg>
             </div>
             <div>
-              <h1 className="text-white font-bold text-lg">Respirator</h1>
-              <p className="text-gray-400 text-xs">Panel trenera</p>
+              <h1 className="text-white font-bold text-lg tracking-tight">Respirator</h1>
+              <p className="text-gray-500 text-xs">Panel trenera</p>
             </div>
           </div>
         </div>
 
+        {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1">
           {navItems.map((item) => (
             <Link
@@ -81,22 +123,39 @@ export function TrainerLayout({ children }: TrainerLayoutProps) {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-gray-700">
+        {/* Footer — Theme Toggle + User */}
+        <div className="p-4 border-t border-white/10 space-y-3">
+          {/* Theme Toggle */}
+          <button
+            onClick={toggleTheme}
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-all duration-200"
+            title={theme === 'dark' ? 'Przełącz na jasny motyw' : 'Przełącz na ciemny motyw'}
+          >
+            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
+              {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+            </div>
+            <span className="text-sm">
+              {theme === 'dark' ? 'Jasny motyw' : 'Ciemny motyw'}
+            </span>
+          </button>
+
+          {/* User Info */}
           <div className="flex items-center gap-3 px-4 py-3">
-            <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center">
-              <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-8 h-8 bg-gradient-to-br from-admin-accent to-blue-400 rounded-full flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
             </div>
             <div>
               <p className="text-white text-sm font-medium">Trener</p>
-              <p className="text-gray-400 text-xs">Aktywna sesja</p>
+              <p className="text-gray-500 text-xs">Aktywna sesja</p>
             </div>
           </div>
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto bg-admin-bg">
+      {/* ── Main Content ─────────────────────────── */}
+      <main className="flex-1 overflow-auto bg-admin-bg theme-transition">
         <div className="p-6">
           {children}
         </div>

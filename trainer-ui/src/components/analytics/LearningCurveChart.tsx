@@ -10,12 +10,30 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { LearningCurveDataPoint } from '../../types/trainer';
+import { useTheme } from '../../hooks/useTheme';
+import { useMemo } from 'react';
 
 interface LearningCurveChartProps {
   data: LearningCurveDataPoint[];
 }
 
 export function LearningCurveChart({ data }: LearningCurveChartProps) {
+  const { theme } = useTheme();
+
+  const colors = useMemo(() => {
+    const style = getComputedStyle(document.documentElement);
+    return {
+      accent: style.getPropertyValue('--admin-accent').trim() || '#3b82f6',
+      success: style.getPropertyValue('--admin-success').trim() || '#10b981',
+      grid: style.getPropertyValue('--chart-grid').trim() || '#1e293b',
+      muted: style.getPropertyValue('--admin-muted').trim() || '#94a3b8',
+      ref: style.getPropertyValue('--chart-ref').trim() || '#475569',
+      panel: style.getPropertyValue('--admin-panel').trim() || '#111827',
+      border: style.getPropertyValue('--admin-border').trim() || '#1e293b',
+      text: style.getPropertyValue('--admin-text').trim() || '#f1f5f9',
+    };
+  }, [theme]);
+
   if (data.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-admin-muted">
@@ -40,11 +58,11 @@ export function LearningCurveChart({ data }: LearningCurveChartProps) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+        <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} />
         <XAxis
           dataKey="index"
-          label={{ value: 'Numer sesji', position: 'insideBottom', offset: -10, fill: '#64748b' }}
-          tick={{ fontSize: 12, fill: '#64748b' }}
+          label={{ value: 'Nr sesji', position: 'insideBottom', offset: -10, fill: colors.muted }}
+          tick={{ fontSize: 12, fill: colors.muted }}
         />
         <YAxis
           yAxisId="left"
@@ -52,9 +70,9 @@ export function LearningCurveChart({ data }: LearningCurveChartProps) {
             value: 'Czas (s)',
             angle: -90,
             position: 'insideLeft',
-            fill: '#64748b',
+            fill: colors.muted,
           }}
-          tick={{ fontSize: 12, fill: '#64748b' }}
+          tick={{ fontSize: 12, fill: colors.muted }}
         />
         <YAxis
           yAxisId="right"
@@ -63,19 +81,20 @@ export function LearningCurveChart({ data }: LearningCurveChartProps) {
             value: 'Liczba zmian',
             angle: 90,
             position: 'insideRight',
-            fill: '#64748b',
+            fill: colors.muted,
           }}
-          tick={{ fontSize: 12, fill: '#64748b' }}
+          tick={{ fontSize: 12, fill: colors.muted }}
         />
         <Tooltip
           contentStyle={{
-            backgroundColor: '#ffffff',
-            border: '1px solid #e2e8f0',
+            backgroundColor: colors.panel,
+            border: `1px solid ${colors.border}`,
             borderRadius: '8px',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.3)',
+            color: colors.text,
           }}
           formatter={(value: number, name: string) => {
-            if (name === 'timeToResolve') return [`${value}s`, 'Czas rozwiązania'];
+            if (name === 'timeToResolve') return [`${value}s`, 'Czas reakcji'];
             if (name === 'settingChanges') return [value, 'Liczba zmian'];
             return [value, name];
           }}
@@ -88,19 +107,20 @@ export function LearningCurveChart({ data }: LearningCurveChartProps) {
           verticalAlign="top"
           height={36}
           formatter={(value: string) => {
-            if (value === 'timeToResolve') return 'Czas do rozwiązania';
-            if (value === 'settingChanges') return 'Liczba zmian nastaw';
+            if (value === 'timeToResolve') return 'Czas reakcji';
+            if (value === 'settingChanges') return 'Liczba zmian';
             return value;
           }}
+          wrapperStyle={{ color: colors.muted }}
         />
         <ReferenceLine
           y={avgTime}
           yAxisId="left"
-          stroke="#94a3b8"
+          stroke={colors.ref}
           strokeDasharray="5 5"
           label={{
             value: `Średnia: ${Math.round(avgTime)}s`,
-            fill: '#64748b',
+            fill: colors.muted,
             fontSize: 11,
           }}
         />
@@ -108,9 +128,9 @@ export function LearningCurveChart({ data }: LearningCurveChartProps) {
           yAxisId="left"
           type="monotone"
           dataKey="timeToResolve"
-          stroke="#0066cc"
+          stroke={colors.accent}
           strokeWidth={2}
-          dot={{ r: 4, fill: '#0066cc' }}
+          dot={{ r: 4, fill: colors.accent }}
           activeDot={{ r: 6 }}
           connectNulls
         />
@@ -118,9 +138,9 @@ export function LearningCurveChart({ data }: LearningCurveChartProps) {
           yAxisId="right"
           type="monotone"
           dataKey="settingChanges"
-          stroke="#059669"
+          stroke={colors.success}
           strokeWidth={2}
-          dot={{ r: 4, fill: '#059669' }}
+          dot={{ r: 4, fill: colors.success }}
           activeDot={{ r: 6 }}
         />
       </LineChart>
