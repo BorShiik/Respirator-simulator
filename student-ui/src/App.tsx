@@ -261,17 +261,16 @@ function MainScreen({ studentName, roomCode, onLogout }: { studentName: string; 
       }
       centerTop={
         <PressureChart 
-          data={pressure} 
           peep={localSettings.peep || localSettings.epap} 
           pip={localSettings.ipap || localSettings.pinsp}
           isDark={isDark}
         />
       }
       centerMiddle={
-        <FlowChart data={flow} isDark={isDark} />
+        <FlowChart isDark={isDark} />
       }
       centerBottom={
-        <VolumeChart data={volume} targetVt={localSettings.vt} isDark={isDark} />
+        <VolumeChart targetVt={localSettings.vt} isDark={isDark} />
       }
       rightPanel={
         <StatusPanel

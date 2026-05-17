@@ -9,6 +9,7 @@ import {
   VentilatorSettings,
 } from '../types/student';
 import { getWebSocketUrl } from '../api/studentApi';
+import { pushChartData, resetChartBuffers } from '../stores/chartBufferStore';
 
 interface UseStudentWebSocketReturn {
   telemetry: TelemetryData | null;
@@ -29,17 +30,16 @@ interface UseStudentWebSocketReturn {
 const RECONNECT_DELAY = 3000;
 const MAX_RECONNECT_ATTEMPTS = 10;
 
-const BUFFER_SIZE = 150; // Sliding window size (ILSim uses 150)
+const BUFFER_SIZE = 500; // Sliding window size (10 seconds at 50Hz)
 
 // Sliding window buffers — new data pushed to end, old data dropped from front
 let realPressureBuffer: number[] = [];
 let realFlowBuffer: number[] = [];
 let realVolumeBuffer: number[] = [];
+let lastTelemetryStateUpdate = 0;
 
 function resetRealBuffers() {
-  realPressureBuffer = [];
-  realFlowBuffer = [];
-  realVolumeBuffer = [];
+  resetChartBuffers();
 }
 
 function pushToBuffer(buffer: number[], values: number[]): number[] {
@@ -196,21 +196,24 @@ export function useStudentWebSocket(studentName: string | null, roomCode: string
               const flows = Array.isArray(message.flow) ? message.flow : [message.flow];
               const volumes = Array.isArray(message.volume) ? message.volume : [message.volume];
 
-              // Sliding window — push new data to end, old data drops off the left
-              realPressureBuffer = pushToBuffer(realPressureBuffer, pressures);
-              realFlowBuffer = pushToBuffer(realFlowBuffer, flows);
-              realVolumeBuffer = pushToBuffer(realVolumeBuffer, volumes);
+              // Write directly to shared store (Canvas reads this, NO React re-render)
+              pushChartData(pressures, flows, volumes);
 
-              setTelemetry({
-                timestamp: message.timestamp,
-                pressure: [...realPressureBuffer],
-                flow: [...realFlowBuffer],
-                volume: [...realVolumeBuffer],
-                settings: message.settings,
-                asynchrony: message.asynchrony,
-                scenarioName: message.scenarioName,
-                difficulty: message.difficulty,
-              });
+              // Throttle React state updates to ~2Hz (only for settings/asynchrony/scenario)
+              const now = Date.now();
+              if (now - lastTelemetryStateUpdate > 500) {
+                lastTelemetryStateUpdate = now;
+                setTelemetry({
+                  timestamp: message.timestamp,
+                  pressure: [],  // Empty — charts read from store directly
+                  flow: [],
+                  volume: [],
+                  settings: message.settings,
+                  asynchrony: message.asynchrony,
+                  scenarioName: message.scenarioName,
+                  difficulty: message.difficulty,
+                });
+              }
               // Also update difficulty from telemetry for continuous sync
               if (message.difficulty) {
                 setDifficulty(message.difficulty);
