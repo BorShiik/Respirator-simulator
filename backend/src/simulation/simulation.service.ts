@@ -447,12 +447,16 @@ export class SimulationService extends EventEmitter {
     if (!state || !callback) return;
 
     // ─── 1. Check for new cycle start (ILSim: time % T == 0) ────────
-    if (this.roundTo(state.time, 2) % this.roundTo(state.T, 2) === 0.0) {
+    const isSpontaneousMode = state.settings.mode === 'PSV' || state.settings.mode === 'CPAP';
+    if (!isSpontaneousMode && this.roundTo(state.time, 2) % this.roundTo(state.T, 2) === 0.0) {
       this.startNewCycle(state, false);
     }
 
     // ─── 2. Calculate actual_cycle_time ──────────────────────────────
-    const actual_cycle_time = this.roundTo(state.time, 2) % this.roundTo(state.T, 2);
+    let actual_cycle_time = this.roundTo(state.time, 2);
+    if (!isSpontaneousMode) {
+      actual_cycle_time = actual_cycle_time % this.roundTo(state.T, 2);
+    }
 
     // ─── 3. Determine Pin (machine inlet pressure) ───────────────────
     let Pin = actual_cycle_time >= state.settings.ti
@@ -499,16 +503,23 @@ export class SimulationService extends EventEmitter {
       state.breath = true;
 
       // Recalculate Pin after cycle reset
-      const new_actual_cycle_time = this.roundTo(state.time, 2) % this.roundTo(state.T, 2);
+      let new_actual_cycle_time = this.roundTo(state.time, 2);
+      if (!isSpontaneousMode) {
+         new_actual_cycle_time = new_actual_cycle_time % this.roundTo(state.T, 2);
+      }
       Pin = new_actual_cycle_time >= state.settings.ti
         ? state.settings.epap
         : state.settings.ipap;
     }
 
     // ─── 7. PressureRaiseT — linear ramp (ILSim logic) ──────────────
-    const actual_cycle_time2 = this.roundTo(state.time, 2) % this.roundTo(state.T, 2);
+    let actual_cycle_time2 = this.roundTo(state.time, 2);
+    if (!isSpontaneousMode) {
+       actual_cycle_time2 = actual_cycle_time2 % this.roundTo(state.T, 2);
+    }
+    
     if ((state.patient.PressureRaiseT > actual_cycle_time2 ||
-         actual_cycle_time2 === this.roundTo(state.T, 2)) &&
+         (!isSpontaneousMode && actual_cycle_time2 === this.roundTo(state.T, 2))) &&
         state.patient.PressureRaiseT !== 0) {
       let actual_raise_time = 0;
       if (actual_cycle_time2 !== this.roundTo(state.T, 2)) {
@@ -529,18 +540,37 @@ export class SimulationService extends EventEmitter {
     const Rout = state.patient.rout;
     const C = state.patient.compliance / 1000;
 
-    state.currentVolume = state.currentVolume + state.dUp * this.DT;
+    let Pp = 0;
+    
+    // Check if Volume Control mode and in inspiration phase
+    const isVC = state.settings.mode.startsWith('VC-');
+    const isInspiration = actual_cycle_time < state.settings.ti;
 
-    // ─── 10. Alveolar Pressure (Pp) ──────────────────────────────────
-    const Pp = (state.currentVolume / (R * C) + Pin / Rin - Pm / R) / state.denominator;
+    if (isVC && isInspiration) {
+      // Volume Control: Machine forces a constant inspiratory flow
+      const targetFlow = (state.settings.vt / 1000) / state.settings.ti; // L/s
+      
+      // Calculate resulting airway pressure (Pp) given forced Iin = targetFlow
+      const denomVC = 1/R + 1/Rout;
+      Pp = ( (state.currentVolume / C - Pm) / R + targetFlow ) / denomVC;
+      
+      const Iout = Pp / Rout;
+      state.dUp = targetFlow - Iout; // Net flow into lungs
+      state.currentVolume += state.dUp * this.DT;
+      
+      // Back-calculate Pin for consistency
+      Pin = targetFlow * Rin + Pp;
+    } else {
+      // Pressure Control (PC-CMV, PSV, CPAP) or Expiration Phase
+      state.currentVolume = state.currentVolume + state.dUp * this.DT;
+      Pp = (state.currentVolume / (R * C) + Pin / Rin - Pm / R) / state.denominator;
+      
+      const Iout = Pp / Rout;
+      const Iin = (Pin - Pp) / Rin;
+      state.dUp = Iin - Iout;
+    }
+    
     state.alveolarPressure = Pp;
-
-    // ─── 11. Flows ───────────────────────────────────────────────────
-    const Iout = Pp / Rout;
-    const Iin = (Pin - Pp) / Rin;
-
-    // ─── 12. Update dUp for next step ────────────────────────────────
-    state.dUp = Iin - Iout;
 
     // ─── 13. Advance time AFTER physics (ILSim order) ────────────────
     state.time += this.DT;
