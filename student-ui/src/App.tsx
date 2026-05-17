@@ -5,6 +5,7 @@ import { FlowChart } from './components/charts/FlowChart';
 import { VolumeChart } from './components/charts/VolumeChart';
 import { SettingsPanel, ParameterKey, PARAMETER_CONFIGS } from './components/panels/SettingsPanel';
 import { StatusPanel } from './components/panels/StatusPanel';
+import { LearningPanel } from './components/panels/LearningPanel';
 import { useStudentWebSocket } from './hooks/useStudentWebSocket';
 import { DEFAULT_SETTINGS, VentilatorSettings } from './types/student';
 
@@ -155,6 +156,27 @@ function StudentRegistration({
             ) : null}
             {isConnecting ? 'Łączenie...' : 'Rozpocznij symulację'}
           </button>
+          
+          <div className="relative flex items-center py-2">
+            <div className="flex-grow border-t border-clinical-border"></div>
+            <span className="flex-shrink-0 mx-4 text-clinical-muted text-sm">lub</span>
+            <div className="flex-grow border-t border-clinical-border"></div>
+          </div>
+          
+          <button
+            type="button"
+            onClick={() => {
+              if (firstName.trim() && lastName.trim() && !isConnecting) {
+                const fullName = `${firstName.trim()} ${lastName.trim()}`;
+                localStorage.setItem('studentName', fullName);
+                onRegister(fullName, 'LEARN');
+              }
+            }}
+            disabled={!firstName.trim() || !lastName.trim() || isConnecting}
+            className="w-full control-button border border-clinical-accent text-clinical-accent hover:bg-clinical-accent/10 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
+          >
+            Tryb nauki (Solo)
+          </button>
         </form>
 
         {savedName && (
@@ -196,7 +218,7 @@ function MainScreen({
   const [localSettings, setLocalSettings] = useState<VentilatorSettings>(DEFAULT_SETTINGS);
   const { isDark, toggle: toggleTheme } = useTheme();
   
-  const { telemetry, connectionStatus, trainerConnectionStatus, isRegistered, error, logout, updateSettings, selectParameter, externalSelectedParameter, simulationStatus, difficulty, patientParams } = useStudentWebSocket(studentName, roomCode, localSettings);
+  const { telemetry, connectionStatus, trainerConnectionStatus, isRegistered, error, logout, updateSettings, selectParameter, setAsynchrony, externalSelectedParameter, simulationStatus, difficulty, patientParams } = useStudentWebSocket(studentName, roomCode, localSettings);
 
   useEffect(() => {
     if (isRegistered) {
@@ -323,18 +345,26 @@ function MainScreen({
         <VolumeChart targetVt={localSettings.vt} isDark={isDark} />
       }
       rightPanel={
-        <StatusPanel
-          scenarioName={scenarioName}
-          asynchrony={asynchrony}
-          studentName={studentName}
-          connectionStatus={connectionStatus}
-          trainerConnectionStatus={trainerConnectionStatus}
-          isRegistered={isRegistered}
-          onLogout={handleLogout}
-          simulationStatus={simulationStatus}
-          difficulty={difficulty}
-          patientParams={patientParams}
-        />
+        roomCode === 'LEARN' ? (
+          <LearningPanel 
+            currentAsynchrony={asynchrony} 
+            onSetAsynchrony={setAsynchrony} 
+            isDark={isDark} 
+          />
+        ) : (
+          <StatusPanel
+            scenarioName={scenarioName}
+            asynchrony={asynchrony}
+            studentName={studentName}
+            connectionStatus={connectionStatus}
+            trainerConnectionStatus={trainerConnectionStatus}
+            isRegistered={isRegistered}
+            onLogout={handleLogout}
+            simulationStatus={simulationStatus}
+            difficulty={difficulty}
+            patientParams={patientParams}
+          />
+        )
       }
     />
   );
