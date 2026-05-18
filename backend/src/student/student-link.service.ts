@@ -59,22 +59,6 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
        }
     });
 
-    this.simulationService.on('setting_changed', (stationId, parameter, previousValue, newValue, wasAsynchronyActive, asynchronyType) => {
-       if (stationId === this.currentStudentName && this.ws?.readyState === 1) {
-          this.ws.send(JSON.stringify({
-             type: 'student_event',
-             stationId: this.currentStationId,
-             studentName: this.currentStudentName,
-             event: 'setting_change',
-             parameter,
-             previousValue,
-             newValue,
-             wasAsynchronyActive,
-             asynchronyType
-          }));
-       }
-    });
-
     this.simulationService.on('asynchrony_resolved', (stationId, type) => {
        if (stationId === this.currentStudentName && this.ws?.readyState === 1) {
           this.ws.send(JSON.stringify({
@@ -97,8 +81,6 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
              event: 'scenario_completed',
              scenarioName,
           }));
-          // Notify trainer to complete the session
-          this.notifySessionStop();
        }
     });
 

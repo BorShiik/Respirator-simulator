@@ -477,10 +477,17 @@ export class SimulationService extends EventEmitter {
       ? state.settings.epap
       : state.settings.ipap;
 
-    // ─── 4. Patient breath cycle reset (ILSim breath flag) ───────────
+    // ─── 4. Patient breath cycle reset & Expiratory Refractory Period ─
     if (this.roundTo(
           this.roundTo(state.breathTime, 2) % this.roundTo(state.patient.Tcykl, 2),
         2) === 0) {
+      state.breath = false;
+    }
+    
+    // Real ventilators have an expiratory refractory period to prevent auto-cycling.
+    // If the machine is in the expiratory phase for more than 400ms, allow re-triggering.
+    const expiratoryTime = actual_cycle_time - state.settings.ti;
+    if (expiratoryTime > 0.4) {
       state.breath = false;
     }
 
@@ -500,7 +507,7 @@ export class SimulationService extends EventEmitter {
            true
          );
       }
-    } else if (this.roundTo(state.T, 2) >= this.roundTo(state.patient.Tcykl, 2)) {
+    } else {
       Pm = this.calculateMusclePressure(
         state.patient.p01,
         state.breathTime,
@@ -542,11 +549,6 @@ export class SimulationService extends EventEmitter {
       Pin = state.settings.epap + state.raisingForce * actual_raise_time * (1 / this.DT);
     }
 
-    // ─── 8. DoubleTriggeringTime — Pin drops to EPAP ─────────────────
-    if (actual_cycle_time2 === state.patient.DoubleTriggeringTime &&
-        state.patient.DoubleTriggeringTime !== 0) {
-      Pin = state.settings.epap;
-    }
 
     // ─── 9. Physics: Volume integration ──────────────────────────────
     const R = state.patient.resistance;
@@ -752,7 +754,7 @@ export class SimulationService extends EventEmitter {
      } else if (!expectedAsynchronyType && state.asynchrony.active && state.currentAsynchronyEvent) {
          const expiredType = state.asynchrony.type;
          this.injectAsynchrony(stationId, null);
-         this.emit('asynchrony_resolved', stationId, expiredType);
+         // Note: we do NOT emit 'asynchrony_resolved' here because the student did not fix it; it merely timed out.
      }
 
      // ─── Scenario completion checks ─────────────────────────────────

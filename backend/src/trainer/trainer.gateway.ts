@@ -216,14 +216,6 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
              if (state) {
                 state.assignedAsynchronyType = msg.payload.asynchronyType;
              }
-
-             const act = async () => {
-                 const activeSession = await this.sessionsService.findActiveSession(msg.targetStudent);
-                 if (activeSession) {
-                     await this.sessionsService.logAsynchronyStart(activeSession.id, msg.payload.asynchronyType);
-                 }
-             };
-             act().catch(e => console.error('Failed to log asynchrony start', e));
          }
 
          // Forward command to specific student (targetStudent is actually stationId)
@@ -273,7 +265,9 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
                  } else if (msg.event === 'scenario_completed') {
                       // Scenario completed — mark session as completed for analytics
                       this.logger.log(`Scenario completed for station ${client.stationId} — completing session ${activeSession.id}`);
-                      await this.sessionsService.complete(activeSession.id, activeSession.initialSettings);
+                      const state = this.studentStates.get(client.stationId!);
+                      const finalSettings = state?.telemetry?.settings || activeSession.initialSettings;
+                      await this.sessionsService.complete(activeSession.id, finalSettings);
                       this.broadcastSessionsUpdate();
                       this.broadcastEventLog({
                         stationId: client.stationId!,
@@ -335,7 +329,9 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
              const stationId = client.stationId!;
              const activeSession = await this.sessionsService.findActiveSession(stationId);
               if (activeSession) {
-                  await this.sessionsService.complete(activeSession.id, activeSession.initialSettings);
+                  const state = this.studentStates.get(stationId);
+                  const finalSettings = state?.telemetry?.settings || activeSession.initialSettings;
+                  await this.sessionsService.complete(activeSession.id, finalSettings);
                   this.logger.log(`Completed session ${activeSession.id} for ${stationId}`);
                   this.broadcastSessionsUpdate();
               }
@@ -427,14 +423,6 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
           if (state) {
               state.assignedAsynchronyType = payload.asynchronyType;
           }
-
-          const act = async () => {
-              const activeSession = await this.sessionsService.findActiveSession(stationId);
-              if (activeSession) {
-                  await this.sessionsService.logAsynchronyStart(activeSession.id, payload.asynchronyType);
-              }
-          };
-          act().catch(e => console.error('Failed to log asynchrony from sendCommand', e));
       }
 
       if (payload.scenarioName) {
