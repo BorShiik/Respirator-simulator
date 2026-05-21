@@ -99,13 +99,25 @@ export class TrainerController {
       return { success: false, message: 'Scenario not found' };
     }
 
-    // Create a new session for this assignment
+    // Clean up stale sessions before creating a new one
+    const activeSession = await this.sessionsService.findActiveSession(studentName);
+    if (activeSession) {
+      await this.sessionsService.complete(activeSession.id, activeSession.initialSettings);
+    }
+    const oldPending = await this.sessionsService.findPendingSession(studentName);
+    if (oldPending) {
+      await this.sessionsService.abort(oldPending.id);
+    }
+
+    // Create a new session and start it immediately
+    // (the student simulation is already running — no student_session_start will arrive)
     const session = await this.sessionsService.create({
       stationId: studentName, // backward compatibility
       studentName,
       scenarioId: body.scenarioId,
       scenarioName: scenario.name,
     });
+    await this.sessionsService.start(session.id);
 
     // Notify the remote student to apply the scenario settings
     if (scenario.initialSettings) {

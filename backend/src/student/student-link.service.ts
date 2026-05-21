@@ -17,6 +17,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
   private discoverySocket: dgram.Socket | null = null;
   private isDiscovering = false;
   private isConnected = false;
+  private _trainerApplying = false; // Suppress forwarding when trainer applies settings
   public currentStudentName: string | null = null;
   public currentRoomCode: string | null = null;
   public currentStationId: string | null = null;
@@ -32,6 +33,8 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
   onModuleInit() {
     // Subscribe to simulation events for analytics forwarding
     this.simulationService.on('setting_changed', (stationId, param, prev, curr, wasAsync, asyncType) => {
+       // Skip forwarding when the trainer itself is applying settings (scenario assignment)
+       if (this._trainerApplying) return;
        if (stationId === this.currentStudentName && this.ws?.readyState === 1) {
           this.ws.send(JSON.stringify({
              type: 'student_event',
@@ -59,21 +62,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
        }
     });
 
-    this.simulationService.on('setting_changed', (stationId, parameter, previousValue, newValue, wasAsynchronyActive, asynchronyType) => {
-       if (stationId === this.currentStudentName && this.ws?.readyState === 1) {
-          this.ws.send(JSON.stringify({
-             type: 'student_event',
-             stationId: this.currentStationId,
-             studentName: this.currentStudentName,
-             event: 'setting_change',
-             parameter,
-             previousValue,
-             newValue,
-             wasAsynchronyActive,
-             asynchronyType
-          }));
-       }
-    });
+    // NOTE: Duplicate setting_changed listener was removed (was causing 2x counting)
 
     this.simulationService.on('asynchrony_resolved', (stationId, type) => {
        if (stationId === this.currentStudentName && this.ws?.readyState === 1) {
@@ -279,9 +268,11 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
       switch (msg.type) {
         case 'update_settings':
           this.logger.log(`Received update_settings (scenario=${msg.scenarioName || 'none'}, difficulty=${msg.difficulty || 'none'}, blocks=${msg.scenario?.blocks?.length || 0})`);
+          this._trainerApplying = true;
           if (msg.settings) {
             this.simulationService.updateSettings(this.currentStudentName, msg.settings);
           }
+          this._trainerApplying = false;
           if (msg.scenario) {
             const state = this.simulationService.getState(this.currentStudentName);
             if (state) {
@@ -308,9 +299,11 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
              this.emit('trainer_continue', msg.scenarioId);
           } else if (msg.command === 'update_settings') {
              this.logger.log(`Trainer command: update_settings (scenario=${msg.scenario?.name || 'none'}, difficulty=${msg.difficulty || 'none'}, blocks=${msg.scenario?.blocks?.length || 0})`);
+             this._trainerApplying = true;
              if (msg.settings) {
                 this.simulationService.updateSettings(this.currentStudentName, msg.settings);
              }
+             this._trainerApplying = false;
              if (msg.scenario) {
                 const state = this.simulationService.getState(this.currentStudentName);
                 if (state) {
