@@ -17,7 +17,7 @@ export function VolumeChart({ targetVt, isDark = false }: VolumeChartProps) {
       label="Objętość (Volume)"
       unit="mL"
       isDark={isDark}
-      yDomain={[0, 800]}
+      yDomain={[0, 1000]}
       referenceLines={targetVt ? [{ y: targetVt, color: '#059669', dashed: true }] : []}
     />
   );

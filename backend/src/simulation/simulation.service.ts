@@ -297,47 +297,46 @@ export class SimulationService extends EventEmitter {
       state.baselinePatient = { ...state.patient };
       state.currentAsynchronyEvent = null;
 
+      // ─── ILSim scenario1.ts baseline: stiff lung (R=20, C=30), patient effort ────
+      // All asynchrony types share this profile; specifics layer on top.
+      state.patient.resistance = 20;
+      state.patient.compliance = 30;
+      state.patient.rin = 1;
+      state.patient.rout = 20;
+      state.patient.p01 = 2;
+      state.patient.Tcykl = 2;
+      state.patient.PTi = 0;
+      state.patient.PriorityPR = 0;
+      state.patient.PressureRaiseT = 0;
+      state.patient.DoubleTriggeringTime = 0;
+      state.settings.trigger = 2;
+
       switch (type) {
         case 'INEFFECTIVE_TRIGGER':
-          // Patient effort visible as dips in pressure/flow but ALWAYS fails to trigger.
-          // Pmus formula amplifies p01: Pmax ≈ p01/(1-exp(-k)) ≈ 2x p01.
-          // So with p01=6, Pmax ≈ 10. Trigger must be >10 to prevent triggering.
-          state.patient.p01 = 6;       // Moderate effort — visible dips on pressure curve
-          state.patient.effort = 100;
-          state.patient.Tcykl = 2.0;   // Patient attempts 30 bpm vs machine 15 bpm
-          state.settings.trigger = 15; // Well above Pmax (~10) — effort always fails
+          // ILSim step 3: upTriggerPower=10 — trigger threshold too high to fire
+          state.settings.trigger = 10;
           break;
         case 'AUTO_TRIGGER':
-          // Machine fires too often — rapid shallow breaths
-          state.patient.PriorityPR = 35;
+          // ILSim step 4: PriorityPR=30 — vent fires faster than patient breathes
+          state.patient.PriorityPR = 30;
           break;
         case 'DELAYED_CYCLING':
-          // Machine keeps pushing air after patient finished inhaling
-          state.patient.PTi = 0.5;     // Patient wants 0.5s but machine gives 1.0s
-          state.patient.p01 = 6;       // Strong expiratory effort against machine
-          state.patient.effort = 100;
-          state.patient.Tcykl = 4.0;
+          // ILSim step 5: PTi=0.6 — patient exhales early, vent keeps pushing
+          state.patient.PTi = 0.6;
           break;
         case 'PREMATURE_CYCLING':
-          // Machine stops too early — patient still wants air
-          state.patient.PTi = 1.5;     // Patient wants 1.5s but machine only gives 1.0s
-          state.patient.p01 = 6;
-          state.patient.effort = 100;
-          state.patient.Tcykl = 3.5;
+          // ILSim step 6: PTi=1.3 — patient inhales longer than vent cycles
+          state.patient.PTi = 1.3;
           break;
         case 'DOUBLE_TRIGGER':
-          // Patient effort outlasts machine Ti → immediate re-trigger = breath stacking
-          state.patient.PTi = state.settings.ti + 0.8;
-          state.patient.p01 = 10;      // Very strong effort to ensure re-triggering
-          state.patient.effort = 100;
-          state.patient.Tcykl = state.settings.ti + 2.5; 
+          // ILSim step 7: DoubleTriggeringTime=0.5, PTi=1
+          state.patient.PTi = 1;
+          state.patient.DoubleTriggeringTime = 0.5;
           break;
         case 'FLOW_MISMATCH':
-          // Slow pressure rise — patient starved of flow
-          state.patient.PressureRaiseT = 0.5;  // 500ms ramp instead of instant
-          state.patient.p01 = 5;       // Patient pulls against insufficient flow
-          state.patient.effort = 100;
-          state.patient.Tcykl = 4.0;
+          // ILSim step 8: PressureRaiseT=0.3, PTi=1 — slow pressure ramp vs demand
+          state.patient.PTi = 1;
+          state.patient.PressureRaiseT = 0.3;
           break;
         case 'REVERSE_TRIGGER':
           // Machine triggers first, patient effort follows mid-breath

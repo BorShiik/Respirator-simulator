@@ -23,7 +23,7 @@ export function PressureChart({ peep = 5, pip, isDark = false }: PressureChartPr
       label="Ciśnienie (P)"
       unit="cmH₂O"
       isDark={isDark}
-      yDomain={[-5, 40]}
+      yDomain={[0, 20]}
       referenceLines={referenceLines}
     />
   );
