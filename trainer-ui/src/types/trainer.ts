@@ -62,6 +62,7 @@ export interface StationLiveStatus {
   studentName?: string;
   difficulty?: 'EASY' | 'MEDIUM' | 'HARD';
   assignedAsynchronyType?: AsynchronyType | null;
+  telemetryTimestamp?: number | null;
   lastUpdate: number;
 }
 
@@ -234,8 +235,8 @@ export const DEFAULT_SETTINGS: VentilatorSettings = {
 
 export const DEFAULT_PATIENT_PARAMS: PatientParams = {
   rin: 1,
-  rout: 5,
-  p01: 0,
+  rout: 8,             // Idealized expiratory resistance
+  p01: 2,              // Idealized mild patient effort
   Tcykl: 3.0,
   PTi: 1.0,
   PriorityPR: 0,
@@ -250,8 +251,8 @@ export const DEFAULT_SCENARIO: Omit<Scenario, 'id' | 'createdAt' | 'updatedAt'> 
   difficulty: 'EASY',
   estimatedDuration: 300,
   initialSettings: DEFAULT_SETTINGS,
-  initialResistance: 10,
-  initialCompliance: 50,
+  initialResistance: 12,      // Idealized resistance
+  initialCompliance: 40,      // Idealized compliance
   initialPatientParams: DEFAULT_PATIENT_PARAMS,
   blocks: [],
 };

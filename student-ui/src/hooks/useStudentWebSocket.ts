@@ -180,7 +180,7 @@ export function useStudentWebSocket(studentName: string | null, roomCode: string
               if (message.status === 'reset') {
                 resetRealBuffers();
                 setSimulationStatus('running');
-              } else {
+              } else if (message.status !== undefined) {
                 setSimulationStatus(message.status);
               }
               if (message.difficulty) {
@@ -189,6 +189,26 @@ export function useStudentWebSocket(studentName: string | null, roomCode: string
               if (message.patientParams) {
                 setPatientParams(message.patientParams);
               }
+              // Update telemetry state with status info so components react immediately
+              setTelemetry(prev => {
+                const base = prev || {
+                  timestamp: Date.now(),
+                  pressure: [],
+                  flow: [],
+                  volume: [],
+                  settings: message.settings || DEFAULT_SETTINGS,
+                  asynchrony: message.asynchrony || { active: false, type: null },
+                  scenarioName: message.scenarioName || '',
+                  difficulty: message.difficulty || 'EASY',
+                };
+                return {
+                  ...base,
+                  settings: message.settings || base.settings,
+                  asynchrony: message.asynchrony || base.asynchrony,
+                  scenarioName: message.scenarioName !== undefined ? message.scenarioName : base.scenarioName,
+                  difficulty: message.difficulty || base.difficulty,
+                };
+              });
               break;
 
             case 'telemetry': {
@@ -222,10 +242,25 @@ export function useStudentWebSocket(studentName: string | null, roomCode: string
             }
 
             case 'settingsUpdate':
-              setTelemetry(prev => prev ? {
-                ...prev,
-                settings: message.settings,
-              } : null);
+              setTelemetry(prev => {
+                const baseSettings = prev?.settings || DEFAULT_SETTINGS;
+                const newSettings = { ...baseSettings, ...message.settings } as VentilatorSettings;
+                
+                const base = prev || {
+                  timestamp: Date.now(),
+                  pressure: [],
+                  flow: [],
+                  volume: [],
+                  settings: newSettings,
+                  asynchrony: { active: false, type: null },
+                  scenarioName: '',
+                  difficulty: 'EASY',
+                };
+                return {
+                  ...base,
+                  settings: newSettings,
+                };
+              });
               break;
             case 'parameterSelected':
               console.log('Backend selected parameter:', message.parameter);
@@ -297,11 +332,23 @@ export function useStudentWebSocket(studentName: string | null, roomCode: string
   }, [studentName, connect, cleanup]);
 
   const updateSettings = useCallback((newSettings: VentilatorSettings) => {
+    const prevSettings = settingsRef.current;
+    const diff: Partial<VentilatorSettings> = {};
+    let changed = false;
+
+    for (const key of Object.keys(newSettings) as Array<keyof VentilatorSettings>) {
+      if (newSettings[key] !== prevSettings[key]) {
+        diff[key] = newSettings[key] as any;
+        changed = true;
+      }
+    }
+
     settingsRef.current = newSettings;
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+
+    if (changed && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
         type: 'settingsUpdate',
-        settings: newSettings
+        settings: diff
       }));
     }
   }, []);
@@ -324,15 +371,6 @@ export function useStudentWebSocket(studentName: string | null, roomCode: string
     }
   }, []);
 
-  const sendParameterSelect = useCallback((parameter: string | null) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'parameterSelect', data: { parameter } }));
-    }
-  }, []);
-
-  const acknowledgeEncoderButton = useCallback(() => {
-    setEncoderButtonAction(null);
-  }, []);
 
   return {
     telemetry,

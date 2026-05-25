@@ -43,7 +43,7 @@ export class ScenarioEntity {
   durationSeconds: number;
 
   @Column({ type: 'simple-json', nullable: true })
-  initialSettings: Record<string, number>;
+  initialSettings: Record<string, any>;
 
   @Column({ type: 'float', default: 10 })
   initialResistance: number;

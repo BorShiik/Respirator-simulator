@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useState } from 'react';
 
 interface ReferenceLineConfig {
   y: number;
@@ -7,13 +7,8 @@ interface ReferenceLineConfig {
 }
 
 interface CanvasWaveformProps {
-  /** Initial data source reference (not used for drawing, just for type) */
-  dataSource?: number[];
-  /** Getter that returns live data array — called every frame, bypasses React */
-  getDataSource: () => number[];
-  /** Getter that returns the current smooth floating-point playback index */
-  getPlaybackIndex: () => number;
-  bufferSize: number;
+  data: number[];
+  bufferSize?: number; // Default 500
   color: string;
   label: string;
   unit: string;
@@ -24,9 +19,8 @@ interface CanvasWaveformProps {
 }
 
 export function CanvasWaveform({
-  getDataSource,
-  getPlaybackIndex,
-  bufferSize,
+  data,
+  bufferSize = 500,
   color,
   label,
   unit,
@@ -37,39 +31,42 @@ export function CanvasWaveform({
 }: CanvasWaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const rafRef = useRef<number>(0);
   const prevDimRef = useRef({ w: 0, h: 0 });
+  const [dimensions, setDimensions] = useState({ w: 0, h: 0 });
 
-  // Store stable refs for values that change
-  const colorRef = useRef(color);
-  const isDarkRef = useRef(isDark);
-  const refLinesRef = useRef(referenceLines);
-  const fixedYDomainRef = useRef(fixedYDomain);
-  const symmetricRef = useRef(symmetric);
-  const getDataSourceRef = useRef(getDataSource);
-  const getPlaybackIndexRef = useRef(getPlaybackIndex);
+  // Handle Resize using ResizeObserver to update dimensions state
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
-  colorRef.current = color;
-  isDarkRef.current = isDark;
-  refLinesRef.current = referenceLines;
-  fixedYDomainRef.current = fixedYDomain;
-  symmetricRef.current = symmetric;
-  getDataSourceRef.current = getDataSource;
-  getPlaybackIndexRef.current = getPlaybackIndex;
+    const handleResize = () => {
+      const rect = container.getBoundingClientRect();
+      const w = Math.floor(rect.width);
+      const h = Math.floor(rect.height);
+      if (w > 0 && h > 0) {
+        setDimensions({ w, h });
+      }
+    };
 
-  const draw = useCallback(() => {
+    // Initial check
+    handleResize();
+
+    const observer = new ResizeObserver(handleResize);
+    observer.observe(container);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !canvas.parentElement) return;
 
-    const rect = canvas.parentElement.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    const w = Math.floor(rect.width);
-    const h = Math.floor(rect.height);
+    const { w, h } = dimensions;
+    if (w <= 0 || h <= 0) return;
 
-    if (w <= 0 || h <= 0) {
-      rafRef.current = requestAnimationFrame(draw);
-      return;
-    }
+    const dpr = window.devicePixelRatio || 1;
 
     if (prevDimRef.current.w !== w || prevDimRef.current.h !== h) {
       canvas.width = w * dpr;
@@ -78,18 +75,15 @@ export function CanvasWaveform({
     }
 
     const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      rafRef.current = requestAnimationFrame(draw);
-      return;
-    }
+    if (!ctx) return;
 
+    // Reset transform to handle DPR scaling correctly
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const dark = isDarkRef.current;
-    const bgColor = dark ? '#111827' : '#ffffff';
-    const gridColor = dark ? '#1e293b' : '#e2e8f0';
-    const axisColor = dark ? '#334155' : '#cbd5e1';
-    const tickColor = dark ? '#94a3b8' : '#64748b';
+    const bgColor = isDark ? '#0f172a' : '#ffffff'; // slate-900 / white
+    const gridColor = isDark ? '#1e293b' : '#f1f5f9'; // slate-800 / slate-100
+    const axisColor = isDark ? '#334155' : '#cbd5e1'; // slate-700 / slate-300
+    const tickColor = isDark ? '#94a3b8' : '#64748b'; // slate-400 / slate-500
 
     const MARGIN_LEFT = 45;
     const MARGIN_RIGHT = 15;
@@ -98,24 +92,19 @@ export function CanvasWaveform({
     const plotW = w - MARGIN_LEFT - MARGIN_RIGHT;
     const plotH = h - MARGIN_TOP - MARGIN_BOTTOM;
 
-    // Clear
+    // Clear background
     ctx.fillStyle = bgColor;
     ctx.fillRect(0, 0, w, h);
 
-    // Read live data directly from the shared store (NO React involved)
-    const values = getDataSourceRef.current();
-    const playbackIndex = getPlaybackIndexRef.current();
+    // Filter valid data points
+    const values = data.slice(-bufferSize);
 
-    // Calculate Y domain dynamically with minimum default limits from fyd
+    // Calculate Y domain dynamically with minimum default limits from fixedYDomain
     let yMin: number, yMax: number;
-    const fyd = fixedYDomainRef.current;
-    const isSymmetric = symmetricRef.current;
-    const startK = Math.max(0, Math.floor(playbackIndex - bufferSize));
-    const endK = Math.min(values.length - 1, Math.ceil(playbackIndex + 1));
     let minVal = Infinity, maxVal = -Infinity;
 
-    for (let k = startK; k <= endK; k++) {
-      const v = values[k];
+    for (let i = 0; i < values.length; i++) {
+      const v = values[i];
       if (v != null && !isNaN(v)) {
         if (v < minVal) minVal = v;
         if (v > maxVal) maxVal = v;
@@ -123,14 +112,14 @@ export function CanvasWaveform({
     }
 
     if (minVal === Infinity) {
-      if (fyd) {
-        [yMin, yMax] = fyd;
+      if (fixedYDomain) {
+        [yMin, yMax] = fixedYDomain;
       } else {
-        yMin = isSymmetric ? -40 : 0;
-        yMax = isSymmetric ? 40 : 20;
+        yMin = symmetric ? -40 : 0;
+        yMax = symmetric ? 40 : 20;
       }
     } else {
-      if (isSymmetric) {
+      if (symmetric) {
         const absMax = Math.max(Math.abs(minVal), Math.abs(maxVal));
         yMin = -absMax;
         yMax = absMax;
@@ -140,15 +129,14 @@ export function CanvasWaveform({
       }
 
       // Expand to fit reference lines
-      const rlines = refLinesRef.current;
-      for (let r = 0; r < rlines.length; r++) {
-        const rl = rlines[r];
+      for (let r = 0; r < referenceLines.length; r++) {
+        const rl = referenceLines[r];
         if (rl.y < yMin) yMin = rl.y;
         if (rl.y > yMax) yMax = rl.y;
       }
 
       // Apply padding (e.g. 10% padding or at least a few units)
-      if (isSymmetric) {
+      if (symmetric) {
         const absMax = Math.max(Math.abs(yMin), Math.abs(yMax));
         const paddedMax = Math.ceil((absMax * 1.1) / 5) * 5;
         yMin = -paddedMax;
@@ -157,15 +145,15 @@ export function CanvasWaveform({
         const range = yMax - yMin || 1;
         yMin = Math.floor((yMin - range * 0.1) / 5) * 5;
         yMax = Math.ceil((yMax + range * 0.1) / 5) * 5;
-        if (fyd && fyd[0] === 0 && yMin < 0) {
+        if (fixedYDomain && fixedYDomain[0] === 0 && yMin < 0) {
           yMin = 0;
         }
       }
 
-      // Enforce minimum/default domain constraints from fyd
-      if (fyd) {
-        const [fydMin, fydMax] = fyd;
-        if (isSymmetric) {
+      // Enforce minimum/default domain constraints from fixedYDomain
+      if (fixedYDomain) {
+        const [fydMin, fydMax] = fixedYDomain;
+        if (symmetric) {
           const limit = Math.abs(fydMax);
           if (yMax < limit) {
             yMin = -limit;
@@ -194,7 +182,7 @@ export function CanvasWaveform({
     const yRange = yMax - yMin || 1;
     const xScale = plotW / (bufferSize - 1);
 
-    // Grid — compute nice round tick values
+    // Draw Grid Lines & Tick Labels
     ctx.strokeStyle = gridColor;
     ctx.lineWidth = 1;
     ctx.font = '10px Inter, system-ui, sans-serif';
@@ -202,7 +190,7 @@ export function CanvasWaveform({
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
 
-    // Calculate nice tick step (multiples of 1, 2, 5, 10, 20, 25, 50, 100...)
+    // Nice tick step calculation
     const targetTickCount = 6;
     const rawStep = yRange / targetTickCount;
     const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
@@ -225,7 +213,7 @@ export function CanvasWaveform({
     }
     ctx.setLineDash([]);
 
-    // Axis lines
+    // Draw Axes
     ctx.strokeStyle = axisColor;
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -234,10 +222,9 @@ export function CanvasWaveform({
     ctx.lineTo(w - MARGIN_RIGHT, h - MARGIN_BOTTOM);
     ctx.stroke();
 
-    // Reference lines
-    const rlines = refLinesRef.current;
-    for (let r = 0; r < rlines.length; r++) {
-      const rl = rlines[r];
+    // Draw Reference Lines
+    for (let r = 0; r < referenceLines.length; r++) {
+      const rl = referenceLines[r];
       if (rl.y >= yMin && rl.y <= yMax) {
         const ry = MARGIN_TOP + (1 - (rl.y - yMin) / yRange) * plotH;
         ctx.strokeStyle = rl.color;
@@ -251,28 +238,31 @@ export function CanvasWaveform({
       }
     }
 
-    // Waveform — clip to plot area so out-of-range values don't overflow
+    // Draw Waveform Line
     ctx.save();
     ctx.beginPath();
     ctx.rect(MARGIN_LEFT, MARGIN_TOP, plotW, plotH);
     ctx.clip();
 
     if (values.length > 0) {
-      ctx.strokeStyle = colorRef.current;
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.8;
       ctx.lineJoin = 'round';
       ctx.beginPath();
 
       let moved = false;
+      
+      // Calculate how many empty slots we have at the front to pad
+      const paddingOffset = bufferSize - values.length;
 
-      for (let k = startK; k <= endK; k++) {
-        const val = values[k];
+      for (let i = 0; i < values.length; i++) {
+        const val = values[i];
         if (val == null || isNaN(val)) {
           moved = false;
           continue;
         }
-        // Sub-pixel smooth horizontal positioning:
-        const x = MARGIN_LEFT + (k - playbackIndex + bufferSize - 1) * xScale;
+
+        const x = MARGIN_LEFT + (i + paddingOffset) * xScale;
         const y = MARGIN_TOP + (1 - (val - yMin) / yRange) * plotH;
 
         if (!moved) {
@@ -286,16 +276,7 @@ export function CanvasWaveform({
     }
 
     ctx.restore();
-
-    rafRef.current = requestAnimationFrame(draw);
-  }, [bufferSize]); // Only bufferSize — everything else via refs
-
-  useEffect(() => {
-    rafRef.current = requestAnimationFrame(draw);
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [draw]);
+  }, [data, bufferSize, color, isDark, referenceLines, fixedYDomain, symmetric, dimensions]);
 
   return (
     <div ref={containerRef} className="chart-container h-full flex flex-col overflow-hidden">
@@ -303,7 +284,7 @@ export function CanvasWaveform({
         <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: isDark ? '#94a3b8' : '#64748b' }}>
           {label}
         </span>
-        <span className="text-xs font-mono" style={{ color: 'var(--color-accent, #3b82f6)' }}>
+        <span className="text-xs font-mono" style={{ color }}>
           {unit}
         </span>
       </div>

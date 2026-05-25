@@ -1,5 +1,5 @@
 import { CanvasWaveform } from './CanvasWaveform';
-import { chartBuffers } from '../../stores/chartBufferStore';
+import { chartBuffers, getPlaybackIndex } from '../../stores/chartBufferStore';
 
 interface PressureChartProps {
   peep?: number;
@@ -18,12 +18,13 @@ export function PressureChart({ peep = 5, pip, isDark = false }: PressureChartPr
   return (
     <CanvasWaveform
       getDataSource={() => chartBuffers.pressure}
+      getPlaybackIndex={getPlaybackIndex}
       bufferSize={FIXED_BUFFER_SIZE}
-      color={isDark ? '#3b82f6' : '#0066cc'}
-      label="Ciśnienie (P)"
+      color="#D4A017"
+      label="CIŚNIENIE"
       unit="cmH₂O"
       isDark={isDark}
-      yDomain={[0, 20]}
+      yDomain={[0, 30]}
       referenceLines={referenceLines}
     />
   );

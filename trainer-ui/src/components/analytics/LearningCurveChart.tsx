@@ -51,9 +51,10 @@ export function LearningCurveChart({ data }: LearningCurveChartProps) {
     successful: point.successful,
   }));
 
-  const avgTime = chartData
-    .filter((d) => d.timeToResolve !== null)
-    .reduce((sum, d) => sum + (d.timeToResolve || 0), 0) / chartData.filter((d) => d.timeToResolve !== null).length;
+  const sessionsWithTime = chartData.filter((d) => d.timeToResolve !== null && d.timeToResolve !== undefined);
+  const avgTime = sessionsWithTime.length > 0
+    ? sessionsWithTime.reduce((sum, d) => sum + (d.timeToResolve || 0), 0) / sessionsWithTime.length
+    : 0;
 
   return (
     <ResponsiveContainer width="100%" height="100%">

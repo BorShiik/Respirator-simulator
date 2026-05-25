@@ -21,8 +21,14 @@ export function StudentLayout({
 }: StudentLayoutProps) {
   return (
     <div className="h-screen w-screen overflow-hidden p-3 flex flex-col" style={{ backgroundColor: 'var(--color-bg)' }}>
-      {/* Top bar with theme toggle */}
-      <div className="flex justify-end mb-2 flex-shrink-0">
+      {/* Top bar with logo and theme toggle */}
+      <div className="flex justify-between items-center mb-2 px-2 flex-shrink-0">
+        <div className="flex items-center gap-2 select-none">
+          <img src="/logo.png" alt="PulmoFlow Logo" className="h-9 object-contain bg-white rounded-lg px-2 py-0.5 border border-clinical-border shadow-sm" />
+          <span className="text-sm font-bold tracking-wider uppercase text-clinical-text" style={{ color: 'var(--color-text)' }}>
+            Symulator
+          </span>
+        </div>
         <button
           onClick={onToggleTheme}
           className="w-8 h-8 rounded-full flex items-center justify-center 

@@ -37,6 +37,7 @@ export interface TelemetryData {
   pressure: number[];    // Array of pressure samples
   flow: number[];        // Array of flow samples
   volume: number[];      // Array of volume samples
+  data?: { time: number; pressure: number; flow: number; volume: number }[]; // Batched payload
   settings: VentilatorSettings;
   asynchrony: AsynchronyStatus;
   scenarioName: string;
@@ -108,14 +109,14 @@ export const DEFAULT_SETTINGS: VentilatorSettings = {
 };
 
 export const DEFAULT_PATIENT: PatientModel = {
-  compliance: 50,      // Normal: 50-100 mL/cmH2O
-  resistance: 10,      // cmH2O/(L/s) — patient airway resistance
+  compliance: 40,      // Idealized: makes curves look clear by default
+  resistance: 12,      // Idealized: makes curves look clear by default
   spontaneousRate: 0,  // No spontaneous breathing by default
   effort: 0,
-  rin: 1,              // Low inspiratory circuit resistance — Pp tracks IPAP closely
-  rout: 5,             // Moderate expiratory resistance — proper passive expiration
-  p01: 0,              // No patient effort at baseline — clean mandatory breaths
-  Tcykl: 4.0,          // Patient cycle = machine cycle (60/15 = 4.0s)
+  rin: 1,              // Low inspiratory circuit resistance
+  rout: 8,             // Idealized: proper passive expiration
+  p01: 2,              // Idealized: mild spontaneous drive
+  Tcykl: 3.0,          // Idealized: 3s patient cycle (20 bpm)
   PTi: 1.0,            // Patient inspiratory time
   PriorityPR: 0,       // No auto-triggering override
   PressureRaiseT: 0,   // Instant pressure rise

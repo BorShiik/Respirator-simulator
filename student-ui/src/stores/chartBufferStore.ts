@@ -7,77 +7,73 @@ const SAMPLE_RATE = 50; // 50Hz
 const POINTS_PER_MS = SAMPLE_RATE / 1000;
 
 export const chartBuffers = {
-  pressure: [] as number[],
-  flow: [] as number[],
-  volume: [] as number[],
+  pressure: Array(BUFFER_SIZE).fill(5) as number[], // default PEEP = 5
+  flow: Array(BUFFER_SIZE).fill(0) as number[],
+  volume: Array(BUFFER_SIZE).fill(0) as number[],
 };
 
-// Queue for incoming data from WebSocket (bursts of 5 points every 100ms)
-const queues = {
-  pressure: [] as number[],
-  flow: [] as number[],
-  volume: [] as number[],
-};
+let playbackIndex = BUFFER_SIZE - 1;
+
+export function getPlaybackIndex() {
+  return playbackIndex;
+}
 
 export function pushChartData(pressure: number[], flow: number[], volume: number[]) {
-  queues.pressure.push(...pressure);
-  queues.flow.push(...flow);
-  queues.volume.push(...volume);
+  chartBuffers.pressure.push(...pressure);
+  chartBuffers.flow.push(...flow);
+  chartBuffers.volume.push(...volume);
+
+  const MAX_HISTORY = 2000;
+  if (chartBuffers.pressure.length > MAX_HISTORY) {
+    const overflow = chartBuffers.pressure.length - MAX_HISTORY;
+    chartBuffers.pressure.splice(0, overflow);
+    chartBuffers.flow.splice(0, overflow);
+    chartBuffers.volume.splice(0, overflow);
+    playbackIndex -= overflow;
+  }
 }
 
 export function resetChartBuffers() {
-  chartBuffers.pressure = [];
-  chartBuffers.flow = [];
-  chartBuffers.volume = [];
-  queues.pressure = [];
-  queues.flow = [];
-  queues.volume = [];
+  chartBuffers.pressure = Array(BUFFER_SIZE).fill(5);
+  chartBuffers.flow = Array(BUFFER_SIZE).fill(0);
+  chartBuffers.volume = Array(BUFFER_SIZE).fill(0);
+  playbackIndex = BUFFER_SIZE - 1;
+  lastFrameTime = performance.now();
 }
 
 let lastFrameTime = performance.now();
-let fractionalPoints = 0;
 let rafId: number | null = null;
 
-function drainQueue() {
+function updatePlayback() {
   const now = performance.now();
   const dt = Math.min(now - lastFrameTime, 100); // cap dt at 100ms to prevent massive jumps if tab was inactive
   lastFrameTime = now;
 
-  // We expect a base rate of 50Hz (0.05 points per ms)
-  // But backend Node.js setInterval(20ms) is imprecise and network adds jitter.
-  // So we dynamically adjust our playback speed based on how full our queue is.
-  // Target buffer depth: 10 points (200ms of data)
-  const targetDepth = 10;
-  const currentDepth = queues.pressure.length;
-  
-  // Proportional control: if depth > target, speed up. If < target, slow down.
+  const currentLength = chartBuffers.pressure.length;
+  // How many points are in the buffer that have been received but not yet played back
+  const currentDepth = currentLength - 1 - playbackIndex;
+
+  // Target buffer depth: 8 points (160ms of data)
+  const targetDepth = 8;
   const error = currentDepth - targetDepth;
+
+  // Proportional control: speed up if we have too much data, slow down if running out
   const dynamicRate = Math.max(0.01, POINTS_PER_MS + (error * 0.002));
-  
-  fractionalPoints += dt * dynamicRate;
 
-  let pointsToDrain = Math.floor(fractionalPoints);
+  playbackIndex += dt * dynamicRate;
 
-  if (pointsToDrain > 0 && currentDepth > 0) {
-    fractionalPoints -= pointsToDrain;
-    
-    // Safety clamp
-    const count = Math.min(pointsToDrain, currentDepth);
-    
-    const p = chartBuffers.pressure.concat(queues.pressure.splice(0, count));
-    chartBuffers.pressure = p.length > BUFFER_SIZE ? p.slice(p.length - BUFFER_SIZE) : p;
-
-    const f = chartBuffers.flow.concat(queues.flow.splice(0, count));
-    chartBuffers.flow = f.length > BUFFER_SIZE ? f.slice(f.length - BUFFER_SIZE) : f;
-
-    const v = chartBuffers.volume.concat(queues.volume.splice(0, count));
-    chartBuffers.volume = v.length > BUFFER_SIZE ? v.slice(v.length - BUFFER_SIZE) : v;
+  // Clamps
+  if (playbackIndex > currentLength - 1) {
+    playbackIndex = currentLength - 1;
+  }
+  if (playbackIndex < 0) {
+    playbackIndex = 0;
   }
 
-  rafId = requestAnimationFrame(drainQueue);
+  rafId = requestAnimationFrame(updatePlayback);
 }
 
 // Start loop
 if (rafId !== null) cancelAnimationFrame(rafId);
-rafId = requestAnimationFrame(drainQueue);
+rafId = requestAnimationFrame(updatePlayback);
 

@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { AsynchronyType, AsynchronyStatus } from '../../types/student';
 
 interface LearningPanelProps {
   currentAsynchrony: AsynchronyStatus;
   onSetAsynchrony: (type: AsynchronyType | null) => void;
   isDark: boolean;
+  onLogout?: () => void;
 }
 
 
@@ -64,7 +65,7 @@ const ASYNCHRONY_INFO: Record<AsynchronyType, { title: string, description: stri
   }
 };
 
-export function LearningPanel({ currentAsynchrony, onSetAsynchrony, isDark }: LearningPanelProps) {
+export function LearningPanel({ currentAsynchrony, onSetAsynchrony, isDark: _isDark, onLogout }: LearningPanelProps) {
   const [selectedAsynchrony, setSelectedAsynchrony] = useState<AsynchronyType | null>(null);
 
   const handleSelect = (type: AsynchronyType) => {
@@ -87,7 +88,7 @@ export function LearningPanel({ currentAsynchrony, onSetAsynchrony, isDark }: Le
         className="flex items-center justify-between mb-1 pb-2"
         style={{ borderBottom: `1px solid ${V.glassBorder}` }}
       >
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           {isDetailsView && (
             <button
               onClick={() => setSelectedAsynchrony(null)}
@@ -105,11 +106,25 @@ export function LearningPanel({ currentAsynchrony, onSetAsynchrony, isDark }: Le
           </span>
         </div>
 
-        {currentAsynchrony.active && (
-          <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-500/20 text-red-500 border border-red-500/30 animate-pulse flex-shrink-0 uppercase tracking-wider">
-            Aktywna
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {currentAsynchrony.active && (
+            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-500/20 text-red-500 border border-red-500/30 animate-pulse flex-shrink-0 uppercase tracking-wider">
+              Aktywna
+            </span>
+          )}
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="hover:text-red-400 transition-colors p-1 rounded-lg"
+              style={{ color: V.muted }}
+              title="Wyjdź z trybu nauki"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ══════ List view ══════ */}
