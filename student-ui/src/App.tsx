@@ -130,7 +130,7 @@ function StudentRegistration({
               onFocus={() => setActiveInput('firstName')}
               onChange={(e) => setFirstName(e.target.value)}
               placeholder="np. Jan"
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white ${activeInput === 'firstName' ? 'border-clinical-accent ring-2 ring-clinical-accent/30' : 'border-clinical-border'}`}
+              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white text-slate-900 placeholder:text-slate-400 ${activeInput === 'firstName' ? 'border-clinical-accent ring-2 ring-clinical-accent/30' : 'border-clinical-border'}`}
               required
             />
           </div>
@@ -146,7 +146,7 @@ function StudentRegistration({
               onFocus={() => setActiveInput('lastName')}
               onChange={(e) => setLastName(e.target.value)}
               placeholder="np. Kowalski"
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white ${activeInput === 'lastName' ? 'border-clinical-accent ring-2 ring-clinical-accent/30' : 'border-clinical-border'}`}
+              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white text-slate-900 placeholder:text-slate-400 ${activeInput === 'lastName' ? 'border-clinical-accent ring-2 ring-clinical-accent/30' : 'border-clinical-border'}`}
               required
             />
           </div>
@@ -162,7 +162,7 @@ function StudentRegistration({
               onFocus={() => setActiveInput('roomCode')}
               onChange={(e) => setRoomCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
               placeholder="np. 123456"
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white text-center tracking-[0.5em] text-lg font-mono ${activeInput === 'roomCode' ? 'border-clinical-accent ring-2 ring-clinical-accent/30' : 'border-clinical-border'}`}
+              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white text-slate-900 placeholder:text-slate-400 text-center tracking-[0.5em] text-lg font-mono ${activeInput === 'roomCode' ? 'border-clinical-accent ring-2 ring-clinical-accent/30' : 'border-clinical-border'}`}
               maxLength={6}
               required
             />
