@@ -122,6 +122,57 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
             });
         }
     });
+
+    // Listen to settings update events from SimulationService
+    this.simulationService.on('settings_updated', (stationId, settings) => {
+        if (stationId === this.currentStudentName) {
+            this.broadcast({
+                type: 'settingsUpdate',
+                settings
+            });
+        }
+    });
+
+    // Listen to trainer settings and scenario application events
+    this.linkService.on('trainer_settings_applied', (studentName) => {
+        if (studentName === this.currentStudentName) {
+            const state = this.simulationService.getState(studentName);
+            if (state) {
+                this.broadcast({
+                    type: 'status',
+                    status: this.simulationService.isSimulationRunning(studentName) ? 'running' : 'paused',
+                    scenarioName: state.scenarioName || 'Free Practice',
+                    difficulty: state.difficulty || 'EASY',
+                    patientParams: state.patient || null,
+                    settings: state.settings,
+                    asynchrony: state.asynchrony,
+                });
+            }
+        }
+    });
+
+    // Listen to asynchrony events
+    this.simulationService.on('asynchrony_injected', (stationId, type) => {
+        if (stationId === this.currentStudentName) {
+            const state = this.simulationService.getState(stationId);
+            this.broadcast({
+                type: 'status',
+                asynchrony: state?.asynchrony || { active: true, type },
+                patientParams: state?.patient || null,
+            });
+        }
+    });
+
+    this.simulationService.on('asynchrony_resolved', (stationId, type) => {
+        if (stationId === this.currentStudentName) {
+            const state = this.simulationService.getState(stationId);
+            this.broadcast({
+                type: 'status',
+                asynchrony: state?.asynchrony || { active: false, type: null },
+                patientParams: state?.patient || null,
+            });
+        }
+    });
   }
 
   handleConnection(client: WebSocket) {
@@ -256,12 +307,15 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
       this.linkService.sendTelemetryToMaster(telemetry);
     });
 
+    const state = this.simulationService.getState(name);
     this.broadcast({ 
       type: 'status', 
       status: 'running', 
       scenarioName, 
-      difficulty: this.simulationService.getState(name)?.difficulty || 'EASY',
-      patientParams: this.simulationService.getState(name)?.patient || null,
+      difficulty: state?.difficulty || 'EASY',
+      patientParams: state?.patient || null,
+      settings: state?.settings || null,
+      asynchrony: state?.asynchrony || null,
       studentName: name 
     });
 
@@ -283,7 +337,16 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
   public pauseSimulation() {
     if (!this.currentStudentName) return;
     this.simulationService.pauseSimulation(this.currentStudentName);
-    this.broadcast({ type: 'status', status: 'paused' });
+    const state = this.simulationService.getState(this.currentStudentName);
+    this.broadcast({ 
+      type: 'status', 
+      status: 'paused',
+      scenarioName: state?.scenarioName || 'Free Practice',
+      difficulty: state?.difficulty || 'EASY',
+      patientParams: state?.patient || null,
+      settings: state?.settings || null,
+      asynchrony: state?.asynchrony || null,
+    });
     this.linkService.sendSimulationStatusToMaster('paused');
   }
 
@@ -298,6 +361,8 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
       scenarioName: scenarioName || 'Free Practice', 
       difficulty: state?.difficulty || 'EASY',
       patientParams: state?.patient || null,
+      settings: state?.settings || null,
+      asynchrony: state?.asynchrony || null,
       studentName: this.currentStudentName 
     });
     this.linkService.sendSimulationStatusToMaster('running');
@@ -315,6 +380,8 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
       scenarioName: scenarioName2 || 'Free Practice', 
       difficulty: state2?.difficulty || 'EASY',
       patientParams: state2?.patient || null,
+      settings: state2?.settings || null,
+      asynchrony: state2?.asynchrony || null,
       studentName: this.currentStudentName 
     });
     this.linkService.sendSimulationStatusToMaster('running');

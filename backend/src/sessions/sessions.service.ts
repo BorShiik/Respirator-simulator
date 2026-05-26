@@ -33,12 +33,20 @@ export class SessionsService {
     return this.sessionRepo.save(session);
   }
 
-  async start(sessionId: string): Promise<SessionEntity | null> {
-    await this.sessionRepo.update(sessionId, {
+  async start(sessionId: string, studentName?: string): Promise<SessionEntity | null> {
+    const updateData: any = {
       status: 'running',
       startedAt: new Date(),
-    });
+    };
+    if (studentName) {
+      updateData.studentName = studentName;
+    }
+    await this.sessionRepo.update(sessionId, updateData);
     return this.findById(sessionId);
+  }
+
+  async updateStudentName(sessionId: string, studentName: string): Promise<void> {
+    await this.sessionRepo.update(sessionId, { studentName });
   }
 
   async complete(sessionId: string, finalSettings: VentilatorSettings): Promise<SessionEntity | null> {
@@ -219,16 +227,37 @@ export class SessionsService {
     const asynchronyEndLogs = logs.filter(l => l.eventType === 'asynchrony_end');
     const asynchronyTypes = [...new Set(asynchronyStartLogs.map(l => l.asynchronyType).filter(Boolean))];
 
-    // Time to resolve: time between first asynchrony_start and first asynchrony_end
+    // Time to resolve: pair starts and ends chronologically, filtering out instant loops
     let timeToResolveAsynchrony: number | null = null;
-    if (asynchronyStartLogs.length > 0 && asynchronyEndLogs.length > 0) {
+    const activeStarts = new Map<string, number>();
+    const resolvedDurations: number[] = [];
+
+    for (const log of logs) {
+      if (log.eventType === 'asynchrony_start' && log.asynchronyType) {
+        if (!activeStarts.has(log.asynchronyType)) {
+          activeStarts.set(log.asynchronyType, log.timestamp);
+        }
+      } else if (log.eventType === 'asynchrony_end' && log.asynchronyType) {
+        const startTimestamp = activeStarts.get(log.asynchronyType);
+        if (startTimestamp !== undefined) {
+          activeStarts.delete(log.asynchronyType);
+          const durationMs = log.timestamp - startTimestamp;
+          // Filter out instant/spurious loop resolution (e.g. <= 1.5 seconds)
+          if (durationMs > 1500) {
+            resolvedDurations.push(durationMs / 1000);
+          }
+        }
+      }
+    }
+
+    if (resolvedDurations.length > 0) {
       timeToResolveAsynchrony = Math.round(
-        (asynchronyEndLogs[0].timestamp - asynchronyStartLogs[0].timestamp) / 1000,
+        resolvedDurations.reduce((sum, d) => sum + d, 0) / resolvedDurations.length,
       );
     }
 
-    // Successful resolution: at least one asynchrony was resolved
-    const successfulResolution = asynchronyEndLogs.length > 0;
+    // Successful resolution: at least one asynchrony was resolved successfully (not instant)
+    const successfulResolution = resolvedDurations.length > 0;
 
     // Chaos index = (setting changes / duration in minutes). Capped at 1.0
     const durationMinutes = totalDuration > 0 ? totalDuration / 60 : 1;

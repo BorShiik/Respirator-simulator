@@ -87,8 +87,11 @@ export function AnalyticsPage() {
 
   const stats = useMemo(() => {
     const completed = analyticsSessions.filter(s => s.status === 'COMPLETED');
-    const avgTime = completed.length > 0
-      ? completed.reduce((sum, s) => sum + (s.metrics?.timeToResolveAsynchrony || 0), 0) / completed.length
+    const sessionsWithReactionTime = completed.filter(
+      s => s.metrics?.timeToResolveAsynchrony !== null && s.metrics?.timeToResolveAsynchrony !== undefined
+    );
+    const avgTime = sessionsWithReactionTime.length > 0
+      ? sessionsWithReactionTime.reduce((sum, s) => sum + (s.metrics?.timeToResolveAsynchrony || 0), 0) / sessionsWithReactionTime.length
       : 0;
     const avgChanges = completed.length > 0
       ? completed.reduce((sum, s) => sum + (s.metrics?.numberOfSettingChanges || 0), 0) / completed.length
@@ -260,7 +263,7 @@ export function AnalyticsPage() {
                       {session.metrics ? formatDuration(session.metrics.totalDuration) : '—'}
                     </td>
                     <td className="font-mono">
-                      {session.metrics?.timeToResolveAsynchrony
+                      {session.metrics?.timeToResolveAsynchrony !== null && session.metrics?.timeToResolveAsynchrony !== undefined
                         ? formatDuration(session.metrics.timeToResolveAsynchrony)
                         : '—'}
                     </td>

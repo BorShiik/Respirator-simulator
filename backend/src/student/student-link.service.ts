@@ -281,6 +281,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
                this.simulationService.applyScenarioEvents(this.currentStudentName, msg.scenario.blocks || [], msg.scenario.durationSeconds || 0);
             }
           }
+          this.emit('trainer_settings_applied', this.currentStudentName);
           break;
         case 'set_asynchrony':
           this.simulationService.injectAsynchrony(this.currentStudentName, msg.asynchronyType);
@@ -312,6 +313,7 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
                    this.simulationService.applyScenarioEvents(this.currentStudentName, msg.scenario.blocks || [], msg.scenario.durationSeconds || 0);
                 }
              }
+             this.emit('trainer_settings_applied', this.currentStudentName);
           } else if (msg.command === 'reset') {
              this.logger.log('Trainer command: reset');
              this.emit('trainer_reset');

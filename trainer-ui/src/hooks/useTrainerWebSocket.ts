@@ -165,22 +165,29 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
               let flowHistory = existing ? existing.flow : [];
               let volumeHistory = existing ? existing.volume : [];
               
-              const newPressures = Array.isArray(s.pressure) ? s.pressure : [s.pressure];
-              const validPressures = newPressures.filter(p => p !== undefined && p !== null) as number[];
-              if (validPressures.length > 0) {
-                pressureHistory = [...pressureHistory, ...validPressures].slice(-500);
-              }
+              const isDuplicate = existing &&
+                s.telemetryTimestamp !== undefined &&
+                s.telemetryTimestamp !== null &&
+                s.telemetryTimestamp === existing.telemetryTimestamp;
 
-              const newFlows = Array.isArray(s.flow) ? s.flow : (s.flow !== undefined ? [s.flow] : []);
-              const validFlows = newFlows.filter((f: number) => f !== undefined && f !== null) as number[];
-              if (validFlows.length > 0) {
-                flowHistory = [...flowHistory, ...validFlows].slice(-500);
-              }
+              if (!isDuplicate) {
+                const newPressures = Array.isArray(s.pressure) ? s.pressure : [s.pressure];
+                const validPressures = newPressures.filter(p => p !== undefined && p !== null) as number[];
+                if (validPressures.length > 0) {
+                  pressureHistory = [...pressureHistory, ...validPressures].slice(-500);
+                }
 
-              const newVolumes = Array.isArray(s.volume) ? s.volume : (s.volume !== undefined ? [s.volume] : []);
-              const validVolumes = newVolumes.filter((v: number) => v !== undefined && v !== null) as number[];
-              if (validVolumes.length > 0) {
-                volumeHistory = [...volumeHistory, ...validVolumes].slice(-500);
+                const newFlows = Array.isArray(s.flow) ? s.flow : (s.flow !== undefined ? [s.flow] : []);
+                const validFlows = newFlows.filter((f: number) => f !== undefined && f !== null) as number[];
+                if (validFlows.length > 0) {
+                  flowHistory = [...flowHistory, ...validFlows].slice(-500);
+                }
+
+                const newVolumes = Array.isArray(s.volume) ? s.volume : (s.volume !== undefined ? [s.volume] : []);
+                const validVolumes = newVolumes.filter((v: number) => v !== undefined && v !== null) as number[];
+                if (validVolumes.length > 0) {
+                  volumeHistory = [...volumeHistory, ...validVolumes].slice(-500);
+                }
               }
 
               s.pressure = pressureHistory;
@@ -200,22 +207,29 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
               let flowHistory = existing ? existing.flow : [];
               let volumeHistory = existing ? existing.volume : [];
 
-              const newPressures = Array.isArray(s.pressure) ? s.pressure : [s.pressure];
-              const validPressures = newPressures.filter(p => p !== undefined && p !== null) as number[];
-              if (validPressures.length > 0) {
-                pressureHistory = [...pressureHistory, ...validPressures].slice(-500);
-              }
+              const isDuplicate = existing &&
+                s.telemetryTimestamp !== undefined &&
+                s.telemetryTimestamp !== null &&
+                s.telemetryTimestamp === existing.telemetryTimestamp;
 
-              const newFlows = Array.isArray(s.flow) ? s.flow : (s.flow !== undefined ? [s.flow] : []);
-              const validFlows = newFlows.filter((f: number) => f !== undefined && f !== null) as number[];
-              if (validFlows.length > 0) {
-                flowHistory = [...flowHistory, ...validFlows].slice(-500);
-              }
+              if (!isDuplicate) {
+                const newPressures = Array.isArray(s.pressure) ? s.pressure : [s.pressure];
+                const validPressures = newPressures.filter(p => p !== undefined && p !== null) as number[];
+                if (validPressures.length > 0) {
+                  pressureHistory = [...pressureHistory, ...validPressures].slice(-500);
+                }
 
-              const newVolumes = Array.isArray(s.volume) ? s.volume : (s.volume !== undefined ? [s.volume] : []);
-              const validVolumes = newVolumes.filter((v: number) => v !== undefined && v !== null) as number[];
-              if (validVolumes.length > 0) {
-                volumeHistory = [...volumeHistory, ...validVolumes].slice(-500);
+                const newFlows = Array.isArray(s.flow) ? s.flow : (s.flow !== undefined ? [s.flow] : []);
+                const validFlows = newFlows.filter((f: number) => f !== undefined && f !== null) as number[];
+                if (validFlows.length > 0) {
+                  flowHistory = [...flowHistory, ...validFlows].slice(-500);
+                }
+
+                const newVolumes = Array.isArray(s.volume) ? s.volume : (s.volume !== undefined ? [s.volume] : []);
+                const validVolumes = newVolumes.filter((v: number) => v !== undefined && v !== null) as number[];
+                if (validVolumes.length > 0) {
+                  volumeHistory = [...volumeHistory, ...validVolumes].slice(-500);
+                }
               }
 
               s.pressure = pressureHistory;

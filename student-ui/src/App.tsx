@@ -103,12 +103,8 @@ function StudentRegistration({
     <div className="min-h-screen bg-clinical-bg flex flex-col md:flex-row items-center justify-center p-4 gap-8">
       <div className="bg-clinical-panel rounded-2xl shadow-lg p-8 w-full max-w-md border border-clinical-border flex-shrink-0">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-clinical-accent rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold text-clinical-text">
+          <img src="logo.png" alt="PulmoFlow Logo" className="w-56 mx-auto mb-4 object-contain bg-white rounded-xl p-3 border border-clinical-border shadow-sm" />
+          <h1 className="text-xl font-bold text-clinical-text">
             Symulator Respiratora
           </h1>
           <p className="text-clinical-muted mt-2">
@@ -134,7 +130,7 @@ function StudentRegistration({
               onFocus={() => setActiveInput('firstName')}
               onChange={(e) => setFirstName(e.target.value)}
               placeholder="np. Jan"
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white ${activeInput === 'firstName' ? 'border-clinical-accent ring-2 ring-clinical-accent/30' : 'border-clinical-border'}`}
+              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white text-slate-900 placeholder:text-slate-400 ${activeInput === 'firstName' ? 'border-clinical-accent ring-2 ring-clinical-accent/30' : 'border-clinical-border'}`}
               required
             />
           </div>
@@ -150,7 +146,7 @@ function StudentRegistration({
               onFocus={() => setActiveInput('lastName')}
               onChange={(e) => setLastName(e.target.value)}
               placeholder="np. Kowalski"
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white ${activeInput === 'lastName' ? 'border-clinical-accent ring-2 ring-clinical-accent/30' : 'border-clinical-border'}`}
+              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white text-slate-900 placeholder:text-slate-400 ${activeInput === 'lastName' ? 'border-clinical-accent ring-2 ring-clinical-accent/30' : 'border-clinical-border'}`}
               required
             />
           </div>
@@ -166,7 +162,7 @@ function StudentRegistration({
               onFocus={() => setActiveInput('roomCode')}
               onChange={(e) => setRoomCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
               placeholder="np. 123456"
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white text-center tracking-[0.5em] text-lg font-mono ${activeInput === 'roomCode' ? 'border-clinical-accent ring-2 ring-clinical-accent/30' : 'border-clinical-border'}`}
+              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white text-slate-900 placeholder:text-slate-400 text-center tracking-[0.5em] text-lg font-mono ${activeInput === 'roomCode' ? 'border-clinical-accent ring-2 ring-clinical-accent/30' : 'border-clinical-border'}`}
               maxLength={6}
               required
             />
@@ -239,7 +235,7 @@ function StudentRegistration({
             </button>
           </div>
           <Keyboard
-            keyboardRef={(r: any) => {}}
+            keyboardRef={(_r: any) => {}}
             layoutName={layoutName}
             onChange={onKeyboardChange}
             onKeyPress={onKeyPress}
@@ -378,9 +374,7 @@ function MainScreen({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedParameter, localSettings, updateSettings, selectParameter, simulationStatus]);
 
-  const pressure = telemetry?.pressure || [];
-  const flow = telemetry?.flow || [];
-  const volume = telemetry?.volume || [];
+  // Telemetry values are consumed via hooks inside the charts directly
   const asynchrony = telemetry?.asynchrony || { active: false, type: null };
   const scenarioName = telemetry?.scenarioName || '';
 
@@ -443,6 +437,7 @@ function MainScreen({
             currentAsynchrony={asynchrony} 
             onSetAsynchrony={setAsynchrony} 
             isDark={isDark} 
+            onLogout={handleLogout}
           />
         ) : (
           <StatusPanel

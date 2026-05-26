@@ -1,14 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  ResponsiveContainer,
-  ReferenceLine,
-} from 'recharts';
+import { CanvasWaveform } from '../components/charts/CanvasWaveform';
 import { useTrainerWebSocket } from '../hooks/useTrainerWebSocket';
 import { useTheme } from '../hooks/useTheme';
 import { trainerApi } from '../api/trainerApi';
@@ -20,6 +12,7 @@ export function StationDetailsPage() {
   const { stationId } = useParams<{ stationId: string }>();
   const { stationsMap, eventLog } = useTrainerWebSocket();
   const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>('');
   const [isAssigning, setIsAssigning] = useState(false);
@@ -27,20 +20,7 @@ export function StationDetailsPage() {
 
   const station = stationId ? stationsMap.get(stationId) : null;
 
-  /* Chart theme-aware colors */
-  const chartColors = useMemo(() => {
-    const style = getComputedStyle(document.documentElement);
-    return {
-      pressure: style.getPropertyValue('--chart-pressure').trim() || '#22d3ee',
-      flow: style.getPropertyValue('--chart-flow').trim() || '#fbbf24',
-      volume: style.getPropertyValue('--chart-volume').trim() || '#34d399',
-      danger: style.getPropertyValue('--chart-danger').trim() || '#f87171',
-      grid: style.getPropertyValue('--chart-grid').trim() || '#1e293b',
-      ref: style.getPropertyValue('--chart-ref').trim() || '#475569',
-      muted: style.getPropertyValue('--admin-muted').trim() || '#94a3b8',
-      success: style.getPropertyValue('--admin-success').trim() || '#10b981',
-    };
-  }, [theme]);
+
 
   useEffect(() => {
     const loadScenarios = async () => {
@@ -89,32 +69,7 @@ export function StationDetailsPage() {
     loadScenarios();
   }, []);
 
-  const chartData = useMemo(() => {
-    const data = station?.pressure || [];
-    const padded = new Array(Math.max(0, 500 - data.length)).fill(null).concat(data);
-    return padded.map((value, index) => ({
-      index,
-      value: value
-    }));
-  }, [station?.pressure]);
 
-  const flowData = useMemo(() => {
-    const data = station?.flow || [];
-    const padded = new Array(Math.max(0, 500 - data.length)).fill(null).concat(data);
-    return padded.map((value, index) => ({
-      index,
-      value: value
-    }));
-  }, [station?.flow]);
-
-  const volumeData = useMemo(() => {
-    const data = station?.volume || [];
-    const padded = new Array(Math.max(0, 500 - data.length)).fill(null).concat(data);
-    return padded.map((value, index) => ({
-      index,
-      value: value
-    }));
-  }, [station?.volume]);
 
   const handleAssign = async () => {
     if (!stationId || !selectedScenarioId) return;
@@ -243,66 +198,43 @@ export function StationDetailsPage() {
               </div>
             )}
 
-            {chartData.length > 0 && (
+            {station?.pressure && station.pressure.length > 0 && (
               <div className="space-y-4 border-t border-admin-border pt-4">
                 <div className="h-48">
-                  <h3 className="text-sm font-medium text-admin-muted mb-2">Real-time Pressure (cmH₂O)</h3>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
-                      <XAxis dataKey="index" tick={false} />
-                      <YAxis domain={[-5, 40]} allowDataOverflow={true} tick={{ fontSize: 11, fill: chartColors.muted }} />
-                      <ReferenceLine y={station?.settings?.peep || 5} stroke={chartColors.success} strokeDasharray="5 5" />
-                      <Line
-                        type="monotone"
-                        dataKey="value"
-                        stroke={station?.asynchrony?.active ? chartColors.danger : chartColors.pressure}
-                        strokeWidth={2}
-                        dot={false}
-                        isAnimationActive={false}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
+                  <CanvasWaveform
+                    data={station.pressure}
+                    color={station.asynchrony?.active ? '#f87171' : '#D4A017'}
+                    label="Real-time Pressure"
+                    unit="cmH₂O"
+                    isDark={isDark}
+                    yDomain={[0, 30]}
+                    referenceLines={[{ y: station.settings?.peep ?? 5, color: '#10b981', dashed: true }]}
+                  />
                 </div>
 
                 <div className="h-48">
-                  <h3 className="text-sm font-medium text-admin-muted mb-2">Flow (L/min)</h3>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={flowData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
-                      <XAxis dataKey="index" tick={false} />
-                      <YAxis domain={[-100, 100]} allowDataOverflow={true} tick={{ fontSize: 11, fill: chartColors.muted }} />
-                      <ReferenceLine y={0} stroke={chartColors.ref} />
-                      <Line
-                        type="monotone"
-                        dataKey="value"
-                        stroke={station?.asynchrony?.active ? chartColors.danger : chartColors.flow}
-                        strokeWidth={2}
-                        dot={false}
-                        isAnimationActive={false}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
+                  <CanvasWaveform
+                    data={station.flow}
+                    color={station.asynchrony?.active ? '#f87171' : '#28A745'}
+                    label="Flow"
+                    unit="L/min"
+                    isDark={isDark}
+                    yDomain={[-40, 40]}
+                    symmetric={true}
+                    referenceLines={[{ y: 0, color: isDark ? '#475569' : '#94a3b8', dashed: false }]}
+                  />
                 </div>
 
                 <div className="h-48">
-                  <h3 className="text-sm font-medium text-admin-muted mb-2">Volume (mL)</h3>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={volumeData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
-                      <XAxis dataKey="index" tick={false} />
-                      <YAxis domain={[0, 800]} allowDataOverflow={true} tick={{ fontSize: 11, fill: chartColors.muted }} />
-                      <ReferenceLine y={station?.settings?.vt || 500} stroke={chartColors.success} strokeDasharray="5 5" />
-                      <Line
-                        type="monotone"
-                        dataKey="value"
-                        stroke={station?.asynchrony?.active ? chartColors.danger : chartColors.volume}
-                        strokeWidth={2}
-                        dot={false}
-                        isAnimationActive={false}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
+                  <CanvasWaveform
+                    data={station.volume}
+                    color={station.asynchrony?.active ? '#f87171' : '#17A2B8'}
+                    label="Volume"
+                    unit="mL"
+                    isDark={isDark}
+                    yDomain={[0, 600]}
+                    referenceLines={[{ y: station.settings?.vt ?? 500, color: '#10b981', dashed: true }]}
+                  />
                 </div>
               </div>
             )}

@@ -1,5 +1,5 @@
 import { CanvasWaveform } from './CanvasWaveform';
-import { chartBuffers } from '../../stores/chartBufferStore';
+import { chartBuffers, getPlaybackIndex } from '../../stores/chartBufferStore';
 
 interface VolumeChartProps {
   targetVt?: number;
@@ -12,12 +12,13 @@ export function VolumeChart({ targetVt, isDark = false }: VolumeChartProps) {
   return (
     <CanvasWaveform
       getDataSource={() => chartBuffers.volume}
+      getPlaybackIndex={getPlaybackIndex}
       bufferSize={FIXED_BUFFER_SIZE}
-      color={isDark ? '#22d3ee' : '#0891b2'}
-      label="Objętość (Volume)"
+      color="#17A2B8"
+      label="OBJĘTOŚĆ"
       unit="mL"
       isDark={isDark}
-      yDomain={[0, 1000]}
+      yDomain={[0, 600]}
       referenceLines={targetVt ? [{ y: targetVt, color: '#059669', dashed: true }] : []}
     />
   );

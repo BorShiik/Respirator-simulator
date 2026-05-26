@@ -24,7 +24,7 @@ export class ScenariosService {
     description?: string;
     blocks: ScenarioBlock[];
     durationSeconds?: number;
-    initialSettings?: Record<string, number>;
+    initialSettings?: Record<string, any>;
     initialResistance?: number;
     initialCompliance?: number;
     initialPatientParams?: Record<string, number | boolean>;
@@ -89,9 +89,6 @@ export class ScenariosService {
    * Seed default scenarios for demo
    */
   async seedDefaultScenarios(): Promise<void> {
-    const existing = await this.scenarioRepo.find({ select: ['name'] });
-    const existingNames = new Set(existing.map(s => s.name));
-
     const defaultScenarios = [
       {
         name: 'Nieefektywny wyzwalacz',
@@ -99,6 +96,7 @@ export class ScenariosService {
         initialResistance: 15,
         initialCompliance: 30,
         initialPatientParams: { ...this.defaultPatientParams(), p01: 2, Tcykl: 2.8 },
+        initialSettings: { ipap: 20, epap: 5, peep: 5, rr: 15, ti: 1.0, trigger: 15, vt: 500, pinsp: 20, mode: 'PC-CMV', pressureRaiseT: 0 },
         blocks: [
           { id: 'b0', type: 'NORMAL' as const, startTime: 0, duration: 5, description: 'Faza stabilizacji', parameterChanges: {},
             resistance: 15, compliance: 30, rin: 1, rout: 20, p01: 2, Tcykl: 2.8, PTi: 0, PriorityPR: 0 },
@@ -114,6 +112,7 @@ export class ScenariosService {
         initialResistance: 20,
         initialCompliance: 30,
         initialPatientParams: { ...this.defaultPatientParams(), p01: 2, Tcykl: 2.0, PTi: 1.0 },
+        initialSettings: { ipap: 20, epap: 5, peep: 5, rr: 15, ti: 0.6, trigger: 2, vt: 500, pinsp: 20, mode: 'PC-CMV', pressureRaiseT: 0 },
         blocks: [
           { id: 'b0', type: 'NORMAL' as const, startTime: 0, duration: 5, description: 'Faza stabilizacji', parameterChanges: {},
             resistance: 20, compliance: 30, rin: 1, rout: 20, p01: 2, Tcykl: 2, PTi: 1 },
@@ -129,6 +128,7 @@ export class ScenariosService {
         initialResistance: 20,
         initialCompliance: 30,
         initialPatientParams: { ...this.defaultPatientParams(), p01: 2, Tcykl: 2.0 },
+        initialSettings: { ipap: 20, epap: 5, peep: 5, rr: 15, ti: 1.0, trigger: 2, vt: 500, pinsp: 20, mode: 'PC-CMV', pressureRaiseT: 0 },
         blocks: [
           { id: 'b0', type: 'NORMAL' as const, startTime: 0, duration: 5, description: 'Faza stabilizacji', parameterChanges: {},
             resistance: 20, compliance: 30, rin: 1, rout: 20, p01: 2, Tcykl: 2, PTi: 0 },
@@ -144,6 +144,7 @@ export class ScenariosService {
         initialResistance: 20,
         initialCompliance: 30,
         initialPatientParams: { ...this.defaultPatientParams(), p01: 2, Tcykl: 2.0, PTi: 0.6 },
+        initialSettings: { ipap: 20, epap: 5, peep: 5, rr: 15, ti: 1.5, trigger: 2, vt: 500, pinsp: 20, mode: 'PC-CMV', pressureRaiseT: 0 },
         blocks: [
           { id: 'b0', type: 'NORMAL' as const, startTime: 0, duration: 5, description: 'Faza stabilizacji', parameterChanges: {},
             resistance: 20, compliance: 30, rin: 1, rout: 20, p01: 2, Tcykl: 2, PTi: 0 },
@@ -159,6 +160,7 @@ export class ScenariosService {
         initialResistance: 20,
         initialCompliance: 30,
         initialPatientParams: { ...this.defaultPatientParams(), p01: 2, Tcykl: 2.0, PTi: 1.3 },
+        initialSettings: { ipap: 20, epap: 5, peep: 5, rr: 15, ti: 0.6, trigger: 2, vt: 500, pinsp: 20, mode: 'PC-CMV', pressureRaiseT: 0 },
         blocks: [
           { id: 'b0', type: 'NORMAL' as const, startTime: 0, duration: 5, description: 'Faza stabilizacji', parameterChanges: {},
             resistance: 20, compliance: 30, rin: 1, rout: 20, p01: 2, Tcykl: 2, PTi: 0 },
@@ -174,6 +176,7 @@ export class ScenariosService {
         initialResistance: 20,
         initialCompliance: 30,
         initialPatientParams: { ...this.defaultPatientParams(), p01: 2, Tcykl: 2.0, PTi: 1.0 },
+        initialSettings: { ipap: 15, epap: 5, peep: 5, rr: 15, ti: 1.0, trigger: 2, vt: 500, pinsp: 15, mode: 'VC-CMV', pressureRaiseT: 0 },
         blocks: [
           { id: 'b0', type: 'NORMAL' as const, startTime: 0, duration: 5, description: 'Faza stabilizacji', parameterChanges: {},
             resistance: 20, compliance: 30, rin: 1, rout: 20, p01: 2, Tcykl: 2, PTi: 1 },
@@ -189,6 +192,7 @@ export class ScenariosService {
         initialResistance: 10,
         initialCompliance: 50,
         initialPatientParams: this.defaultPatientParams(),
+        initialSettings: { ipap: 20, epap: 5, peep: 5, rr: 15, ti: 1.0, trigger: 2, vt: 500, pinsp: 20, mode: 'PC-CMV', pressureRaiseT: 0 },
         blocks: [
           { id: 'b1', type: 'ASYNCHRONY' as const, startTime: 5, duration: 30, asynchronyType: 'REVERSE_TRIGGER' as AsynchronyType,
             description: 'Odwrócony wyzwalacz — brak fizyki (placeholder)', parameterChanges: {} },
@@ -198,7 +202,18 @@ export class ScenariosService {
     ];
 
     for (const scenario of defaultScenarios) {
-      if (!existingNames.has(scenario.name)) {
+      const existingScenario = await this.scenarioRepo.findOne({ where: { name: scenario.name } });
+      if (existingScenario) {
+        await this.scenarioRepo.update(existingScenario.id, {
+          description: scenario.description,
+          initialResistance: scenario.initialResistance,
+          initialCompliance: scenario.initialCompliance,
+          initialPatientParams: scenario.initialPatientParams,
+          blocks: scenario.blocks,
+          durationSeconds: scenario.durationSeconds,
+          initialSettings: scenario.initialSettings as any,
+        });
+      } else {
         await this.create(scenario);
       }
     }

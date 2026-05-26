@@ -1,5 +1,5 @@
 import { CanvasWaveform } from './CanvasWaveform';
-import { chartBuffers } from '../../stores/chartBufferStore';
+import { chartBuffers, getPlaybackIndex } from '../../stores/chartBufferStore';
 
 interface FlowChartProps {
   isDark?: boolean;
@@ -11,12 +11,13 @@ export function FlowChart({ isDark = false }: FlowChartProps) {
   return (
     <CanvasWaveform
       getDataSource={() => chartBuffers.flow}
+      getPlaybackIndex={getPlaybackIndex}
       bufferSize={FIXED_BUFFER_SIZE}
-      color={isDark ? '#a78bfa' : '#7c3aed'}
-      label="Przepływ (Flow)"
+      color="#28A745"
+      label="PRZEPŁYW"
       unit="L/min"
       isDark={isDark}
-      yDomain={[-100, 100]}
+      yDomain={[-40, 40]}
       symmetric={true}
       referenceLines={[{ y: 0, color: isDark ? '#475569' : '#94a3b8', dashed: false }]}
     />

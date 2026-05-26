@@ -117,6 +117,16 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
          client.studentName = msg.studentName;
          client.roomId = room.id;
          this.studentClients.set(stationId, client);
+
+         // Update active session with the registered student name if one exists
+         const actUpdate = async () => {
+             const activeSession = await this.sessionsService.findActiveSession(stationId);
+             if (activeSession) {
+                 await this.sessionsService.updateStudentName(activeSession.id, msg.studentName);
+                 this.broadcastSessionsUpdate();
+             }
+         };
+         actUpdate().catch(e => this.logger.error('Failed to update student name in active session', e));
          
          const existingState = this.studentStates.get(stationId);
          if (existingState) {
@@ -192,6 +202,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
                  volume: state.telemetry.volume,
                  assignedAsynchronyType: state.assignedAsynchronyType,
                  lastUpdate: state.lastUpdate,
+                 telemetryTimestamp: state.telemetry.timestamp,
               }
             });
          }
@@ -210,20 +221,12 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
       // 3. Handle Trainer Commands (to be forwarded to Student)
       if (client.isTrainer && msg.type === 'trainer_command') {
-         // Intercept asynchrony commands to log them into Analytics
+         // Intercept asynchrony commands to track them in student state
          if (msg.payload && msg.payload.type === 'set_asynchrony') {
              const state = this.studentStates.get(msg.targetStudent);
              if (state) {
                 state.assignedAsynchronyType = msg.payload.asynchronyType;
              }
-
-             const act = async () => {
-                 const activeSession = await this.sessionsService.findActiveSession(msg.targetStudent);
-                 if (activeSession) {
-                     await this.sessionsService.logAsynchronyStart(activeSession.id, msg.payload.asynchronyType);
-                 }
-             };
-             act().catch(e => console.error('Failed to log asynchrony start', e));
          }
 
          // Forward command to specific student (targetStudent is actually stationId)
@@ -299,9 +302,9 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
              // Check if there's already a pending session (assigned by trainer)
              const pendingSession = await this.sessionsService.findPendingSession(stationId);
              if (pendingSession) {
-                 // Trainer already assigned a scenario → use that session
-                 await this.sessionsService.start(pendingSession.id);
-                 this.logger.log(`Started pending session ${pendingSession.id} for ${stationId}`);
+                 // Trainer already assigned a scenario → use that session and set studentName
+                 await this.sessionsService.start(pendingSession.id, studentName);
+                 this.logger.log(`Started pending session ${pendingSession.id} for ${stationId} (${studentName})`);
              } else {
                  // No pending session → check if there's already a running one
                  const activeSession = await this.sessionsService.findActiveSession(stationId);
@@ -315,6 +318,12 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
                      });
                      await this.sessionsService.start(newSession.id);
                      this.logger.log(`Created & started new session for ${stationId} (${scenarioName})`);
+                 } else {
+                     // Update student name in the active session if it doesn't match
+                     if (studentName && activeSession.studentName !== studentName) {
+                         await this.sessionsService.updateStudentName(activeSession.id, studentName);
+                         this.broadcastSessionsUpdate();
+                     }
                  }
              }
 
@@ -378,6 +387,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
         flow: state.telemetry?.flow || [],
         assignedAsynchronyType: state.assignedAsynchronyType || null,
         lastUpdate: state.lastUpdate,
+        telemetryTimestamp: state.telemetry?.timestamp || null,
     }));
   }
 
@@ -420,6 +430,10 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
     this.broadcast({ type: 'sessions_updated' });
   }
 
+  public getStudentName(stationId: string): string | undefined {
+    return this.studentClients.get(stationId)?.studentName;
+  }
+
   // Called locally by ScenariosService or SessionsService when Trainer initiates a scenario change etc.
   public sendCommandToStudent(stationId: string, command: string, payload: any) {
       if (command === 'set_asynchrony') {
@@ -427,14 +441,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
           if (state) {
               state.assignedAsynchronyType = payload.asynchronyType;
           }
-
-          const act = async () => {
-              const activeSession = await this.sessionsService.findActiveSession(stationId);
-              if (activeSession) {
-                  await this.sessionsService.logAsynchronyStart(activeSession.id, payload.asynchronyType);
-              }
-          };
-          act().catch(e => console.error('Failed to log asynchrony from sendCommand', e));
+          // logAsynchronyStart is handled on student response asynchrony_injected
       }
 
       if (payload.scenarioName) {

@@ -47,6 +47,7 @@ export interface TelemetryData {
   pressure: number[];
   flow: number[];
   volume: number[];
+  data?: { time: number; pressure: number; flow: number; volume: number }[];
   settings: VentilatorSettings;
   asynchrony: AsynchronyStatus;
   scenarioName: string;
@@ -59,6 +60,7 @@ export interface TelemetryMessage {
   pressure: number[];
   flow: number[];
   volume: number[];
+  data?: { time: number; pressure: number; flow: number; volume: number }[];
   settings: VentilatorSettings;
   asynchrony: AsynchronyStatus;
   scenarioName: string;
@@ -67,7 +69,7 @@ export interface TelemetryMessage {
 
 export interface SettingsUpdateMessage {
   type: 'settingsUpdate';
-  settings: VentilatorSettings;
+  settings: Partial<VentilatorSettings>;
 }
 
 export interface RegisteredMessage {
@@ -88,11 +90,13 @@ export interface ErrorMessage {
 
 export interface StatusMessage {
   type: 'status';
-  status: string;
+  status?: string;
   scenarioName?: string;
   studentName?: string;
   difficulty?: DifficultyLevel;
   patientParams?: PatientParams;
+  settings?: VentilatorSettings;
+  asynchrony?: AsynchronyStatus;
 }
 
 export interface ConnectedMessage {

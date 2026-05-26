@@ -63,6 +63,24 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
   // Track which blocks have their patient params section expanded
   const [expandedBlocks, setExpandedBlocks] = useState<Set<number>>(new Set());
 
+  const handleNumberInput = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    onChange: (num: number) => void
+  ) => {
+    const cleaned = e.target.value.replace(/^0+(?=\d)/, '');
+    e.target.value = cleaned;
+    onChange(parseFloat(cleaned) || 0);
+  };
+
+  const handleOptionalNumberInput = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    onChange: (num: number | undefined) => void
+  ) => {
+    const cleaned = e.target.value.replace(/^0+(?=\d)/, '');
+    e.target.value = cleaned;
+    onChange(cleaned ? parseFloat(cleaned) : undefined);
+  };
+
   useEffect(() => {
     if (scenario) {
       setFormData({
@@ -80,6 +98,84 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
       setFormData({ ...DEFAULT_SCENARIO, blocks: [], initialPatientParams: { ...DEFAULT_PATIENT_PARAMS } });
     }
   }, [scenario]);
+
+  const applyDiseaseTemplate = (templateKey: string) => {
+    const templates: Record<string, { r: number; c: number; params: PatientParams }> = {
+      IDEAL: {
+        r: 12,
+        c: 40,
+        params: {
+          rin: 1,
+          rout: 8,
+          p01: 2,
+          Tcykl: 3.0,
+          PTi: 1.0,
+          PriorityPR: 0,
+          PressureRaiseT: 0,
+          DoubleTriggeringTime: 0,
+          knobDisable: false,
+        }
+      },
+      COPD: {
+        r: 25,
+        c: 80,
+        params: {
+          rin: 2,
+          rout: 18,
+          p01: 4.0,
+          Tcykl: 5.0,
+          PTi: 1.2,
+          PriorityPR: 0,
+          PressureRaiseT: 0,
+          DoubleTriggeringTime: 0,
+          knobDisable: false,
+        }
+      },
+      ARDS: {
+        r: 8,
+        c: 15,
+        params: {
+          rin: 1,
+          rout: 5,
+          p01: 5.0,
+          Tcykl: 2.0,
+          PTi: 0.7,
+          PriorityPR: 0,
+          PressureRaiseT: 0,
+          DoubleTriggeringTime: 0,
+          knobDisable: false,
+        }
+      },
+      NEURO: {
+        r: 10,
+        c: 50,
+        params: {
+          rin: 1,
+          rout: 6,
+          p01: 0.5,
+          Tcykl: 4.0,
+          PTi: 1.0,
+          PriorityPR: 0,
+          PressureRaiseT: 0,
+          DoubleTriggeringTime: 0,
+          knobDisable: false,
+        }
+      }
+    };
+
+    const selected = templates[templateKey];
+    if (selected) {
+      setFormData((prev) => ({
+        ...prev,
+        initialResistance: selected.r,
+        initialCompliance: selected.c,
+        initialPatientParams: {
+          ...prev.initialPatientParams,
+          ...selected.params,
+        }
+      }));
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -189,11 +285,13 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
               type="number"
               value={formData.estimatedDuration}
               onChange={(e) =>
-                setFormData({ ...formData, estimatedDuration: parseInt(e.target.value) || 0 })
+                handleNumberInput(e, (val) =>
+                  setFormData({ ...formData, estimatedDuration: Math.round(val) })
+                )
               }
               className="admin-input"
               min="60"
-              step="60"
+              step="any"
             />
           </div>
         </div>
@@ -233,17 +331,20 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
               type="number"
               value={formData.initialSettings.ipap}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  initialSettings: {
-                    ...formData.initialSettings,
-                    ipap: parseInt(e.target.value) || 0,
-                  },
-                })
+                handleNumberInput(e, (val) =>
+                  setFormData({
+                    ...formData,
+                    initialSettings: {
+                      ...formData.initialSettings,
+                      ipap: Math.round(val),
+                    },
+                  })
+                )
               }
               className="admin-input"
               min="5"
               max="40"
+              step="any"
             />
           </div>
 
@@ -253,18 +354,22 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
               type="number"
               value={formData.initialSettings.peep}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  initialSettings: {
-                    ...formData.initialSettings,
-                    peep: parseInt(e.target.value) || 0,
-                    epap: parseInt(e.target.value) || 0,
-                  },
+                handleNumberInput(e, (val) => {
+                  const intVal = Math.round(val);
+                  setFormData({
+                    ...formData,
+                    initialSettings: {
+                      ...formData.initialSettings,
+                      peep: intVal,
+                      epap: intVal,
+                    },
+                  });
                 })
               }
               className="admin-input"
               min="0"
               max="20"
+              step="any"
             />
           </div>
 
@@ -274,17 +379,20 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
               type="number"
               value={formData.initialSettings.rr}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  initialSettings: {
-                    ...formData.initialSettings,
-                    rr: parseInt(e.target.value) || 0,
-                  },
-                })
+                handleNumberInput(e, (val) =>
+                  setFormData({
+                    ...formData,
+                    initialSettings: {
+                      ...formData.initialSettings,
+                      rr: Math.round(val),
+                    },
+                  })
+                )
               }
               className="admin-input"
               min="6"
               max="40"
+              step="any"
             />
           </div>
 
@@ -294,18 +402,20 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
               type="number"
               value={formData.initialSettings.ti}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  initialSettings: {
-                    ...formData.initialSettings,
-                    ti: parseFloat(e.target.value) || 0,
-                  },
-                })
+                handleNumberInput(e, (val) =>
+                  setFormData({
+                    ...formData,
+                    initialSettings: {
+                      ...formData.initialSettings,
+                      ti: val,
+                    },
+                  })
+                )
               }
               className="admin-input"
               min="0.3"
               max="3"
-              step="0.1"
+              step="any"
             />
           </div>
 
@@ -315,17 +425,20 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
               type="number"
               value={formData.initialSettings.trigger}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  initialSettings: {
-                    ...formData.initialSettings,
-                    trigger: parseInt(e.target.value) || 0,
-                  },
-                })
+                handleNumberInput(e, (val) =>
+                  setFormData({
+                    ...formData,
+                    initialSettings: {
+                      ...formData.initialSettings,
+                      trigger: val,
+                    },
+                  })
+                )
               }
               className="admin-input"
               min="1"
               max="10"
+              step="any"
             />
           </div>
 
@@ -335,14 +448,17 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
               type="number"
               value={formData.initialResistance}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  initialResistance: parseInt(e.target.value) || 0,
-                })
+                handleNumberInput(e, (val) =>
+                  setFormData({
+                    ...formData,
+                    initialResistance: Math.round(val),
+                  })
+                )
               }
               className="admin-input"
               min="1"
               max="50"
+              step="any"
             />
           </div>
 
@@ -352,14 +468,17 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
               type="number"
               value={formData.initialCompliance}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  initialCompliance: parseInt(e.target.value) || 0,
-                })
+                handleNumberInput(e, (val) =>
+                  setFormData({
+                    ...formData,
+                    initialCompliance: Math.round(val),
+                  })
+                )
               }
               className="admin-input"
               min="10"
               max="100"
+              step="any"
             />
           </div>
         </div>
@@ -367,10 +486,38 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
 
       {/* ── Initial Patient Parameters ──────────────────── */}
       <div className="admin-card p-6">
-        <h3 className="text-lg font-semibold text-admin-text mb-4">Parametry początkowe pacjenta</h3>
-        <p className="text-admin-muted text-sm mb-4">
+        <h3 className="text-lg font-semibold text-admin-text mb-2">Parametry początkowe pacjenta</h3>
+        <p className="text-admin-muted text-sm mb-5">
           Parametry fizjologiczne pacjenta wpływające na symulację oddychania (model ILSim).
         </p>
+
+        {/* Clinical presets select block */}
+        <div className="bg-admin-surface rounded-xl p-4 mb-6 border border-admin-border select-none">
+          <label className="admin-label font-semibold text-admin-accent flex items-center gap-1.5 mb-2 text-sm">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            Szablon kliniczny pacjenta (Choroba)
+          </label>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+            <div className="md:col-span-2">
+              <select
+                onChange={(e) => applyDiseaseTemplate(e.target.value)}
+                className="admin-input bg-admin-bg font-semibold text-sm border-admin-border"
+                defaultValue=""
+              >
+                <option value="" disabled>Użyj gotowego szablonu...</option>
+                <option value="IDEAL">Zdrowe płuca (Idealne parametry do wykresów)</option>
+                <option value="COPD">POChP / Astma (Obstrukcja: wysoki opór i podatność)</option>
+                <option value="ARDS">ARDS / Zapalenie płuc (Restrykcja: bardzo sztywne płuca)</option>
+                <option value="NEURO">Osłabienie mięśniowe (Słaby wysiłek własny pacjenta)</option>
+              </select>
+            </div>
+            <p className="md:col-span-2 text-xs text-admin-muted leading-relaxed">
+              Wybór szablonu automatycznie uzupełni opór (R), podatność (C) oraz szczegółowe parametry ILSim odpowiednimi wartościami klinicznymi.
+            </p>
+          </div>
+        </div>
 
         <div className="grid grid-cols-3 gap-4">
           {(Object.keys(PATIENT_PARAM_LABELS) as Array<keyof PatientParams>).map((key) => {
@@ -401,11 +548,11 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
                 <input
                   type="number"
                   value={formData.initialPatientParams[key] as number}
-                  onChange={(e) => updatePatientParam(key, parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleNumberInput(e, (val) => updatePatientParam(key, val))}
                   className="admin-input"
                   min={config.min}
                   max={config.max}
-                  step={config.step}
+                  step="any"
                 />
               </div>
             );
@@ -469,10 +616,13 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
                       type="number"
                       value={block.startTime}
                       onChange={(e) =>
-                        updateBlock(index, { startTime: parseInt(e.target.value) || 0 })
+                        handleNumberInput(e, (val) =>
+                          updateBlock(index, { startTime: Math.round(val) })
+                        )
                       }
                       className="admin-input"
                       min="0"
+                      step="any"
                     />
                   </div>
 
@@ -482,10 +632,13 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
                       type="number"
                       value={block.duration}
                       onChange={(e) =>
-                        updateBlock(index, { duration: parseInt(e.target.value) || 0 })
+                        handleNumberInput(e, (val) =>
+                          updateBlock(index, { duration: Math.round(val) })
+                        )
                       }
                       className="admin-input"
                       min="10"
+                      step="any"
                     />
                   </div>
 
@@ -493,13 +646,16 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
                     <label className="admin-label">Opór (R) opcjonalnie</label>
                     <input
                       type="number"
-                      value={block.resistance || ''}
+                      value={block.resistance ?? ''}
                       onChange={(e) =>
-                        updateBlock(index, { resistance: e.target.value ? parseInt(e.target.value) : undefined })
+                        handleOptionalNumberInput(e, (val) =>
+                          updateBlock(index, { resistance: val !== undefined ? Math.round(val) : undefined })
+                        )
                       }
                       className="admin-input"
                       min="1"
                       max="50"
+                      step="any"
                       placeholder="bez zmian"
                     />
                   </div>
@@ -508,13 +664,16 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
                     <label className="admin-label">Podatność (C) opcjonalnie</label>
                     <input
                       type="number"
-                      value={block.compliance || ''}
+                      value={block.compliance ?? ''}
                       onChange={(e) =>
-                        updateBlock(index, { compliance: e.target.value ? parseInt(e.target.value) : undefined })
+                        handleOptionalNumberInput(e, (val) =>
+                          updateBlock(index, { compliance: val !== undefined ? Math.round(val) : undefined })
+                        )
                       }
                       className="admin-input"
                       min="10"
                       max="100"
+                      step="any"
                       placeholder="bez zmian"
                     />
                   </div>
@@ -598,12 +757,14 @@ export function ScenarioEditor({ scenario, onSave, onCancel }: ScenarioEditorPro
                               type="number"
                               value={(block as any)[key] ?? ''}
                               onChange={(e) =>
-                                updateBlock(index, { [key]: e.target.value ? parseFloat(e.target.value) : undefined } as any)
+                                handleOptionalNumberInput(e, (val) =>
+                                  updateBlock(index, { [key]: val } as any)
+                                )
                               }
                               className="admin-input"
                               min={config.min}
                               max={config.max}
-                              step={config.step}
+                              step="any"
                               placeholder="bez zmian"
                             />
                           </div>

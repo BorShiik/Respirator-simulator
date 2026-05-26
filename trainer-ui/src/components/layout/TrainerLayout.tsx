@@ -95,17 +95,11 @@ export function TrainerLayout({ children }: TrainerLayoutProps) {
       {/* ── Sidebar ──────────────────────────────── */}
       <aside className="w-64 bg-admin-sidebar flex flex-col border-r border-admin-border theme-transition">
         {/* Logo */}
-        <div className="p-6 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-admin-accent rounded-lg flex items-center justify-center shadow-glow">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-white font-bold text-lg tracking-tight">Respirator</h1>
-              <p className="text-gray-500 text-xs">Panel trenera</p>
-            </div>
+        <div className="p-5 border-b border-white/10 flex flex-col items-center gap-2 select-none">
+          <img src="/logo.png" alt="PulmoFlow Logo" className="h-16 object-contain bg-white rounded-xl p-2 shadow-glow border border-white/5" />
+          <div className="text-center mt-1">
+            <h1 className="text-white font-bold text-base tracking-wide leading-tight">PulmoFlow</h1>
+            <p className="text-gray-400 text-[10px] font-medium uppercase tracking-widest mt-0.5">Panel trenera</p>
           </div>
         </div>
 
