@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, createContext, useContext, ReactNode } from 'react';
 import {
   StationLiveStatus,
   TrainerWebSocketMessage,
@@ -9,7 +9,7 @@ import { getTrainerWebSocketUrl } from '../api/trainerApi';
 
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 
-interface UseTrainerWebSocketReturn {
+interface TrainerWebSocketContextValue {
   stationsMap: Map<string, StationLiveStatus>;
   connectionStatus: ConnectionStatus;
   error: string | null;
@@ -18,6 +18,8 @@ interface UseTrainerWebSocketReturn {
   clearEventLog: () => void;
   sessionsVersion: number;
 }
+
+const TrainerWebSocketContext = createContext<TrainerWebSocketContextValue | null>(null);
 
 const RECONNECT_DELAY = 3000;
 const MAX_RECONNECT_ATTEMPTS = 10;
@@ -42,9 +44,9 @@ function generateMockStations(): StationLiveStatus[] {
         active: hasAsynchrony,
         type: hasAsynchrony ? 'INEFFECTIVE_TRIGGER' : null,
       } : null,
-      pressure: isOnline ? Array.from({ length: 20 }, () => 5 + Math.random() * 15) : [],
-      flow: isOnline ? Array.from({ length: 20 }, () => -10 + Math.random() * 50) : [],
-      volume: isOnline ? Array.from({ length: 20 }, () => Math.random() * 500) : [],
+      pressure: isOnline ? Array.from({ length: 500 }, () => 5 + Math.random() * 15) : [],
+      flow: isOnline ? Array.from({ length: 500 }, () => -10 + Math.random() * 50) : [],
+      volume: isOnline ? Array.from({ length: 500 }, () => Math.random() * 500) : [],
       scenarioName: isOnline ? 'Mock Scenario' : undefined,
       lastUpdate: Date.now(),
       isRunning: isOnline,
@@ -54,7 +56,7 @@ function generateMockStations(): StationLiveStatus[] {
   return stations;
 }
 
-export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
+export function TrainerWebSocketProvider({ children }: { children: ReactNode }) {
   const [stationsMap, setStationsMap] = useState<Map<string, StationLiveStatus>>(new Map());
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [error, setError] = useState<string | null>(null);
@@ -104,15 +106,19 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
         newMap.forEach((station, stationId) => {
           if (station.status === 'online' && Math.random() > 0.5) {
             const hasAsynchrony = Math.random() > 0.6;
+            const newPressures = Array.from({ length: 20 }, () => 5 + Math.random() * 15);
+            const newFlows = Array.from({ length: 20 }, () => -10 + Math.random() * 50);
+            const newVolumes = Array.from({ length: 20 }, () => Math.random() * 500);
+
             newMap.set(stationId, {
               ...station,
               asynchrony: {
                 active: hasAsynchrony,
                 type: hasAsynchrony ? 'INEFFECTIVE_TRIGGER' : null,
               },
-              pressure: Array.from({ length: 20 }, () => 5 + Math.random() * 15),
-              flow: Array.from({ length: 20 }, () => -10 + Math.random() * 50),
-              volume: Array.from({ length: 20 }, () => Math.random() * 500),
+              pressure: [...station.pressure, ...newPressures].slice(-500),
+              flow: [...station.flow, ...newFlows].slice(-500),
+              volume: [...station.volume, ...newVolumes].slice(-500),
               lastUpdate: Date.now(),
               isRunning: true,
             });
@@ -161,9 +167,9 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
             
             message.stations.forEach(s => {
               const existing = stationsMapRef.current.get(s.stationId);
-              let pressureHistory = existing ? existing.pressure : [];
-              let flowHistory = existing ? existing.flow : [];
-              let volumeHistory = existing ? existing.volume : [];
+              let pressureHistory = existing ? existing.pressure : Array(500).fill(s.settings?.peep ?? s.settings?.epap ?? 5);
+              let flowHistory = existing ? existing.flow : Array(500).fill(0);
+              let volumeHistory = existing ? existing.volume : Array(500).fill(0);
               
               const isDuplicate = existing &&
                 s.telemetryTimestamp !== undefined &&
@@ -200,12 +206,12 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
           } else if (message.type === 'stationUpdate' && message.station) {
             setStationsMap(prev => {
               const newMap = new Map(prev);
-              const s = message.station!; console.log('StationUpdate:', s);
+              const s = message.station!;
               const existing = newMap.get(s.stationId);
               
-              let pressureHistory = existing ? existing.pressure : [];
-              let flowHistory = existing ? existing.flow : [];
-              let volumeHistory = existing ? existing.volume : [];
+              let pressureHistory = existing ? existing.pressure : Array(500).fill(s.settings?.peep ?? s.settings?.epap ?? 5);
+              let flowHistory = existing ? existing.flow : Array(500).fill(0);
+              let volumeHistory = existing ? existing.volume : Array(500).fill(0);
 
               const isDuplicate = existing &&
                 s.telemetryTimestamp !== undefined &&
@@ -293,15 +299,27 @@ export function useTrainerWebSocket(): UseTrainerWebSocketReturn {
     setEventLog([]);
   }, []);
 
-  return {
-    stationsMap,
-    connectionStatus,
-    error,
-    reconnect,
-    eventLog,
-    clearEventLog,
-    sessionsVersion,
-  };
+  return (
+    <TrainerWebSocketContext.Provider value={{
+      stationsMap,
+      connectionStatus,
+      error,
+      reconnect,
+      eventLog,
+      clearEventLog,
+      sessionsVersion
+    }}>
+      {children}
+    </TrainerWebSocketContext.Provider>
+  );
+}
+
+export function useTrainerWebSocket(): TrainerWebSocketContextValue {
+  const ctx = useContext(TrainerWebSocketContext);
+  if (!ctx) {
+    throw new Error('useTrainerWebSocket must be used within a TrainerWebSocketProvider');
+  }
+  return ctx;
 }
 
 export default useTrainerWebSocket;
