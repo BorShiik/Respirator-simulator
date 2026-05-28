@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Room } from '../types/trainer';
 import trainerApi from '../api/trainerApi';
+import { ConfirmModal } from '../components/ui/Modal';
 
 export function RoomsPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [newRoomName, setNewRoomName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [closeRoomConfirm, setCloseRoomConfirm] = useState<{ open: boolean; roomId: string | null }>({ open: false, roomId: null });
 
   useEffect(() => {
     loadRooms();
@@ -36,10 +38,13 @@ export function RoomsPage() {
     }
   };
 
-  const handleCloseRoom = async (roomId: string) => {
-    if (!confirm('Czy na pewno chcesz zamknąć ten pokój? Uczniowie nie będą mogli już do niego dołączyć.')) {
-      return;
-    }
+  const handleCloseRoom = (roomId: string) => {
+    setCloseRoomConfirm({ open: true, roomId });
+  };
+
+  const confirmCloseRoom = async () => {
+    const roomId = closeRoomConfirm.roomId;
+    if (!roomId) return;
     
     try {
       await trainerApi.closeRoom(roomId);
@@ -120,6 +125,17 @@ export function RoomsPage() {
           )}
         </ul>
       </div>
+
+      <ConfirmModal
+        isOpen={closeRoomConfirm.open}
+        onClose={() => setCloseRoomConfirm({ open: false, roomId: null })}
+        onConfirm={confirmCloseRoom}
+        title="Zamknij pokój"
+        message="Czy na pewno chcesz zamknąć ten pokój? Uczniowie nie będą mogli już do niego dołączyć."
+        confirmText="Zamknij"
+        cancelText="Anuluj"
+        type="warning"
+      />
     </div>
   );
 }

@@ -48,12 +48,24 @@ export function AnalyticsPage() {
   const trainees = useMemo(() => {
     const traineeMap = new Map<string, string>();
     sessions.forEach(s => {
-      if (!traineeMap.has(s.traineeId)) {
-        traineeMap.set(s.traineeId, s.traineeName);
+      if (selectedRoom === 'all' || s.roomId === selectedRoom) {
+        if (!traineeMap.has(s.traineeId)) {
+          traineeMap.set(s.traineeId, s.traineeName);
+        }
       }
     });
     return Array.from(traineeMap.entries()).map(([id, name]) => ({ id, name }));
-  }, [sessions]);
+  }, [sessions, selectedRoom]);
+
+  // Reset student filter if the student is not in the newly selected room
+  useEffect(() => {
+    if (selectedTrainee !== 'all') {
+      const traineeExists = trainees.some(t => t.id === selectedTrainee);
+      if (!traineeExists) {
+        setSelectedTrainee('all');
+      }
+    }
+  }, [selectedRoom, trainees, selectedTrainee]);
 
   const filteredSessions = useMemo(() => {
     let result = sessions;

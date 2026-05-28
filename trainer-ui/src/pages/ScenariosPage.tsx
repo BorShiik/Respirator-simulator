@@ -3,12 +3,14 @@ import { ScenarioList } from '../components/scenarios/ScenarioList';
 import { ScenarioEditor } from '../components/scenarios/ScenarioEditor';
 import { trainerApi } from '../api/trainerApi';
 import { Scenario, DEFAULT_PATIENT_PARAMS } from '../types/trainer';
+import { ConfirmModal } from '../components/ui/Modal';
 
 export function ScenariosPage() {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; scenarioId: string | null }>({ open: false, scenarioId: null });
 
   useEffect(() => {
     loadScenarios();
@@ -131,8 +133,13 @@ export function ScenariosPage() {
     setSelectedScenario(null);
   };
 
-  const handleDelete = async (scenarioId: string) => {
-    if (!confirm('Are you sure you want to delete this scenario?')) return;
+  const handleDelete = (scenarioId: string) => {
+    setDeleteConfirm({ open: true, scenarioId });
+  };
+
+  const confirmDelete = async () => {
+    const scenarioId = deleteConfirm.scenarioId;
+    if (!scenarioId) return;
     
     try {
       await trainerApi.deleteScenario(scenarioId);
@@ -187,6 +194,17 @@ export function ScenariosPage() {
           onDelete={handleDelete}
         />
       )}
+
+      <ConfirmModal
+        isOpen={deleteConfirm.open}
+        onClose={() => setDeleteConfirm({ open: false, scenarioId: null })}
+        onConfirm={confirmDelete}
+        title="Delete Scenario"
+        message="Are you sure you want to delete this scenario? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+      />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { trainerApi } from '../api/trainerApi';
 import { Scenario, MODE_LABELS, ASYNCHRONY_LABELS, DEFAULT_PATIENT_PARAMS } from '../types/trainer';
 import { PatientControlPanel } from '../components/stations/PatientControlPanel';
 import { EventLogFeed } from '../components/stations/EventLogFeed';
+import { AlertModal } from '../components/ui/Modal';
 
 export function StationDetailsPage() {
   const { stationId } = useParams<{ stationId: string }>();
@@ -17,6 +18,7 @@ export function StationDetailsPage() {
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>('');
   const [isAssigning, setIsAssigning] = useState(false);
   const [loadingCommand, setLoadingCommand] = useState<string | null>(null);
+  const [assignModal, setAssignModal] = useState<{ open: boolean; type: 'success' | 'error'; title: string; message: string }>({ open: false, type: 'success', title: '', message: '' });
 
   const station = stationId ? stationsMap.get(stationId) : null;
 
@@ -76,9 +78,10 @@ export function StationDetailsPage() {
     setIsAssigning(true);
     try {
       await trainerApi.assignScenario(stationId, selectedScenarioId);
-      alert('Scenario assigned successfully. Parameters updated on simulator.');
+      setAssignModal({ open: true, type: 'success', title: 'Scenariusz przypisany', message: 'Parametry zostały zaktualizowane na symulatorze studenta.' });
     } catch (error) {
       console.error('Failed to assign scenario:', error);
+      setAssignModal({ open: true, type: 'error', title: 'Błąd', message: 'Nie udało się przypisać scenariusza. Spróbuj ponownie.' });
     } finally {
       setIsAssigning(false);
     }
@@ -321,6 +324,13 @@ export function StationDetailsPage() {
           </div>
         </div>
       </div>
+      <AlertModal
+        isOpen={assignModal.open}
+        onClose={() => setAssignModal({ ...assignModal, open: false })}
+        type={assignModal.type}
+        title={assignModal.title}
+        message={assignModal.message}
+      />
     </div>
   );
 }

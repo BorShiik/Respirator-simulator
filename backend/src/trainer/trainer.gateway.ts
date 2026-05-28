@@ -434,6 +434,10 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
     return this.studentClients.get(stationId)?.studentName;
   }
 
+  public getStudentRoomId(stationId: string): string | undefined {
+    return this.studentClients.get(stationId)?.roomId;
+  }
+
   // Called locally by ScenariosService or SessionsService when Trainer initiates a scenario change etc.
   public sendCommandToStudent(stationId: string, command: string, payload: any) {
       if (command === 'set_asynchrony') {

@@ -45,11 +45,13 @@ export class TrainerController {
             // Free Practice Mode: No pending session exists, so we create one dynamically and start it immediately
             const activeSession = await this.sessionsService.findActiveSession(studentName);
             if (!activeSession) {
+                const roomId = this.trainerGateway.getStudentRoomId(studentName);
                 const newSession = await this.sessionsService.create({
                     stationId: studentName,
                     studentName: realStudentName || studentName,
                     scenarioId: undefined, // Not tied to a scenario
                     scenarioName: 'Free Practice',
+                    roomId,
                 });
                 await this.sessionsService.start(newSession.id);
             }
@@ -113,11 +115,13 @@ export class TrainerController {
     // Create a new session and start it immediately
     // (the student simulation is already running — no student_session_start will arrive)
     const realStudentName = this.trainerGateway.getStudentName(studentName);
+    const roomId = this.trainerGateway.getStudentRoomId(studentName);
     const session = await this.sessionsService.create({
       stationId: studentName, // backward compatibility
       studentName: realStudentName || studentName,
       scenarioId: body.scenarioId,
       scenarioName: scenario.name,
+      roomId,
     });
     await this.sessionsService.start(session.id);
 
