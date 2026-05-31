@@ -11,6 +11,12 @@ import { StudentLinkService } from './student-link.service';
 import { VentilatorSettings, DEFAULT_SETTINGS } from '../common/dto/ventilator.dto';
 import { GpioService } from '../hardware/gpio.service';
 
+interface ClientInfo {
+  studentName: string;
+  stationId: string | null;
+  roomCode: string | null;
+}
+
 @WebSocketGateway({
   path: '/api/stations/ws', // Listen to the same path student-ui expects
 })
@@ -20,8 +26,12 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
 
   private readonly logger = new Logger(StudentUiGateway.name);
   private activeClients: Set<WebSocket> = new Set();
-  private currentStudentName: string | null = null;
-  private currentStationId: string | null = null;
+
+  // Per-client student info
+  private clientInfoMap: Map<WebSocket, ClientInfo> = new Map();
+
+  // GPIO "active" student — the last-registered student gets hardware control
+  private gpioActiveStudent: string | null = null;
 
   constructor(
     private readonly simulationService: SimulationService,
@@ -30,8 +40,8 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
   ) {
     // Listen to hardware encoder events
     this.gpioService.on('encoder', (event) => {
-        if (!this.currentStudentName) return;
-        const currentSimState = this.simulationService.getState(this.currentStudentName);
+        if (!this.gpioActiveStudent) return;
+        const currentSimState = this.simulationService.getState(this.gpioActiveStudent);
         if (!currentSimState) return;
 
         const param = this.gpioService.getSelectedParameter();
@@ -44,10 +54,10 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
             if (param === 'ipap') updatedSettings.pinsp = newValue;
             if (param === 'epap') updatedSettings.peep = newValue;
 
-            this.simulationService.updateSettings(this.currentStudentName, updatedSettings as any);
+            this.simulationService.updateSettings(this.gpioActiveStudent, updatedSettings as any);
 
-            // Send back to all UIs immediately
-            this.broadcast({
+            // Send back only to clients of this student
+            this.broadcastToStudent(this.gpioActiveStudent, {
                 type: 'settingsUpdate',
                 settings: updatedSettings
             });
@@ -61,117 +71,118 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
     });
 
     this.gpioService.on('parameterChanged', (param) => {
-        this.broadcast({
+        // Send to all clients (parameter selection is global for GPIO)
+        this.broadcastAll({
             type: 'parameterSelected',
             parameter: param
         });
     });
 
     this.simulationService.on('patient_updated', (stationId, patient) => {
-        if (stationId === this.currentStudentName) {
-            this.broadcast({
-                type: 'status',
-                patientParams: patient
-            });
-        }
+        this.broadcastToStudent(stationId, {
+            type: 'status',
+            patientParams: patient
+        });
     });
 
     // Listen to trainer commands forwarded by StudentLinkService
-    // This ensures start/stop/reset always use the unified callback
-    // (which sends telemetry to both UI AND master)
-    this.linkService.on('trainer_continue', () => {
-        this.logger.log('Trainer requested CONTINUE');
-        this.resumeSimulation();
+    this.linkService.on('trainer_continue', (_scenarioId, studentName) => {
+        this.logger.log(`Trainer requested CONTINUE for ${studentName || 'active student'}`);
+        const target = studentName || this.gpioActiveStudent;
+        if (target) this.resumeSimulation(target);
     });
 
-    this.linkService.on('trainer_pause', () => {
-        this.logger.log('Trainer requested PAUSE');
-        this.pauseSimulation();
+    this.linkService.on('trainer_pause', (studentName) => {
+        this.logger.log(`Trainer requested PAUSE for ${studentName || 'active student'}`);
+        const target = studentName || this.gpioActiveStudent;
+        if (target) this.pauseSimulation(target);
     });
 
-    this.linkService.on('trainer_reset', () => {
-        this.logger.log('Trainer requested RESET');
-        this.resetSimulation();
+    this.linkService.on('trainer_reset', (studentName) => {
+        this.logger.log(`Trainer requested RESET for ${studentName || 'active student'}`);
+        const target = studentName || this.gpioActiveStudent;
+        if (target) this.resetSimulation(target);
     });
 
-    this.linkService.on('station_id_updated', (stationId: string) => {
-        this.logger.log(`Confirmed Station ID from Trainer: ${stationId}`);
-        this.currentStationId = stationId;
-        this.broadcast({ type: 'registered', studentName: this.currentStudentName, stationId: this.currentStationId, status: 'idle' });
+    this.linkService.on('station_id_updated', (stationId: string, studentName: string) => {
+        this.logger.log(`Confirmed Station ID from Trainer: ${stationId} for ${studentName}`);
+        // Update stationId in all clients belonging to this student
+        for (const [client, info] of this.clientInfoMap.entries()) {
+            if (info.studentName === studentName) {
+                info.stationId = stationId;
+            }
+        }
+        this.broadcastToStudent(studentName, { 
+            type: 'registered', 
+            studentName: studentName, 
+            stationId: stationId, 
+            status: 'idle' 
+        });
     });
 
     this.linkService.on('registration_error', (message: string) => {
         this.logger.warn(`Registration failed: ${message}`);
-        this.broadcast({ type: 'error', message });
+        // Send to all unregistered clients
+        this.broadcastAll({ type: 'error', message });
     });
 
     // Forward trainer connection status to student UI
     this.linkService.on('trainer_connection_status', (connected: boolean) => {
         this.logger.log(`Trainer connection status: ${connected ? 'CONNECTED' : 'DISCONNECTED'}`);
-        this.broadcast({ type: 'trainerStatus', connected });
+        this.broadcastAll({ type: 'trainerStatus', connected });
     });
 
     // Notify student UI when scenario completes
     this.simulationService.on('scenario_completed', (stationId: string, scenarioName: string) => {
-        if (stationId === this.currentStudentName) {
-            this.logger.log(`Scenario '${scenarioName}' completed — notifying student UI`);
-            this.broadcast({
-                type: 'status',
-                status: 'scenario_completed',
-                scenarioName,
-            });
-        }
+        this.logger.log(`Scenario '${scenarioName}' completed — notifying student UI for ${stationId}`);
+        this.broadcastToStudent(stationId, {
+            type: 'status',
+            status: 'scenario_completed',
+            scenarioName,
+        });
     });
 
     // Listen to settings update events from SimulationService
     this.simulationService.on('settings_updated', (stationId, settings) => {
-        if (stationId === this.currentStudentName) {
-            this.broadcast({
-                type: 'settingsUpdate',
-                settings
-            });
-        }
+        this.broadcastToStudent(stationId, {
+            type: 'settingsUpdate',
+            settings
+        });
     });
 
     // Listen to trainer settings and scenario application events
     this.linkService.on('trainer_settings_applied', (studentName) => {
-        if (studentName === this.currentStudentName) {
-            const state = this.simulationService.getState(studentName);
-            if (state) {
-                this.broadcast({
-                    type: 'status',
-                    status: this.simulationService.isSimulationRunning(studentName) ? 'running' : 'paused',
-                    scenarioName: state.scenarioName || 'Free Practice',
-                    difficulty: state.difficulty || 'EASY',
-                    patientParams: state.patient || null,
-                    settings: state.settings,
-                    asynchrony: state.asynchrony,
-                });
-            }
+        const state = this.simulationService.getState(studentName);
+        if (state) {
+            this.broadcastToStudent(studentName, {
+                type: 'status',
+                status: this.simulationService.isSimulationRunning(studentName) ? 'running' : 'paused',
+                scenarioName: state.scenarioName || 'Free Practice',
+                difficulty: state.difficulty || 'EASY',
+                patientParams: state.patient || null,
+                settings: state.settings,
+                asynchrony: state.asynchrony,
+            });
         }
     });
 
     // Listen to asynchrony events
     this.simulationService.on('asynchrony_injected', (stationId, type) => {
-        if (stationId === this.currentStudentName) {
-            const state = this.simulationService.getState(stationId);
-            this.broadcast({
-                type: 'status',
-                asynchrony: state?.asynchrony || { active: true, type },
-                patientParams: state?.patient || null,
-            });
-        }
+        const state = this.simulationService.getState(stationId);
+        this.broadcastToStudent(stationId, {
+            type: 'status',
+            asynchrony: state?.asynchrony || { active: true, type },
+            patientParams: state?.patient || null,
+        });
     });
 
     this.simulationService.on('asynchrony_resolved', (stationId, type) => {
-        if (stationId === this.currentStudentName) {
-            const state = this.simulationService.getState(stationId);
-            this.broadcast({
-                type: 'status',
-                asynchrony: state?.asynchrony || { active: false, type: null },
-                patientParams: state?.patient || null,
-            });
-        }
+        const state = this.simulationService.getState(stationId);
+        this.broadcastToStudent(stationId, {
+            type: 'status',
+            asynchrony: state?.asynchrony || { active: false, type: null },
+            patientParams: state?.patient || null,
+        });
     });
   }
 
@@ -199,29 +210,50 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
     this.logger.log('Local UI disconnected');
     this.activeClients.delete(client);
 
-    // Only stop simulation if NO clients are connected anymore
-    if (this.activeClients.size === 0 && this.currentStudentName) {
-      this.logger.log(`No active clients left, pausing simulation for ${this.currentStudentName}`);
-      this.pauseSimulation();
-      this.linkService.notifyLogout();
-      this.currentStudentName = null;
-      this.currentStationId = null;
+    const info = this.clientInfoMap.get(client);
+    this.clientInfoMap.delete(client);
+
+    if (info) {
+      const studentName = info.studentName;
+
+      // Check if any other clients are still connected for this student
+      const otherClients = this.getClientsForStudent(studentName);
+
+      if (otherClients.length === 0) {
+        // Last client for this student — pause simulation and notify trainer
+        this.logger.log(`No active clients left for ${studentName}, pausing simulation`);
+        this.pauseSimulation(studentName);
+        this.linkService.notifyLogout(studentName);
+
+        // If this was the GPIO-active student, clear it
+        if (this.gpioActiveStudent === studentName) {
+          this.gpioActiveStudent = null;
+          // Pick another student if there are any
+          const remainingStudents = this.getActiveStudentNames();
+          if (remainingStudents.length > 0) {
+            this.gpioActiveStudent = remainingStudents[0];
+          }
+        }
+      }
     }
   }
 
   private handleMessage(client: WebSocket, message: any) {
+    const clientInfo = this.clientInfoMap.get(client);
+    const studentName = clientInfo?.studentName;
+
     switch (message.type || message.event) {
       case 'register':
         const name = (message.data?.studentName || message.studentName)?.trim();
         const roomCode = (message.data?.roomCode || message.roomCode)?.trim();
         if (name) {
-          this.registerStudent(name, roomCode);
+          this.registerStudent(client, name, roomCode);
         }
         break;
 
       case 'settingsUpdate':
-        if (this.currentStudentName && message.settings) {
-          this.simulationService.updateSettings(this.currentStudentName, message.settings);
+        if (studentName && message.settings) {
+          this.simulationService.updateSettings(studentName, message.settings);
         }
         break;
 
@@ -232,83 +264,98 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
         break;
 
       case 'start':
-        this.startSimulation();
+        if (studentName) this.startSimulation(studentName);
         break;
 
       case 'stop':
-        this.stopSimulation();
+        if (studentName) this.stopSimulation(studentName);
         break;
 
       case 'pause':
-        this.pauseSimulation();
+        if (studentName) this.pauseSimulation(studentName);
         break;
 
       case 'continue':
-        this.resumeSimulation();
+        if (studentName) this.resumeSimulation(studentName);
         break;
 
       case 'reset':
-        this.resetSimulation();
+        if (studentName) this.resetSimulation(studentName);
         break;
       
       case 'logout':
-        if (this.currentStudentName) {
-           this.pauseSimulation();
-           this.linkService.notifyLogout();
+        this.clientInfoMap.delete(client);
+        this.sendToClient(client, { type: 'loggedOut', status: 'idle' });
+
+        // Only pause simulation and notify trainer if no other clients remain for this student
+        if (studentName) {
+          const remaining = this.getClientsForStudent(studentName);
+          if (remaining.length === 0) {
+            this.pauseSimulation(studentName);
+            this.linkService.notifyLogout(studentName);
+            if (this.gpioActiveStudent === studentName) {
+              this.gpioActiveStudent = null;
+              const others = this.getActiveStudentNames();
+              if (others.length > 0) {
+                this.gpioActiveStudent = others[0];
+              }
+            }
+          }
         }
-        this.currentStudentName = null;
-        this.currentStationId = null;
-        this.broadcast({ type: 'loggedOut', status: 'idle' });
         break;
 
       case 'set_asynchrony':
-        if (this.currentStudentName && message.asynchronyType !== undefined) {
-          this.simulationService.injectAsynchrony(this.currentStudentName, message.asynchronyType);
+        if (studentName && message.asynchronyType !== undefined) {
+          this.simulationService.injectAsynchrony(studentName, message.asynchronyType);
         }
         break;
     }
   }
 
-  public registerStudent(name: string, roomCode?: string) {
-    this.currentStudentName = name;
+  public registerStudent(client: WebSocket, name: string, roomCode?: string) {
+    // Store per-client info
+    const info: ClientInfo = {
+      studentName: name,
+      stationId: null,
+      roomCode: roomCode || null,
+    };
+    this.clientInfoMap.set(client, info);
+
+    // Set GPIO active student to the most recently registered
+    this.gpioActiveStudent = name;
     
     if (roomCode === 'LEARN') {
-      this.currentStationId = 'LEARN';
-      this.broadcast({ type: 'registered', studentName: name, stationId: 'LEARN', status: 'idle' });
+      info.stationId = 'LEARN';
+      this.sendToClient(client, { type: 'registered', studentName: name, stationId: 'LEARN', status: 'idle' });
     } else {
-      // We no longer generate a random station ID locally. 
-      // We wait for the Trainer to assign an incrementing numeric ID.
-      this.currentStationId = null; 
-      
       // Register upstream - Trainer will assign an ID and send it back
       this.linkService.registerWithMaster(name, roomCode);
     }
 
-    // Check if simulation already exists
+    // Check if simulation already exists for this student
     const existingState = this.simulationService.getState(name);
     if (existingState) {
-       this.resumeSimulation();
+       this.resumeSimulation(name);
     } else {
-       this.startSimulation(roomCode === 'LEARN' ? 'Tryb Nauki' : 'Free Practice');
+       this.startSimulation(name, roomCode === 'LEARN' ? 'Tryb Nauki' : 'Free Practice');
     }
   }
 
-  public startSimulation(scenarioName: string = 'Free Practice') {
-    if (!this.currentStudentName) return;
-    const name = this.currentStudentName;
+  public startSimulation(studentName: string, scenarioName: string = 'Free Practice') {
+    if (!studentName) return;
 
-    this.simulationService.startSimulation(name, scenarioName, (telemetry) => {
-      // Send locally to all UIs
-      this.broadcast({
+    this.simulationService.startSimulation(studentName, scenarioName, (telemetry) => {
+      // Send locally only to clients of this student
+      this.broadcastToStudent(studentName, {
         type: 'telemetry',
         ...telemetry
       });
       // Send to master
-      this.linkService.sendTelemetryToMaster(telemetry);
+      this.linkService.sendTelemetryToMaster(studentName, telemetry);
     });
 
-    const state = this.simulationService.getState(name);
-    this.broadcast({ 
+    const state = this.simulationService.getState(studentName);
+    this.broadcastToStudent(studentName, { 
       type: 'status', 
       status: 'running', 
       scenarioName, 
@@ -316,29 +363,29 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
       patientParams: state?.patient || null,
       settings: state?.settings || null,
       asynchrony: state?.asynchrony || null,
-      studentName: name 
+      studentName: studentName 
     });
 
-    this.linkService.sendSimulationStatusToMaster('running');
+    this.linkService.sendSimulationStatusToMaster(studentName, 'running');
 
     // Notify trainer to create/start a session for analytics
-    this.linkService.notifySessionStart(scenarioName);
+    this.linkService.notifySessionStart(studentName, scenarioName);
   }
 
-  public stopSimulation() {
-    if (!this.currentStudentName) return;
-    this.simulationService.stopSimulation(this.currentStudentName);
-    this.broadcast({ type: 'status', status: 'stopped' });
+  public stopSimulation(studentName: string) {
+    if (!studentName) return;
+    this.simulationService.stopSimulation(studentName);
+    this.broadcastToStudent(studentName, { type: 'status', status: 'stopped' });
 
     // Notify trainer to complete the active session
-    this.linkService.notifySessionStop();
+    this.linkService.notifySessionStop(studentName);
   }
 
-  public pauseSimulation() {
-    if (!this.currentStudentName) return;
-    this.simulationService.pauseSimulation(this.currentStudentName);
-    const state = this.simulationService.getState(this.currentStudentName);
-    this.broadcast({ 
+  public pauseSimulation(studentName: string) {
+    if (!studentName) return;
+    this.simulationService.pauseSimulation(studentName);
+    const state = this.simulationService.getState(studentName);
+    this.broadcastToStudent(studentName, { 
       type: 'status', 
       status: 'paused',
       scenarioName: state?.scenarioName || 'Free Practice',
@@ -347,15 +394,15 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
       settings: state?.settings || null,
       asynchrony: state?.asynchrony || null,
     });
-    this.linkService.sendSimulationStatusToMaster('paused');
+    this.linkService.sendSimulationStatusToMaster(studentName, 'paused');
   }
 
-  public resumeSimulation() {
-    if (!this.currentStudentName) return;
-    this.simulationService.resumeSimulation(this.currentStudentName);
-    const state = this.simulationService.getState(this.currentStudentName);
+  public resumeSimulation(studentName: string) {
+    if (!studentName) return;
+    this.simulationService.resumeSimulation(studentName);
+    const state = this.simulationService.getState(studentName);
     const scenarioName = state?.scenarioName;
-    this.broadcast({ 
+    this.broadcastToStudent(studentName, { 
       type: 'status', 
       status: 'running', 
       scenarioName: scenarioName || 'Free Practice', 
@@ -363,18 +410,18 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
       patientParams: state?.patient || null,
       settings: state?.settings || null,
       asynchrony: state?.asynchrony || null,
-      studentName: this.currentStudentName 
+      studentName: studentName 
     });
-    this.linkService.sendSimulationStatusToMaster('running');
+    this.linkService.sendSimulationStatusToMaster(studentName, 'running');
   }
 
-  public resetSimulation() {
-    if (!this.currentStudentName) return;
-    this.simulationService.resetSimulation(this.currentStudentName);
-    this.simulationService.resumeSimulation(this.currentStudentName);
-    const state2 = this.simulationService.getState(this.currentStudentName);
+  public resetSimulation(studentName: string) {
+    if (!studentName) return;
+    this.simulationService.resetSimulation(studentName);
+    this.simulationService.resumeSimulation(studentName);
+    const state2 = this.simulationService.getState(studentName);
     const scenarioName2 = state2?.scenarioName;
-    this.broadcast({ 
+    this.broadcastToStudent(studentName, { 
       type: 'status', 
       status: 'reset', 
       scenarioName: scenarioName2 || 'Free Practice', 
@@ -382,12 +429,61 @@ export class StudentUiGateway implements OnGatewayConnection, OnGatewayDisconnec
       patientParams: state2?.patient || null,
       settings: state2?.settings || null,
       asynchrony: state2?.asynchrony || null,
-      studentName: this.currentStudentName 
+      studentName: studentName 
     });
-    this.linkService.sendSimulationStatusToMaster('running');
+    this.linkService.sendSimulationStatusToMaster(studentName, 'running');
   }
 
-  private broadcast(message: any) {
+  // ── Helpers ──────────────────────────────────────────
+
+  /** Get all connected WebSocket clients for a given student name */
+  private getClientsForStudent(studentName: string): WebSocket[] {
+    const clients: WebSocket[] = [];
+    for (const [client, info] of this.clientInfoMap.entries()) {
+      if (info.studentName === studentName && client.readyState === WebSocket.OPEN) {
+        clients.push(client);
+      }
+    }
+    return clients;
+  }
+
+  /** Get all unique student names currently connected */
+  private getActiveStudentNames(): string[] {
+    const names = new Set<string>();
+    for (const info of this.clientInfoMap.values()) {
+      names.add(info.studentName);
+    }
+    return Array.from(names);
+  }
+
+  /** Get the stationId for a given student name (from any connected client) */
+  public getStationIdForStudent(studentName: string): string | null {
+    for (const info of this.clientInfoMap.values()) {
+      if (info.studentName === studentName && info.stationId) {
+        return info.stationId;
+      }
+    }
+    return null;
+  }
+
+  private sendToClient(client: WebSocket, data: any) {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify(data));
+    }
+  }
+
+  /** Send message only to clients registered as the given student */
+  private broadcastToStudent(studentName: string, message: any) {
+    const payload = JSON.stringify(message);
+    for (const [client, info] of this.clientInfoMap.entries()) {
+      if (info.studentName === studentName && client.readyState === WebSocket.OPEN) {
+        client.send(payload);
+      }
+    }
+  }
+
+  /** Send message to ALL connected clients (e.g. trainer status) */
+  private broadcastAll(message: any) {
     const payload = JSON.stringify(message);
     this.activeClients.forEach(client => {
       if (client.readyState === WebSocket.OPEN) {

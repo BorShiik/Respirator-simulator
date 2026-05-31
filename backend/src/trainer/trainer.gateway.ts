@@ -58,16 +58,22 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
       this.trainerClients.delete(client);
     }
 
-    if (client.isRemoteStudent && client.stationId) {
-      this.logger.log(`Remote Student disconnected: ${client.studentName} from ${client.stationId}`);
-      this.studentClients.delete(client.stationId);
+    if (client.isRemoteStudent) {
+      this.logger.log(`Remote Student physical connection disconnected: ${client.studentName || 'unknown'}`);
       
-      // DO NOT auto-abort the session so it can be resumed
-      
-      // Mark as disconnected but keep last known telemetry for reference
-      const state = this.studentStates.get(client.stationId);
-      if (state) {
-        state.status = 'offline';
+      // Find all stationIds mapped to this socket and mark them offline
+      let changed = false;
+      for (const [stationId, mappedClient] of this.studentClients.entries()) {
+        if (mappedClient === client) {
+          this.studentClients.delete(stationId);
+          const state = this.studentStates.get(stationId);
+          if (state) {
+            state.status = 'offline';
+            changed = true;
+          }
+        }
+      }
+      if (changed) {
         this.notifyStudentChange();
       }
     }
@@ -97,7 +103,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
          if (!room.isActive) {
            this.sendToClient(client, {
               type: 'registration_error',
-              message: 'Pokój został już zamknięty przez trenera.'
+              message: 'Pokój został już zamknięty przez treнера.'
            });
            return;
          }
@@ -164,57 +170,67 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
       // Handle explicit logout from student
       if (msg.type === 'remote_student_logout' && client.isRemoteStudent) {
-         const state = this.studentStates.get(client.stationId!);
-         if (state) {
-            state.status = 'offline';
-            this.logger.log(`Remote Student explicitly logged out: ${msg.studentName}`);
-            this.notifyStudentChange();
+         const stationId = msg.studentName ? this.stationIdMapping.get(msg.studentName) : client.stationId;
+         if (stationId) {
+            this.studentClients.delete(stationId);
+            const state = this.studentStates.get(stationId);
+            if (state) {
+               state.status = 'offline';
+               this.logger.log(`Remote Student explicitly logged out: ${msg.studentName}`);
+               this.notifyStudentChange();
+            }
          }
          return;
       }
 
       // 2. Handle Student Telemetry
       if (msg.type === 'remote_student_telemetry' && client.isRemoteStudent) {
-         const state = this.studentStates.get(client.stationId!);
-         if (state) {
-            state.telemetry = msg.telemetry;
-            state.status = 'online'; // (running)
-            state.lastUpdate = Date.now();
-            // Track difficulty from telemetry
-            if (msg.telemetry.difficulty) {
-              state.difficulty = msg.telemetry.difficulty;
+         const stationId = msg.stationId || (msg.studentName ? this.stationIdMapping.get(msg.studentName) : null) || client.stationId;
+         if (stationId) {
+            const state = this.studentStates.get(stationId);
+            if (state) {
+               state.telemetry = msg.telemetry;
+               state.status = 'online'; // (running)
+               state.lastUpdate = Date.now();
+               // Track difficulty from telemetry
+               if (msg.telemetry.difficulty) {
+                 state.difficulty = msg.telemetry.difficulty;
+               }
+               
+               // Forward instantly to connected trainers
+               this.broadcast({
+                 type: 'stationUpdate',
+                 station: {
+                    stationId: stationId,
+                    studentName: msg.studentName || state.studentName || client.studentName,
+                    status: state.status,
+                    isRunning: state.simulationStatus !== 'paused',
+                    scenarioName: state.scenarioName || state.telemetry.scenarioName,
+                    difficulty: state.difficulty || 'EASY',
+                    settings: state.telemetry.settings,
+                    asynchrony: state.telemetry.asynchrony,
+                    pressure: state.telemetry.pressure,
+                    flow: state.telemetry.flow,
+                    volume: state.telemetry.volume,
+                    assignedAsynchronyType: state.assignedAsynchronyType,
+                    lastUpdate: state.lastUpdate,
+                    telemetryTimestamp: state.telemetry.timestamp,
+                 }
+               });
             }
-            
-            // Forward instantly to connected trainers
-            this.broadcast({
-              type: 'stationUpdate',
-              station: {
-                 stationId: client.stationId,
-                 studentName: client.studentName,
-                 status: state.status,
-                 isRunning: state.simulationStatus !== 'paused',
-                 scenarioName: state.scenarioName || state.telemetry.scenarioName,
-                 difficulty: state.difficulty || 'EASY',
-                 settings: state.telemetry.settings,
-                 asynchrony: state.telemetry.asynchrony,
-                 pressure: state.telemetry.pressure,
-                 flow: state.telemetry.flow,
-                 volume: state.telemetry.volume,
-                 assignedAsynchronyType: state.assignedAsynchronyType,
-                 lastUpdate: state.lastUpdate,
-                 telemetryTimestamp: state.telemetry.timestamp,
-              }
-            });
          }
          return;
       }
 
       // 2b. Handle direct simulation active status updates
       if (msg.type === 'remote_student_status' && client.isRemoteStudent) {
-         const state = this.studentStates.get(client.stationId!);
-         if (state) {
-            state.simulationStatus = msg.status;
-            this.notifyStudentChange();
+         const stationId = msg.stationId || (msg.studentName ? this.stationIdMapping.get(msg.studentName) : null) || client.stationId;
+         if (stationId) {
+            const state = this.studentStates.get(stationId);
+            if (state) {
+               state.simulationStatus = msg.status;
+               this.notifyStudentChange();
+            }
          }
          return;
       }
@@ -238,126 +254,134 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
       // 4. Handle Analytics Events from Student
       if (msg.type === 'student_event' && client.isRemoteStudent) {
-         // Forward event to trainer UI clients for Event Log
-         this.broadcastEventLog({
-           stationId: client.stationId!,
-           studentName: client.studentName,
-           timestamp: Date.now(),
-           event: msg.event,
-           details: {
-             parameter: msg.parameter,
-             previousValue: msg.previousValue,
-             newValue: msg.newValue,
-             asynchronyType: msg.asynchronyType,
-             wasAsynchronyActive: msg.wasAsynchronyActive,
-           },
-         });
+         const stationId = msg.stationId || (msg.studentName ? this.stationIdMapping.get(msg.studentName) : null) || client.stationId;
+         if (stationId) {
+            const studentName = msg.studentName || client.studentName;
+            // Forward event to trainer UI clients for Event Log
+            this.broadcastEventLog({
+              stationId: stationId,
+              studentName: studentName,
+              timestamp: Date.now(),
+              event: msg.event,
+              details: {
+                parameter: msg.parameter,
+                previousValue: msg.previousValue,
+                newValue: msg.newValue,
+                asynchronyType: msg.asynchronyType,
+                wasAsynchronyActive: msg.wasAsynchronyActive,
+              },
+            });
 
-         const act = async () => {
-             const activeSession = await this.sessionsService.findActiveSession(client.stationId!);
-             if (activeSession) {
-                 if (msg.event === 'setting_change') {
-                     await this.sessionsService.logSettingChange(
-                         activeSession.id,
-                         msg.parameter,
-                         msg.previousValue,
-                         msg.newValue,
-                         msg.wasAsynchronyActive,
-                         msg.asynchronyType
-                     );
-                 } else if (msg.event === 'asynchrony_resolved') {
-                     await this.sessionsService.logAsynchronyEnd(activeSession.id, msg.asynchronyType);
-                 } else if (msg.event === 'asynchrony_injected') {
-                      const state = this.studentStates.get(client.stationId!);
-                      if (state) {
-                         state.assignedAsynchronyType = msg.asynchronyType;
-                      }
-                      await this.sessionsService.logAsynchronyStart(activeSession.id, msg.asynchronyType);
-                 } else if (msg.event === 'scenario_completed') {
-                      // Scenario completed — mark session as completed for analytics
-                      this.logger.log(`Scenario completed for station ${client.stationId} — completing session ${activeSession.id}`);
-                      await this.sessionsService.complete(activeSession.id, activeSession.initialSettings);
-                      this.broadcastSessionsUpdate();
-                      this.broadcastEventLog({
-                        stationId: client.stationId!,
-                        studentName: client.studentName,
-                        timestamp: Date.now(),
-                        event: 'SCENARIO_COMPLETED',
-                        details: { scenarioName: msg.scenarioName },
-                      });
-                 }
-             }
-         };
-         act().catch(e => console.error('Failed to log student event', e));
+            const act = async () => {
+                const activeSession = await this.sessionsService.findActiveSession(stationId);
+                if (activeSession) {
+                    if (msg.event === 'setting_change') {
+                        await this.sessionsService.logSettingChange(
+                            activeSession.id,
+                            msg.parameter,
+                            msg.previousValue,
+                            msg.newValue,
+                            msg.wasAsynchronyActive,
+                            msg.asynchronyType
+                        );
+                    } else if (msg.event === 'asynchrony_resolved') {
+                        await this.sessionsService.logAsynchronyEnd(activeSession.id, msg.asynchronyType);
+                    } else if (msg.event === 'asynchrony_injected') {
+                         const state = this.studentStates.get(stationId);
+                         if (state) {
+                            state.assignedAsynchronyType = msg.asynchronyType;
+                         }
+                         await this.sessionsService.logAsynchronyStart(activeSession.id, msg.asynchronyType);
+                    } else if (msg.event === 'scenario_completed') {
+                         // Scenario completed — mark session as completed for analytics
+                         this.logger.log(`Scenario completed for station ${stationId} — completing session ${activeSession.id}`);
+                         await this.sessionsService.complete(activeSession.id, activeSession.initialSettings);
+                         this.broadcastSessionsUpdate();
+                         this.broadcastEventLog({
+                           stationId: stationId,
+                           studentName: studentName,
+                           timestamp: Date.now(),
+                           event: 'SCENARIO_COMPLETED',
+                           details: { scenarioName: msg.scenarioName },
+                         });
+                    }
+                }
+            };
+            act().catch(e => console.error('Failed to log student event', e));
+         }
          return;
       }
 
       // 5. Handle Session Lifecycle from Student
       if (msg.type === 'student_session_start' && client.isRemoteStudent) {
-         const act = async () => {
-             const stationId = client.stationId!;
-             const studentName = client.studentName;
-             const scenarioName = msg.scenarioName || 'Free Practice';
-             
-             // Check if there's already a pending session (assigned by trainer)
-             const pendingSession = await this.sessionsService.findPendingSession(stationId);
-             if (pendingSession) {
-                 // Trainer already assigned a scenario → use that session and set studentName
-                 await this.sessionsService.start(pendingSession.id, studentName);
-                 this.logger.log(`Started pending session ${pendingSession.id} for ${stationId} (${studentName})`);
-             } else {
-                 // No pending session → check if there's already a running one
-                 const activeSession = await this.sessionsService.findActiveSession(stationId);
-                 if (!activeSession) {
-                     // Create and immediately start a new session
-                     const newSession = await this.sessionsService.create({
-                         stationId: stationId,
-                         studentName,
-                         scenarioName,
-                         roomId: client.roomId,
-                     });
-                     await this.sessionsService.start(newSession.id);
-                     this.logger.log(`Created & started new session for ${stationId} (${scenarioName})`);
-                 } else {
-                     // Update student name in the active session if it doesn't match
-                     if (studentName && activeSession.studentName !== studentName) {
-                         await this.sessionsService.updateStudentName(activeSession.id, studentName);
-                         this.broadcastSessionsUpdate();
-                     }
-                 }
-             }
+         const stationId = msg.stationId || (msg.studentName ? this.stationIdMapping.get(msg.studentName) : null) || client.stationId;
+         if (stationId) {
+            const act = async () => {
+                const studentName = msg.studentName || client.studentName;
+                const scenarioName = msg.scenarioName || 'Free Practice';
+                
+                // Check if there's already a pending session (assigned by trainer)
+                const pendingSession = await this.sessionsService.findPendingSession(stationId);
+                if (pendingSession) {
+                    // Trainer already assigned a scenario → use that session and set studentName
+                    await this.sessionsService.start(pendingSession.id, studentName);
+                    this.logger.log(`Started pending session ${pendingSession.id} for ${stationId} (${studentName})`);
+                } else {
+                    // No pending session → check if there's already a running one
+                    const activeSession = await this.sessionsService.findActiveSession(stationId);
+                    if (!activeSession) {
+                        // Create and immediately start a new session
+                        const newSession = await this.sessionsService.create({
+                            stationId: stationId,
+                            studentName,
+                            scenarioName,
+                            roomId: client.roomId,
+                        });
+                        await this.sessionsService.start(newSession.id);
+                        this.logger.log(`Created & started new session for ${stationId} (${scenarioName})`);
+                    } else {
+                        // Update student name in the active session if it doesn't match
+                        if (studentName && activeSession.studentName !== studentName) {
+                            await this.sessionsService.updateStudentName(activeSession.id, studentName);
+                            this.broadcastSessionsUpdate();
+                        }
+                    }
+                }
 
-             this.broadcastEventLog({
-                 stationId: stationId,
-                 studentName: studentName,
-                 timestamp: Date.now(),
-                 event: 'SESSION_START',
-                 details: { scenarioName },
-             });
-         };
-         act().catch(e => console.error('Failed to handle student_session_start', e));
+                this.broadcastEventLog({
+                    stationId: stationId,
+                    studentName: studentName,
+                    timestamp: Date.now(),
+                    event: 'SESSION_START',
+                    details: { scenarioName },
+                });
+            };
+            act().catch(e => console.error('Failed to handle student_session_start', e));
+         }
          return;
       }
 
       if (msg.type === 'student_session_stop' && client.isRemoteStudent) {
-         const act = async () => {
-             const stationId = client.stationId!;
-             const activeSession = await this.sessionsService.findActiveSession(stationId);
-              if (activeSession) {
-                  await this.sessionsService.complete(activeSession.id, activeSession.initialSettings);
-                  this.logger.log(`Completed session ${activeSession.id} for ${stationId}`);
-                  this.broadcastSessionsUpdate();
-              }
+         const stationId = msg.stationId || (msg.studentName ? this.stationIdMapping.get(msg.studentName) : null) || client.stationId;
+         if (stationId) {
+            const act = async () => {
+                const activeSession = await this.sessionsService.findActiveSession(stationId);
+                if (activeSession) {
+                    await this.sessionsService.complete(activeSession.id, activeSession.initialSettings);
+                    this.logger.log(`Completed session ${activeSession.id} for ${stationId}`);
+                    this.broadcastSessionsUpdate();
+                }
 
-             this.broadcastEventLog({
-                 stationId: stationId,
-                 studentName: client.studentName,
-                 timestamp: Date.now(),
-                 event: 'SESSION_STOP',
-                 details: {},
-             });
-         };
-         act().catch(e => console.error('Failed to handle student_session_stop', e));
+                this.broadcastEventLog({
+                    stationId: stationId,
+                    studentName: msg.studentName || client.studentName,
+                    timestamp: Date.now(),
+                    event: 'SESSION_STOP',
+                    details: {},
+                });
+            };
+            act().catch(e => console.error('Failed to handle student_session_stop', e));
+         }
          return;
       }
 
@@ -460,6 +484,7 @@ export class TrainerGateway implements OnGatewayConnection, OnGatewayDisconnect 
           target.send(JSON.stringify({
               type: 'trainer_command',
               command,
+              stationId,
               ...payload
           }));
       }

@@ -7,6 +7,12 @@ import { EventEmitter } from 'events';
 
 const DISCOVERY_PORT = 41234;
 
+interface RegisteredStudent {
+  studentName: string;
+  stationId: string | null;
+  roomCode: string | null;
+}
+
 @Injectable()
 export class StudentLinkService extends EventEmitter implements OnModuleInit, OnModuleDestroy {
   private ws: WebSocket | null = null;
@@ -18,6 +24,11 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
   private isDiscovering = false;
   private isConnected = false;
   private _trainerApplying = false; // Suppress forwarding when trainer applies settings
+
+  // Multi-student support: map studentName -> RegisteredStudent
+  private registeredStudents: Map<string, RegisteredStudent> = new Map();
+
+  // Legacy compat: keep single references for backward compatibility during transition
   public currentStudentName: string | null = null;
   public currentRoomCode: string | null = null;
   public currentStationId: string | null = null;
@@ -30,16 +41,22 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     this.currentStationId = stationId;
   }
 
+  /** Get stationId for a given student name */
+  public getStationId(studentName: string): string | null {
+    return this.registeredStudents.get(studentName)?.stationId || null;
+  }
+
   onModuleInit() {
     // Subscribe to simulation events for analytics forwarding
     this.simulationService.on('setting_changed', (stationId, param, prev, curr, wasAsync, asyncType) => {
        // Skip forwarding when the trainer itself is applying settings (scenario assignment)
        if (this._trainerApplying) return;
-       if (stationId === this.currentStudentName && this.ws?.readyState === 1) {
+       const student = this.registeredStudents.get(stationId);
+       if (student && this.ws?.readyState === 1) {
           this.ws.send(JSON.stringify({
              type: 'student_event',
-             stationId: this.currentStationId,
-             studentName: this.currentStudentName,
+             stationId: student.stationId,
+             studentName: student.studentName,
              event: 'setting_change',
              parameter: param,
              previousValue: prev,
@@ -51,11 +68,12 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     });
 
     this.simulationService.on('asynchrony_injected', (stationId, type) => {
-       if (stationId === this.currentStudentName && this.ws?.readyState === 1) {
+       const student = this.registeredStudents.get(stationId);
+       if (student && this.ws?.readyState === 1) {
           this.ws.send(JSON.stringify({
              type: 'student_event',
-             stationId: this.currentStationId,
-             studentName: this.currentStudentName,
+             stationId: student.stationId,
+             studentName: student.studentName,
              event: 'asynchrony_injected',
              asynchronyType: type
           }));
@@ -65,11 +83,12 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     // NOTE: Duplicate setting_changed listener was removed (was causing 2x counting)
 
     this.simulationService.on('asynchrony_resolved', (stationId, type) => {
-       if (stationId === this.currentStudentName && this.ws?.readyState === 1) {
+       const student = this.registeredStudents.get(stationId);
+       if (student && this.ws?.readyState === 1) {
           this.ws.send(JSON.stringify({
              type: 'student_event',
-             stationId: this.currentStationId,
-             studentName: this.currentStudentName,
+             stationId: student.stationId,
+             studentName: student.studentName,
              event: 'asynchrony_resolved',
              asynchronyType: type
           }));
@@ -77,17 +96,18 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     });
 
     this.simulationService.on('scenario_completed', (stationId, scenarioName) => {
-       if (stationId === this.currentStudentName && this.ws?.readyState === 1) {
+       const student = this.registeredStudents.get(stationId);
+       if (student && this.ws?.readyState === 1) {
           this.logger.log(`Scenario '${scenarioName}' completed — notifying trainer`);
           this.ws.send(JSON.stringify({
              type: 'student_event',
-             stationId: this.currentStationId,
-             studentName: this.currentStudentName,
+             stationId: student.stationId,
+             studentName: student.studentName,
              event: 'scenario_completed',
              scenarioName,
           }));
           // Notify trainer to complete the session
-          this.notifySessionStop();
+          this.notifySessionStop(stationId);
        }
     });
 
@@ -205,8 +225,16 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
       this.isConnected = true;
       this.logger.log('✅ Connected to Trainer');
       this.emit('trainer_connection_status', true);
-      if (this.currentStudentName) {
-        this.registerWithMaster(this.currentStudentName, this.currentRoomCode || undefined);
+
+      // Re-register all known students on reconnect
+      for (const student of this.registeredStudents.values()) {
+        this.logger.log(`Re-registering student "${student.studentName}" with Trainer...`);
+        this.ws.send(JSON.stringify({ 
+          type: 'remote_student_register', 
+          stationId: student.stationId,
+          studentName: student.studentName,
+          roomCode: student.roomCode
+        }));
       }
     });
 
@@ -247,9 +275,12 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
       
       if (msg.type === 'registration_success') {
           this.logger.log(`Successfully registered as ${msg.studentName} on Trainer (Assigned Station ID: ${msg.stationId})`);
-          if (msg.stationId) {
+          const student = this.registeredStudents.get(msg.studentName);
+          if (student && msg.stationId) {
+             student.stationId = msg.stationId;
+             // Update legacy compat fields
              this.currentStationId = msg.stationId;
-             this.emit('station_id_updated', msg.stationId);
+             this.emit('station_id_updated', msg.stationId, msg.studentName);
           }
           return;
       }
@@ -260,69 +291,73 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
           return;
       }
 
-      if (!this.currentStudentName) {
-          this.logger.warn('Received message from Trainer but no student name is set locally');
+      // Determine which student this trainer command targets
+      // The trainer sends commands to a specific stationId — find the corresponding student
+      const targetStudentName = this.findStudentByStationId(msg.stationId) || this.currentStudentName;
+      
+      if (!targetStudentName) {
+          this.logger.warn('Received message from Trainer but cannot determine target student');
           return;
       }
 
       switch (msg.type) {
         case 'update_settings':
-          this.logger.log(`Received update_settings (scenario=${msg.scenarioName || 'none'}, difficulty=${msg.difficulty || 'none'}, blocks=${msg.scenario?.blocks?.length || 0})`);
+          this.logger.log(`Received update_settings for ${targetStudentName} (scenario=${msg.scenarioName || 'none'}, difficulty=${msg.difficulty || 'none'}, blocks=${msg.scenario?.blocks?.length || 0})`);
           this._trainerApplying = true;
           if (msg.settings) {
-            this.simulationService.updateSettings(this.currentStudentName, msg.settings);
+            this.simulationService.updateSettings(targetStudentName, msg.settings);
           }
           this._trainerApplying = false;
           if (msg.scenario) {
-            const state = this.simulationService.getState(this.currentStudentName);
+            const state = this.simulationService.getState(targetStudentName);
             if (state) {
                state.scenarioName = msg.scenario.name;
                state.difficulty = msg.difficulty || msg.scenario.difficulty || 'EASY';
-               this.simulationService.applyScenarioEvents(this.currentStudentName, msg.scenario.blocks || [], msg.scenario.durationSeconds || 0);
+               this.simulationService.applyScenarioEvents(targetStudentName, msg.scenario.blocks || [], msg.scenario.durationSeconds || 0);
             }
           }
-          this.emit('trainer_settings_applied', this.currentStudentName);
+          this.emit('trainer_settings_applied', targetStudentName);
           break;
         case 'set_asynchrony':
-          this.simulationService.injectAsynchrony(this.currentStudentName, msg.asynchronyType);
+          this.simulationService.injectAsynchrony(targetStudentName, msg.asynchronyType);
           break;
         case 'update_patient':
-          this.simulationService.updatePatientParameters(this.currentStudentName, msg.parameters);
+          this.simulationService.updatePatientParameters(targetStudentName, msg.parameters);
           break;
         case 'trainer_command':
           // Emit events instead of calling SimulationService directly
           // StudentUiGateway subscribes to these and uses the unified callback
           if (msg.command === 'pause') {
-             this.logger.log('Trainer command: pause');
-             this.emit('trainer_pause');
+             this.logger.log(`Trainer command: pause for ${targetStudentName}`);
+             this.emit('trainer_pause', targetStudentName);
           } else if (msg.command === 'continue') {
-             this.logger.log('Trainer command: continue');
-             this.emit('trainer_continue', msg.scenarioId);
+             this.logger.log(`Trainer command: continue for ${targetStudentName}`);
+             this.emit('trainer_continue', msg.scenarioId, targetStudentName);
           } else if (msg.command === 'update_settings') {
-             this.logger.log(`Trainer command: update_settings (scenario=${msg.scenario?.name || 'none'}, difficulty=${msg.difficulty || 'none'}, blocks=${msg.scenario?.blocks?.length || 0})`);
+             this.logger.log(`Trainer command: update_settings for ${targetStudentName} (scenario=${msg.scenario?.name || 'none'}, difficulty=${msg.difficulty || 'none'}, blocks=${msg.scenario?.blocks?.length || 0})`);
              this._trainerApplying = true;
              if (msg.settings) {
-                this.simulationService.updateSettings(this.currentStudentName, msg.settings);
+                this.simulationService.updateSettings(targetStudentName, msg.settings);
              }
              this._trainerApplying = false;
              if (msg.scenario) {
-                const state = this.simulationService.getState(this.currentStudentName);
+                const state = this.simulationService.getState(targetStudentName);
                 if (state) {
                    state.scenarioName = msg.scenario.name;
                    state.difficulty = msg.difficulty || msg.scenario.difficulty || 'EASY';
-                   this.simulationService.applyScenarioEvents(this.currentStudentName, msg.scenario.blocks || [], msg.scenario.durationSeconds || 0);
+                   this.simulationService.applyScenarioEvents(targetStudentName, msg.scenario.blocks || [], msg.scenario.durationSeconds || 0);
                 }
              }
-             this.emit('trainer_settings_applied', this.currentStudentName);
+             this.emit('trainer_settings_applied', targetStudentName);
           } else if (msg.command === 'reset') {
-             this.logger.log('Trainer command: reset');
-             this.emit('trainer_reset');
+             this.logger.log(`Trainer command: reset for ${targetStudentName}`);
+             this.emit('trainer_reset', targetStudentName);
           } else if (msg.command === 'update_patient') {
-             this.logger.log('Trainer command: update_patient');
-             this.simulationService.updatePatientParameters(this.currentStudentName, msg.parameters);
+             this.logger.log(`Trainer command: update_patient for ${targetStudentName}`);
+             this.simulationService.updatePatientParameters(targetStudentName, msg.parameters);
           } else if (msg.command === 'set_asynchrony') {
-             this.logger.log(`Trainer command: set_asynchrony (${msg.asynchronyType})`);
-             this.simulationService.injectAsynchrony(this.currentStudentName, msg.asynchronyType);
+             this.logger.log(`Trainer command: set_asynchrony (${msg.asynchronyType}) for ${targetStudentName}`);
+             this.simulationService.injectAsynchrony(targetStudentName, msg.asynchronyType);
           }
           break;
       }
@@ -331,20 +366,40 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     }
   }
 
+  /** Find student name by their assigned stationId */
+  private findStudentByStationId(stationId: string | undefined): string | null {
+    if (!stationId) return null;
+    for (const student of this.registeredStudents.values()) {
+      if (student.stationId === stationId) {
+        return student.studentName;
+      }
+    }
+    return null;
+  }
+
   // ──────────────────────────────────────────────
   //  Public API
   // ──────────────────────────────────────────────
 
   public registerWithMaster(studentName: string, roomCode?: string) {
+    // Store in multi-student map
+    this.registeredStudents.set(studentName, {
+      studentName,
+      stationId: null,
+      roomCode: roomCode || null,
+    });
+
+    // Legacy compat
     this.currentStudentName = studentName;
     if (roomCode) {
       this.currentRoomCode = roomCode;
     }
+
     if (this.ws && this.ws.readyState === 1) {
       this.logger.log(`Registering student "${studentName}" with Trainer...`);
       this.ws.send(JSON.stringify({ 
         type: 'remote_student_register', 
-        stationId: this.currentStationId,
+        stationId: this.registeredStudents.get(studentName)?.stationId,
         studentName,
         roomCode
       }));
@@ -353,22 +408,28 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
     }
   }
 
-  public notifyLogout() {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentStudentName) {
-      this.logger.log(`Notifying trainer of logout for "${this.currentStudentName}"...`);
+  public notifyLogout(studentName?: string) {
+    const name = studentName || this.currentStudentName;
+    if (this.ws && this.ws.readyState === (WebSocket as any).OPEN && name) {
+      this.logger.log(`Notifying trainer of logout for "${name}"...`);
       this.ws.send(JSON.stringify({ 
         type: 'remote_student_logout', 
-        studentName: this.currentStudentName 
+        studentName: name 
       }));
+    }
+    // Remove from registered students
+    if (name) {
+      this.registeredStudents.delete(name);
     }
   }
 
-  public sendTelemetryToMaster(telemetry: TelemetryData) {
-    if (this.ws && this.ws.readyState === 1 && this.currentStudentName) {
+  public sendTelemetryToMaster(studentName: string, telemetry: TelemetryData) {
+    const student = this.registeredStudents.get(studentName);
+    if (this.ws && this.ws.readyState === 1 && student) {
       this.ws.send(JSON.stringify({
         type: 'remote_student_telemetry',
-        stationId: this.currentStationId,
-        studentName: this.currentStudentName,
+        stationId: student.stationId,
+        studentName: student.studentName,
         telemetry
       }));
     }
@@ -378,13 +439,14 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
    * Notify the trainer that the student has started a simulation.
    * The trainer will create/start a session for analytics tracking.
    */
-  public notifySessionStart(scenarioName: string) {
-    if (this.ws && this.ws.readyState === 1 && this.currentStudentName) {
-      this.logger.log(`Notifying trainer: session started (${scenarioName})`);
+  public notifySessionStart(studentName: string, scenarioName: string) {
+    const student = this.registeredStudents.get(studentName);
+    if (this.ws && this.ws.readyState === 1 && student) {
+      this.logger.log(`Notifying trainer: session started (${scenarioName}) for ${studentName}`);
       this.ws.send(JSON.stringify({
         type: 'student_session_start',
-        stationId: this.currentStationId,
-        studentName: this.currentStudentName,
+        stationId: student.stationId,
+        studentName: student.studentName,
         scenarioName,
       }));
     }
@@ -394,23 +456,26 @@ export class StudentLinkService extends EventEmitter implements OnModuleInit, On
    * Notify the trainer that the student has stopped or completed a simulation.
    * The trainer will complete the active session.
    */
-  public notifySessionStop() {
-    if (this.ws && this.ws.readyState === 1 && this.currentStudentName) {
-      this.logger.log('Notifying trainer: session stopped');
+  public notifySessionStop(studentName?: string) {
+    const name = studentName || this.currentStudentName;
+    const student = name ? this.registeredStudents.get(name) : null;
+    if (this.ws && this.ws.readyState === 1 && student) {
+      this.logger.log(`Notifying trainer: session stopped for ${name}`);
       this.ws.send(JSON.stringify({
         type: 'student_session_stop',
-        stationId: this.currentStationId,
-        studentName: this.currentStudentName,
+        stationId: student.stationId,
+        studentName: student.studentName,
       }));
     }
   }
 
-  public sendSimulationStatusToMaster(status: string) {
-    if (this.ws && this.ws.readyState === 1 && this.currentStudentName) {
+  public sendSimulationStatusToMaster(studentName: string, status: string) {
+    const student = this.registeredStudents.get(studentName);
+    if (this.ws && this.ws.readyState === 1 && student) {
       this.ws.send(JSON.stringify({
         type: 'remote_student_status',
-        stationId: this.currentStationId,
-        studentName: this.currentStudentName,
+        stationId: student.stationId,
+        studentName: student.studentName,
         status
       }));
     }

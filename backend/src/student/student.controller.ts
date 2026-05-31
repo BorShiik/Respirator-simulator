@@ -19,22 +19,22 @@ export class StudentController {
 
     switch (body.command) {
       case 'start':
-        this.studentUiGateway.startSimulation();
+        this.studentUiGateway.startSimulation(studentName);
         break;
 
       case 'stop':
-        this.studentUiGateway.stopSimulation();
+        this.studentUiGateway.stopSimulation(studentName);
         break;
 
       case 'reset':
-        this.studentUiGateway.resetSimulation();
+        this.studentUiGateway.resetSimulation(studentName);
         break;
       case 'pause':
-        this.studentUiGateway.pauseSimulation();
+        this.studentUiGateway.pauseSimulation(studentName);
         break;
 
       case 'continue':
-        this.studentUiGateway.resumeSimulation();
+        this.studentUiGateway.resumeSimulation(studentName);
         break;
     }
 
