@@ -1,8 +1,10 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, HttpCode } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Query, Body, HttpCode, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { ScenariosService } from '../scenarios/scenarios.service';
 import { SessionsService } from '../sessions/sessions.service';
 import { TrainerGateway } from './trainer.gateway';
 import { ScenarioBlock } from '../scenarios/scenario.entity';
+import { buildAnalyticsWorkbook, ExportSession } from './analytics-export';
 
 @Controller('trainer')
 export class TrainerController {
@@ -200,6 +202,42 @@ export class TrainerController {
   async getAllSessions() {
     const sessions = await this.sessionsService.findAll();
     return sessions.map(s => this.sessionsService.mapSessionToFrontend(s));
+  }
+
+  // === Excel analytics export (per-student breakdown) ===
+  // NOTE: must be declared BEFORE 'sessions/:id' so 'export' is not matched as an id.
+  // Honours the same room/student filters and the Free Practice exclusion used by
+  // the Analytics page, so the export mirrors what the trainer currently sees.
+  @Get('sessions/export')
+  async exportSessions(
+    @Res() res: Response,
+    @Query('roomId') roomId?: string,
+    @Query('traineeId') traineeId?: string,
+  ) {
+    const sessions = await this.sessionsService.findAll();
+    let mapped = sessions.map(
+      (s) => this.sessionsService.mapSessionToFrontend(s) as unknown as ExportSession,
+    );
+
+    // Free Practice sessions are excluded from analytics (same as the UI).
+    mapped = mapped.filter((s) => s.scenarioName !== 'Free Practice');
+    if (roomId && roomId !== 'all') {
+      mapped = mapped.filter((s) => s.roomId === roomId);
+    }
+    if (traineeId && traineeId !== 'all') {
+      mapped = mapped.filter((s) => s.traineeId === traineeId);
+    }
+
+    const buffer = await buildAnalyticsWorkbook(mapped);
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.set({
+      'Content-Type':
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="analityka-${stamp}.xlsx"`,
+      'Content-Length': String(buffer.length),
+    });
+    res.end(buffer);
   }
 
   @Get('sessions/:id')

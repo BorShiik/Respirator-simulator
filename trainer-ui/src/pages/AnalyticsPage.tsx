@@ -11,6 +11,22 @@ export function AnalyticsPage() {
   const [selectedTrainee, setSelectedTrainee] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
+    try {
+      setExporting(true);
+      await trainerApi.exportSessionsToExcel({
+        roomId: selectedRoom,
+        traineeId: selectedTrainee,
+      });
+    } catch (err) {
+      console.error('Failed to export analytics:', err);
+      alert('Nie udało się wyeksportować analityki do Excela.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const { sessionsVersion } = useTrainerWebSocket();
 
@@ -201,6 +217,13 @@ export function AnalyticsPage() {
               </option>
             ))}
           </select>
+          <button
+            onClick={handleExport}
+            disabled={exporting || sessions.length === 0}
+            className="admin-btn admin-btn-primary whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {exporting ? 'Eksportowanie…' : '⬇ Eksport do Excela'}
+          </button>
         </div>
       </div>
 

@@ -104,6 +104,34 @@ export async function getAllSessions(): Promise<Session[]> {
   return fetchApi<Session[]>('/api/trainer/sessions');
 }
 
+// Export analytics (per-student breakdown) to an .xlsx file and trigger download.
+// Honours the currently selected room/student filters (omit or pass 'all' for everything).
+export async function exportSessionsToExcel(
+  filters: { roomId?: string; traineeId?: string } = {},
+): Promise<void> {
+  const params = new URLSearchParams();
+  if (filters.roomId && filters.roomId !== 'all') params.set('roomId', filters.roomId);
+  if (filters.traineeId && filters.traineeId !== 'all') params.set('traineeId', filters.traineeId);
+  const query = params.toString();
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/trainer/sessions/export${query ? `?${query}` : ''}`,
+  );
+  if (!response.ok) {
+    throw new Error(`Błąd eksportu: ${response.status}`);
+  }
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const stamp = new Date().toISOString().slice(0, 10);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `analityka-${stamp}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
+
 // === Rooms ===
 
 export async function getRooms(): Promise<Room[]> {
@@ -157,6 +185,7 @@ export const trainerApi = {
   getSessionDetails,
   getTraineeSessions,
   getAllSessions,
+  exportSessionsToExcel,
   getRooms,
   createRoom,
   closeRoom,
