@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PulmoFlow — Symulator Respiratora Nowej Generacji</title>
+  <meta name="description" content="PulmoFlow to fizyczne urządzenie do nauki rozpoznawania i eliminacji asynchronii pacjent–respirator. Tańszy, skalowalny symulator oparty na Raspberry Pi.">
+  <meta property="og:title" content="PulmoFlow — Symulator Respiratora Nowej Generacji">
+  <meta property="og:description" content="Fizyczne urządzenie do nauki rozpoznawania i eliminacji asynchronii pacjent–respirator.">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#0a0f1a">
+  <link rel="icon" type="image/png" href="assets/logo.png">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- 3D Model Viewer -->
+  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0/model-viewer.min.js"></script>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- NAVIGATION                                      -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <nav id="main-nav">
+    <div class="nav-container container">
+      <a href="#hero" class="nav-logo">
+        <img src="assets/logo.png" alt="PulmoFlow" width="40" height="40">
+        <span>Pulmo<em>Flow</em></span>
+      </a>
+
+      <ul class="nav-links">
+        <li><a href="#problem">Problem</a></li>
+        <li><a href="#solution">Rozwiązanie</a></li>
+        <li><a href="#features">Funkcje</a></li>
+        <li><a href="#product">Produkt</a></li>
+        <li><a href="#technology">Technologia</a></li>
+        <li><a href="#comparison">Porównanie</a></li>
+        <li><a href="#team">Zespół</a></li>
+      </ul>
+
+      <button class="nav-toggle" id="nav-toggle" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+
+    <div class="nav-mobile" id="nav-mobile">
+      <a href="#problem">Problem</a>
+      <a href="#solution">Rozwiązanie</a>
+      <a href="#features">Funkcje</a>
+      <a href="#product">Produkt</a>
+      <a href="#technology">Technologia</a>
+      <a href="#comparison">Porównanie</a>
+      <a href="#team">Zespół</a>
+    </div>
+  </nav>
+
+  <main>
+    <!-- ═══════════════════════════════════════════════ -->
+    <!-- SECTION 1: HERO                                -->
+    <!-- ═══════════════════════════════════════════════ -->
+    <section id="hero">
+      <div class="container">
+        <div class="hero-content">
+          <div class="hero-text">
+            <div class="hero-badge">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+              Symulator medyczny nowej generacji
+            </div>
+            <h1 class="hero-title">
+              Naucz się ratować życie z <span class="gradient-text">PulmoFlow</span>
+            </h1>
+            <p class="hero-description">
+              Fizyczne urządzenie do nauki rozpoznawania i eliminacji asynchronii pacjent–respirator. Realistyczne wykresy, prawdziwe pokrętła, scenariusze kliniczne.
+            </p>
+            <div class="hero-cta">
+              <a href="#solution" class="btn-primary">Poznaj PulmoFlow</a>
+              <a href="#product" class="btn-secondary">Zobacz produkt 3D</a>
+            </div>
+            <div class="hero-team">
+              <span class="hero-team-label">Zespół projektu</span>
+              <span class="hero-team-names">
+                <strong>dr Sebastian Meszyński</strong> (opiekun) · Yan Lukashevich · Hleb Yazvinski · Anton Yaniuk · Ivan Tymoshchuk
+              </span>
+            </div>
+          </div>
+
+          <div class="hero-visual">
+            <div class="hero-glow"></div>
+            <div class="hero-model-container">
+              <!-- 3D Model — replace respirator-model.glb with your file -->
+              <model-viewer
+                id="hero-model"
+                src="assets/respirator-model.glb"
+                alt="PulmoFlow Respirator Simulator 3D"
+                auto-rotate
+                auto-rotate-delay="0"
+                rotation-per-second="30deg"
+                camera-controls
+                camera-orbit="45deg 65deg 2.5m"
+                environment-image="neutral"
+                shadow-intensity="0.8"
+                exposure="1.1"
+                poster="assets/device-full.jpg"
+                style="width:100%;height:100%;"
+              >
+                <!-- Fallback when no 3D model file exists -->
+                <div slot="poster" class="model-fallback">
+                  <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.5">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+                  </svg>
+                  <span>Model 3D zostanie dodany</span>
+                  <span class="model-fallback-sub">Plik: assets/respirator-model.glb</span>
+                </div>
+              </model-viewer>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Breathing Wave Divider -->
+      <div class="wave-divider">
+        <svg viewBox="0 0 1440 120" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="wave-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#0ea5e9" stop-opacity="0.3"/>
+              <stop offset="50%" stop-color="#2dd4bf" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="#0ea5e9" stop-opacity="0.3"/>
+            </linearGradient>
+          </defs>
+          <path d="M0,60 C120,100 240,20 360,60 C480,100 600,20 720,60 C840,100 960,20 1080,60 C1200,100 1320,20 1440,60 L1440,120 L0,120 Z" fill="url(#wave-grad)">
+            <animate attributeName="d" dur="8s" repeatCount="indefinite"
+              values="M0,60 C120,100 240,20 360,60 C480,100 600,20 720,60 C840,100 960,20 1080,60 C1200,100 1320,20 1440,60 L1440,120 L0,120 Z;
+                      M0,60 C120,20 240,100 360,60 C480,20 600,100 720,60 C840,20 960,100 1080,60 C1200,20 1320,100 1440,60 L1440,120 L0,120 Z;
+                      M0,60 C120,100 240,20 360,60 C480,100 600,20 720,60 C840,100 960,20 1080,60 C1200,100 1320,20 1440,60 L1440,120 L0,120 Z"
+            />
+          </path>
+          <path d="M0,80 C160,110 320,50 480,80 C640,110 800,50 960,80 C1120,110 1280,50 1440,80 L1440,120 L0,120 Z" fill="url(#wave-grad)" opacity="0.5">
+            <animate attributeName="d" dur="6s" repeatCount="indefinite"
+              values="M0,80 C160,110 320,50 480,80 C640,110 800,50 960,80 C1120,110 1280,50 1440,80 L1440,120 L0,120 Z;
+                      M0,80 C160,50 320,110 480,80 C640,50 800,110 960,80 C1120,50 1280,110 1440,80 L1440,120 L0,120 Z;
+                      M0,80 C160,110 320,50 480,80 C640,110 800,50 960,80 C1120,110 1280,50 1440,80 L1440,120 L0,120 Z"
+            />
+          </path>
+        </svg>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════ -->
+    <!-- SECTION 2: PROBLEM                             -->
+    <!-- ═══════════════════════════════════════════════ -->
+    <section id="problem">
+      <div class="container">
+        <h2 class="section-title reveal">Problem w edukacji <span class="gradient-text">medycznej</span></h2>
+        <p class="section-subtitle reveal">Personel medyczny potrzebuje praktycznych umiejętności rozpoznawania asynchronii — ale jak je zdobyć?</p>
+
+        <div class="problem-grid">
+          <div class="problem-card reveal reveal-delay-1">
+            <div class="card-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
+              </svg>
+            </div>
+            <h3>Luka w szkoleniu</h3>
+            <p>Z badań wynika, że personel medyczny nie potrafi skutecznie eliminować asynchronii pacjent–respirator. Brakuje narzędzi do praktycznej nauki.</p>
+          </div>
+
+          <div class="problem-card reveal reveal-delay-2">
+            <div class="card-icon icon-warning">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+              </svg>
+            </div>
+            <h3>Drogi sprzęt</h3>
+            <p>Prawdziwe respiratory kosztują dziesiątki tysięcy złotych. Szkolenie na prawdziwym sprzęcie jest nieopłacalne i logistycznie trudne.</p>
+          </div>
+
+          <div class="problem-card reveal reveal-delay-3">
+            <div class="card-icon icon-speed">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+              </svg>
+            </div>
+            <h3>Umiejętności odruchowe</h3>
+            <p>Lekarz musi reagować natychmiast — kątem oka widzieć problem na wykresach i szybko go rozwiązać. To wymaga praktyki, nie teorii.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════ -->
+    <!-- SECTION 3: SOLUTION                            -->
+    <!-- ═══════════════════════════════════════════════ -->
+    <section id="solution">
+      <div class="container">
+        <h2 class="section-title reveal">Nasze <span class="gradient-text">rozwiązanie</span></h2>
+        <p class="section-subtitle reveal">Fizyczne urządzenie szkoleniowe z dwoma panelami — dla studenta i trenera — połączonych w czasie rzeczywistym.</p>
+
+        <div class="solution-panels">
+          <!-- Student Panel -->
+          <div class="panel-card reveal reveal-delay-1">
+            <div class="panel-header">
+              <h3 class="gradient-text">Panel Studenta</h3>
+              <span class="panel-badge badge-student">Student</span>
+            </div>
+            <div class="panel-image">
+              <img src="assets/student-main.png" alt="Panel studenta — wykresy ciśnienia, przepływu i objętości w czasie rzeczywistym"
+                   onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+              <div class="placeholder" style="display:none;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4">
+                  <rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="6 10 10 7 14 12 18 9"/>
+                </svg>
+                <span>student-main.png</span>
+              </div>
+            </div>
+            <ul class="panel-features">
+              <li><span class="feature-check">✦</span> Wykresy czasu rzeczywistego (50 Hz)</li>
+              <li><span class="feature-check">✦</span> Fizyczne enkodery do zmiany parametrów</li>
+              <li><span class="feature-check">✦</span> Wizualna sygnalizacja asynchronii</li>
+              <li><span class="feature-check">✦</span> Tryb nauki solo i z trenerem</li>
+            </ul>
+          </div>
+
+          <!-- Connector -->
+          <div class="solution-connector reveal">
+            <div class="connector-line"></div>
+            <div class="connector-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
+              </svg>
+            </div>
+            <div class="connector-line"></div>
+            <span class="connector-label">WebSocket<br>w czasie rzeczywistym</span>
+          </div>
+
+          <!-- Trainer Panel -->
+          <div class="panel-card reveal reveal-delay-2">
+            <div class="panel-header">
+              <h3 class="gradient-text">Panel Trenera</h3>
+              <span class="panel-badge badge-trainer">Trener</span>
+            </div>
+            <div class="panel-image">
+              <img src="assets/trainer-dashboard.png" alt="Panel trenera — podgląd wszystkich studentów, scenariusze i analityka"
+                   onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+              <div class="placeholder" style="display:none;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4">
+                  <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+                </svg>
+                <span>trainer-dashboard.png</span>
+              </div>
+            </div>
+            <ul class="panel-features">
+              <li><span class="feature-check">✦</span> Podgląd wszystkich studentów</li>
+              <li><span class="feature-check">✦</span> Przypisywanie scenariuszy klinicznych</li>
+              <li><span class="feature-check">✦</span> Historia sesji i analityka</li>
+              <li><span class="feature-check">✦</span> Zdalne sterowanie symulacjami</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════ -->
+    <!-- SECTION 4: FEATURES                            -->
+    <!-- ═══════════════════════════════════════════════ -->
+    <section id="features">
+      <div class="container">
+        <h2 class="section-title reveal">Możliwości <span class="gradient-text">systemu</span></h2>
+        <p class="section-subtitle reveal">Kompletne narzędzie szkoleniowe z zaawansowaną fizyką symulacji i intuicyjnym interfejsem.</p>
+
+        <div class="features-grid">
+          <div class="feature-card reveal reveal-delay-1">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            </div>
+            <h3>Wykresy 50 Hz</h3>
+            <p>Ciśnienie, przepływ i objętość renderowane na Canvas w czasie rzeczywistym — jak na prawdziwym respiratorze.</p>
+          </div>
+
+          <div class="feature-card reveal reveal-delay-2">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m-7-7h6m6 0h6"/><circle cx="12" cy="12" r="10"/></svg>
+            </div>
+            <h3>Fizyczne enkodery</h3>
+            <p>Prawdziwe pokrętła KY-040 do zmiany PEEP, Pinsp, RR, Ti i Trigger — jak na prawdziwym urządzeniu.</p>
+          </div>
+
+          <div class="feature-card reveal reveal-delay-3">
+            <div class="feature-icon icon-warning">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <h3>7 typów asynchronii</h3>
+            <p>Od Ineffective Trigger do Reverse Trigger — pełne spektrum asynchronii z podpowiedziami i automatyczną oceną.</p>
+          </div>
+
+          <div class="feature-card reveal reveal-delay-1">
+            <div class="feature-icon icon-speed">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            </div>
+            <h3>Scenariusze kliniczne</h3>
+            <p>Rosnący poziom trudności z timeline'em zdarzeń. Trener tworzy scenariusze i przypisuje studentom.</p>
+          </div>
+
+          <div class="feature-card reveal reveal-delay-2">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <h3>Analityka i eksport</h3>
+            <p>Krzywe uczenia, statystyki sesji, historia zmian parametrów. Eksport do Excel dla dalszej analizy.</p>
+          </div>
+
+          <div class="feature-card reveal reveal-delay-3">
+            <div class="feature-icon icon-speed">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <h3>Wielostanowiskowy</h3>
+            <p>Od 1 do 20 urządzeń jednocześnie. Automatyczne wykrywanie sieci, zero konfiguracji.</p>
+          </div>
+        </div>
+
+        <!-- Asynchrony Types Table -->
+        <div class="async-table-wrapper reveal">
+          <h3 class="async-table-title">7 typów asynchronii pacjent–respirator</h3>
+          <div class="table-scroll">
+            <table class="async-table">
+              <thead>
+                <tr>
+                  <th>Typ</th>
+                  <th>Opis</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="async-type">Ineffective Trigger</td>
+                  <td class="async-desc">Pacjent próbuje oddychać, respirator nie reaguje</td>
+                </tr>
+                <tr>
+                  <td class="async-type">Double Trigger</td>
+                  <td class="async-desc">Dwa oddechy w szybkiej sekwencji</td>
+                </tr>
+                <tr>
+                  <td class="async-type">Auto Trigger</td>
+                  <td class="async-desc">Respirator wyzwala oddech bez wysiłku pacjenta</td>
+                </tr>
+                <tr>
+                  <td class="async-type">Delayed Cycling</td>
+                  <td class="async-desc">Inspiracja trwa za długo</td>
+                </tr>
+                <tr>
+                  <td class="async-type">Premature Cycling</td>
+                  <td class="async-desc">Inspiracja kończy się za wcześnie</td>
+                </tr>
+                <tr>
+                  <td class="async-type">Flow Mismatch</td>
+                  <td class="async-desc">Przepływ nie odpowiada potrzebom pacjenta</td>
+                </tr>
+                <tr>
+                  <td class="async-type">Reverse Trigger</td>
+                  <td class="async-desc">Respirator wyzwala wysiłek oddechowy pacjenta</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════ -->
+    <!-- SECTION 5: HOW IT WORKS                        -->
+    <!-- ═══════════════════════════════════════════════ -->
+    <section id="how-it-works">
+      <div class="container">
+        <h2 class="section-title reveal">Jak to <span class="gradient-text">działa</span></h2>
+        <p class="section-subtitle reveal">Pięć kroków od scenariusza do analizy wyników — cały proces nauki w jednym systemie.</p>
+
+        <div class="timeline">
+          <div class="timeline-step reveal">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <h3>Trener tworzy scenariusz kliniczny</h3>
+              <p>Określa sekwencję zdarzeń: kiedy pojawią się asynchronie, jakie parametry pacjenta ustawić, ile czasu ma student na reakcję.</p>
+              <div class="step-image">
+                <img src="assets/trainer-scenarios.png" alt="Edytor scenariuszy"
+                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                <div class="placeholder" style="display:none;">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><rect x="2" y="3" width="20" height="14" rx="2"/></svg>
+                  <span>trainer-scenarios.png</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="timeline-step reveal">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <h3>System uruchamia symulację</h3>
+              <p>Silnik fizyczny RK4 generuje realistyczne przebiegi ciśnienia, przepływu i objętości z częstotliwością 50 Hz na urządzeniu studenta.</p>
+            </div>
+          </div>
+
+          <div class="timeline-step reveal">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <h3>Pojawia się asynchronia</h3>
+              <p>Student widzi zmieniony przebieg na wykresach i musi rozpoznać typ asynchronii. W trybie nauki dostępne są podpowiedzi.</p>
+              <div class="step-image">
+                <img src="assets/student-async.png" alt="Asynchronia na wykresach"
+                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                <div class="placeholder" style="display:none;">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><rect x="2" y="3" width="20" height="14" rx="2"/></svg>
+                  <span>student-async.png</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="timeline-step reveal">
+            <div class="step-number">4</div>
+            <div class="step-content">
+              <h3>Student koryguje parametry</h3>
+              <p>Używając fizycznych enkoderów (lub interfejsu dotykowego), student zmienia PEEP, Pinsp, częstość oddechów i inne parametry.</p>
+            </div>
+          </div>
+
+          <div class="timeline-step reveal">
+            <div class="step-number">5</div>
+            <div class="step-content">
+              <h3>Trener analizuje wyniki</h3>
+              <p>Dashboard trenera pokazuje statystyki sesji, czas reakcji, poprawność korekt — wszystko w czasie rzeczywistym.</p>
+              <div class="step-image">
+                <img src="assets/trainer-analytics.png" alt="Analityka sesji"
+                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                <div class="placeholder" style="display:none;">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><rect x="2" y="3" width="20" height="14" rx="2"/></svg>
+                  <span>trainer-analytics.png</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════ -->
+    <!-- SECTION 6: PRODUCT (3D MODEL)                  -->
+    <!-- ═══════════════════════════════════════════════ -->
+    <section id="product">
+      <div class="container">
+        <h2 class="section-title reveal">Nasz <span class="gradient-text">produkt</span></h2>
+        <p class="section-subtitle reveal">Gotowy prototyp, łatwy do rozszerzenia o fizyczną obudowę przypominającą prawdziwy respirator.</p>
+
+        <div class="product-content reveal">
+          <div class="product-model">
+            <model-viewer
+              id="product-model"
+              src="assets/respirator-model.glb"
+              alt="PulmoFlow — interaktywny model 3D"
+              camera-controls
+              auto-rotate
+              auto-rotate-delay="2000"
+              rotation-per-second="20deg"
+              ar
+              ar-modes="webxr scene-viewer quick-look"
+              shadow-intensity="1.2"
+              shadow-softness="0.8"
+              exposure="1.1"
+              environment-image="neutral"
+              poster="assets/device-full.jpg"
+              style="width:100%;height:100%;"
+            >
+              <!-- Hotspots — adjust data-position after loading your model -->
+              <button class="product-hotspot" slot="hotspot-screen"
+                      data-position="0 0.12 0.06" data-normal="0 0 1">
+                Ekran 7"
+              </button>
+              <button class="product-hotspot" slot="hotspot-encoder"
+                      data-position="0.1 -0.04 0.06" data-normal="0 0 1">
+                Enkoder KY-040
+              </button>
+              <button class="product-hotspot" slot="hotspot-rpi"
+                      data-position="-0.08 -0.06 0" data-normal="0 0 1">
+                Raspberry Pi 4B
+              </button>
+
+              <!-- Fallback poster -->
+              <div slot="poster" class="model-fallback">
+                <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.5">
+                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                  <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+                </svg>
+                <span>Model 3D — dodaj plik .glb</span>
+                <span class="model-fallback-sub">assets/respirator-model.glb</span>
+              </div>
+            </model-viewer>
+          </div>
+
+          <p class="product-description">
+            To jest gotowy prototyp — odpowiednio wyabstrakowany i przygotowany do łatwego dodania fizycznych przycisków, pokręteł i obudowy przypominającej prawdziwy respirator. Jesteśmy zgłoszeni na <strong>konkurs sprzętu medycznego</strong>.
+          </p>
+
+          <div class="product-badges">
+            <span class="product-badge">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              Gotowy prototyp
+            </span>
+            <span class="product-badge">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              Rynki globalne
+            </span>
+            <span class="product-badge">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+              Łatwa naprawa
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════ -->
+    <!-- SECTION 7: TECHNOLOGY                          -->
+    <!-- ═══════════════════════════════════════════════ -->
+    <section id="technology">
+      <div class="container">
+        <h2 class="section-title reveal">Silnik symulacji oparty na <span class="gradient-text">nauce</span></h2>
+        <p class="section-subtitle reveal">Własny silnik fizyczny z integracją numeryczną Runge-Kutta 4. rzędu, oparty na recenzowanych publikacjach naukowych.</p>
+
+        <!-- Metrics -->
+        <div class="tech-metrics reveal">
+          <div class="metric-card">
+            <div class="metric-value"><span class="counter" data-target="10" data-prefix="<" data-suffix=" ms">0</span></div>
+            <div class="metric-label">Czas cyklu symulacji</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-value"><span class="counter" data-target="2" data-prefix="<" data-suffix=" ms">0</span></div>
+            <div class="metric-label">Jitter</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-value"><span class="counter" data-target="50" data-suffix=" Hz">0</span></div>
+            <div class="metric-label">Częstotliwość próbkowania</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-value"><span class="counter" data-target="6">0</span></div>
+            <div class="metric-label">Trybów wentylacji</div>
+          </div>
+        </div>
+
+        <!-- Publications + Architecture -->
+        <div class="tech-content">
+          <div class="publications reveal">
+            <h3 class="tech-subsection-title">Publikacje naukowe</h3>
+            <div class="publication-card">
+              <div class="pub-year">2026</div>
+              <div class="pub-title">Correction of Patient–Ventilator Discordance</div>
+              <div class="pub-authors">John Davies, Elias Pratt, Craig R. Rackley</div>
+            </div>
+            <div class="publication-card">
+              <div class="pub-year">2016</div>
+              <div class="pub-title">A Review on Human Respiratory Modeling</div>
+              <div class="pub-authors">Pardis Ghafarian, Hamidreza Jamaati, Seyed M. Hashemian</div>
+            </div>
+            <div class="publication-card">
+              <div class="pub-year">2016</div>
+              <div class="pub-title">Is the ventilator switching at the right time?</div>
+              <div class="pub-authors">Francesco Mojoli, Giorgio A. Iotti, Jean-Michel Arnal</div>
+            </div>
+            <div class="publication-card">
+              <div class="pub-year">2014</div>
+              <div class="pub-title">Realistic human muscle pressure for driving a mechanical lung</div>
+              <div class="pub-authors">Emeline Fresnel, Jean-François Muir, Christophe Letellier</div>
+            </div>
+            <div class="publication-card">
+              <div class="pub-year">2016</div>
+              <div class="pub-title">MATLAB/Simulink Mathematical Model for Lung Ventilator</div>
+              <div class="pub-authors">Mohammad Jaber, Lara Hamawy, et al.</div>
+            </div>
+          </div>
+
+          <div class="architecture-diagram reveal">
+            <h3 class="tech-subsection-title">Architektura systemu</h3>
+            <div class="arch-stack">
+              <div class="arch-layer frontend">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                React 18 + TypeScript + Vite
+              </div>
+              <div class="arch-arrow">↕ WebSocket 50 Hz</div>
+              <div class="arch-layer backend">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                NestJS + SimulationService (RK4)
+              </div>
+              <div class="arch-arrow">↕ TypeORM</div>
+              <div class="arch-layer database">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                SQLite Database
+              </div>
+              <div class="arch-arrow">↕ GPIO / Python</div>
+              <div class="arch-layer hardware">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+                Raspberry Pi 4B + Enkodery KY-040
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════ -->
+    <!-- SECTION 8: NETWORK                             -->
+    <!-- ═══════════════════════════════════════════════ -->
+    <section id="network">
+      <div class="container">
+        <h2 class="section-title reveal">Architektura <span class="gradient-text">sieciowa</span></h2>
+        <p class="section-subtitle reveal">Automatyczna konfiguracja sieci — zero ręcznej pracy. Dwa warianty dla różnych skal wdrożeń.</p>
+
+        <div class="network-toggle reveal">
+          <button id="net-btn-a" class="active">Wariant A — do 5 stanowisk</button>
+          <button id="net-btn-b">Wariant B — powyżej 5 stanowisk</button>
+        </div>
+
+        <div class="network-diagram reveal">
+          <!-- Variant A -->
+          <div id="network-a" class="network-variant active">
+            <div class="network-nodes">
+              <div class="network-node node-master">
+                <div class="node-icon">🖥️</div>
+                <div class="node-label">RPi Master</div>
+                <div class="node-desc">AP + DHCP + DNS + WebServer</div>
+              </div>
+              <div class="network-arrow">
+                <svg width="60" height="24" viewBox="0 0 60 24"><line x1="0" y1="12" x2="50" y2="12" stroke="#0ea5e9" stroke-width="2" stroke-dasharray="6,4"/><polygon points="50,6 60,12 50,18" fill="#0ea5e9"/></svg>
+                <span>Wi-Fi</span>
+              </div>
+              <div class="network-node-group">
+                <div class="network-node node-client">
+                  <div class="node-icon">📱</div>
+                  <div class="node-label">RPi Student #1</div>
+                </div>
+                <div class="network-node node-client">
+                  <div class="node-icon">📱</div>
+                  <div class="node-label">RPi Student #2</div>
+                </div>
+                <div class="network-node node-client">
+                  <div class="node-icon">💻</div>
+                  <div class="node-label">Komputer trenera</div>
+                </div>
+              </div>
+            </div>
+            <p class="network-note">Jedno urządzenie master pełni rolę access pointu, serwera DHCP, DNS i hostuje backend trenera.</p>
+          </div>
+
+          <!-- Variant B -->
+          <div id="network-b" class="network-variant">
+            <div class="network-nodes">
+              <div class="network-node node-master">
+                <div class="node-icon">🖥️</div>
+                <div class="node-label">RPi Master</div>
+                <div class="node-desc">DHCP + DNS + WebServer</div>
+              </div>
+              <div class="network-arrow">
+                <svg width="60" height="24" viewBox="0 0 60 24"><line x1="0" y1="12" x2="50" y2="12" stroke="#2dd4bf" stroke-width="2" stroke-dasharray="6,4"/><polygon points="50,6 60,12 50,18" fill="#2dd4bf"/></svg>
+                <span>Ethernet</span>
+              </div>
+              <div class="network-node node-ap">
+                <div class="node-icon">📡</div>
+                <div class="node-label">Access Point</div>
+                <div class="node-desc">Dedykowany router</div>
+              </div>
+              <div class="network-arrow">
+                <svg width="60" height="24" viewBox="0 0 60 24"><line x1="0" y1="12" x2="50" y2="12" stroke="#2dd4bf" stroke-width="2" stroke-dasharray="6,4"/><polygon points="50,6 60,12 50,18" fill="#2dd4bf"/></svg>
+                <span>Wi-Fi</span>
+              </div>
+              <div class="network-node-group">
+                <div class="network-node node-client">
+                  <div class="node-icon">📱</div>
+                  <div class="node-label">RPi #1–20</div>
+                </div>
+                <div class="network-node node-client">
+                  <div class="node-icon">💻</div>
+                  <div class="node-label">Trener</div>
+                </div>
+              </div>
+            </div>
+            <p class="network-note">Przy większej ilości stanowisk lepiej dostawić odrębne urządzenie z dedykowanym routerem Wi-Fi.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════ -->
+    <!-- SECTION 9: COMPARISON                          -->
+    <!-- ═══════════════════════════════════════════════ -->
+    <section id="comparison">
+      <div class="container">
+        <h2 class="section-title reveal">Porównanie z <span class="gradient-text">konkurencją</span></h2>
+        <p class="section-subtitle reveal">PulmoFlow łączy zalety fizycznego sprzętu z przystępną ceną i skalowalnością oprogramowania.</p>
+
+        <div class="comparison-table-wrapper reveal">
+          <table class="comparison-table">
+            <thead>
+              <tr>
+                <th>Cecha</th>
+                <th class="highlight">PulmoFlow</th>
+                <th>Prawdziwy respirator</th>
+                <th>Symulator ekranowy</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Koszt urządzenia</td>
+                <td class="highlight"><span class="check">✓</span> ~500 PLN</td>
+                <td><span class="cross">✗</span> 50 000+ PLN</td>
+                <td><span class="check">✓</span> Niska</td>
+              </tr>
+              <tr>
+                <td>Fizyczne pokrętła</td>
+                <td class="highlight"><span class="check">✓</span> Enkodery KY-040</td>
+                <td><span class="check">✓</span> Tak</td>
+                <td><span class="cross">✗</span> Brak</td>
+              </tr>
+              <tr>
+                <td>Dedykowany ekran</td>
+                <td class="highlight"><span class="check">✓</span> 7" dotykowy</td>
+                <td><span class="check">✓</span> Tak</td>
+                <td><span class="cross">✗</span> Monitor PC</td>
+              </tr>
+              <tr>
+                <td>Wielostanowiskowy</td>
+                <td class="highlight"><span class="check">✓</span> 1–20 urządzeń</td>
+                <td><span class="cross">✗</span> Jedno</td>
+                <td><span class="check">✓</span> Tak</td>
+              </tr>
+              <tr>
+                <td>Łatwość naprawy</td>
+                <td class="highlight"><span class="check">✓</span> Komponenty RPi</td>
+                <td><span class="cross">✗</span> Serwis fabryczny</td>
+                <td><span class="warn">—</span> Nie dotyczy</td>
+              </tr>
+              <tr>
+                <td>Rynki docelowe</td>
+                <td class="highlight"><span class="check">✓</span> Globalny</td>
+                <td><span class="warn">⚠</span> Bogate kraje</td>
+                <td><span class="check">✓</span> Globalny</td>
+              </tr>
+              <tr>
+                <td>Umiejętności odruchowe</td>
+                <td class="highlight"><span class="check">✓</span> Fizyczna interakcja</td>
+                <td><span class="check">✓</span> Tak</td>
+                <td><span class="cross">✗</span> Klik myszką</td>
+              </tr>
+              <tr>
+                <td>Scenariusze kliniczne</td>
+                <td class="highlight"><span class="check">✓</span> Pełny edytor</td>
+                <td><span class="cross">✗</span> Brak</td>
+                <td><span class="check">✓</span> Tak</td>
+              </tr>
+              <tr>
+                <td>Analityka uczenia</td>
+                <td class="highlight"><span class="check">✓</span> Krzywe, eksport</td>
+                <td><span class="cross">✗</span> Brak</td>
+                <td><span class="warn">⚠</span> Ograniczona</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════ -->
+    <!-- SECTION 10: TEAM + TECH STACK                  -->
+    <!-- ═══════════════════════════════════════════════ -->
+    <section id="team">
+      <div class="container">
+        <h2 class="section-title reveal">Nasz <span class="gradient-text">zespół</span></h2>
+        <p class="section-subtitle reveal">Interdyscyplinarna drużyna studentów informatyki pod opieką naukowca-praktyka.</p>
+
+        <div class="team-grid reveal">
+          <div class="team-card lead">
+            <div class="team-avatar" style="background: linear-gradient(135deg, #f59e0b, #ef4444);">SM</div>
+            <h3>Sebastian Meszyński</h3>
+            <span class="team-role">Opiekun naukowy</span>
+          </div>
+          <div class="team-card">
+            <div class="team-avatar">YL</div>
+            <h3>Yan Lukashevich</h3>
+            <span class="team-role">Developer</span>
+          </div>
+          <div class="team-card">
+            <div class="team-avatar">HY</div>
+            <h3>Hleb Yazvinski</h3>
+            <span class="team-role">Developer</span>
+          </div>
+          <div class="team-card">
+            <div class="team-avatar">AY</div>
+            <h3>Anton Yaniuk</h3>
+            <span class="team-role">Developer</span>
+          </div>
+          <div class="team-card">
+            <div class="team-avatar">IT</div>
+            <h3>Ivan Tymoshchuk</h3>
+            <span class="team-role">Developer</span>
+          </div>
+        </div>
+
+        <!-- Tech Stack -->
+        <div class="tech-stack-bar reveal">
+          <span class="tech-badge">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
+            React 18
+          </span>
+          <span class="tech-badge">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            TypeScript
+          </span>
+          <span class="tech-badge">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+            NestJS
+          </span>
+          <span class="tech-badge">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+            SQLite
+          </span>
+          <span class="tech-badge">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/></svg>
+            Raspberry Pi 4B
+          </span>
+          <span class="tech-badge">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+            WebSocket
+          </span>
+          <span class="tech-badge">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+            Vite
+          </span>
+          <span class="tech-badge">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Recharts
+          </span>
+        </div>
+
+        <!-- Contact CTA -->
+        <div class="contact-cta reveal">
+          <a href="https://github.com/BorShiik/Respirator-simulator" target="_blank" rel="noopener noreferrer" class="btn-cta">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            Zobacz na GitHub
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- FOOTER                                         -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <footer id="main-footer">
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-logo">
+          <img src="assets/logo.png" alt="PulmoFlow" width="30" height="30">
+          <span>PulmoFlow</span>
+        </div>
+        <ul class="footer-links">
+          <li><a href="#hero">Start</a></li>
+          <li><a href="#features">Funkcje</a></li>
+          <li><a href="#product">Produkt</a></li>
+          <li><a href="#team">Zespół</a></li>
+          <li><a href="https://github.com/BorShiik/Respirator-simulator" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+        </ul>
+        <p class="footer-copy">© 2026 PulmoFlow — MIT License</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/main.js"></script>
+</body>
+</html>
