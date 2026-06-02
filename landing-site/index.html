@@ -456,47 +456,7 @@
 
         <div class="product-content reveal">
           <div class="product-model">
-            <model-viewer
-              id="product-model"
-              src="assets/respirator-model.glb"
-              alt="PulmoFlow — interaktywny model 3D"
-              camera-controls
-              auto-rotate
-              auto-rotate-delay="2000"
-              rotation-per-second="20deg"
-              ar
-              ar-modes="webxr scene-viewer quick-look"
-              shadow-intensity="1.2"
-              shadow-softness="0.8"
-              exposure="1.1"
-              environment-image="neutral"
-              poster="assets/device-full.jpg"
-              style="width:100%;height:100%;"
-            >
-              <!-- Hotspots — adjust data-position after loading your model -->
-              <button class="product-hotspot" slot="hotspot-screen"
-                      data-position="0 0.12 0.06" data-normal="0 0 1">
-                Ekran 7"
-              </button>
-              <button class="product-hotspot" slot="hotspot-encoder"
-                      data-position="0.1 -0.04 0.06" data-normal="0 0 1">
-                Enkoder KY-040
-              </button>
-              <button class="product-hotspot" slot="hotspot-rpi"
-                      data-position="-0.08 -0.06 0" data-normal="0 0 1">
-                Raspberry Pi 4B
-              </button>
-
-              <!-- Fallback poster -->
-              <div slot="poster" class="model-fallback">
-                <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.5">
-                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                  <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
-                </svg>
-                <span>Model 3D — dodaj plik .glb</span>
-                <span class="model-fallback-sub">assets/respirator-model.glb</span>
-              </div>
-            </model-viewer>
+            <div id="react-respirator-root" style="width: 100%; height: 500px; position: relative; border-radius: 12px; overflow: hidden; background: #2E3440;"></div>
           </div>
 
           <p class="product-description">
@@ -874,6 +834,7 @@
     </div>
   </footer>
 
-  <script src="js/main.js"></script>
+  <script type="module" src="/src/main.jsx"></script>
+  <script type="module" src="/js/main.js"></script>
 </body>
 </html>
