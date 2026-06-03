@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, RoundedBox } from '@react-three/drei';
 import { useSpring, animated } from '@react-spring/three';
@@ -117,9 +117,30 @@ function InteractiveKnob({ setControlsEnabled }) {
 export default function RespiratorScene() {
   const [controlsEnabled, setControlsEnabled] = useState(true);
 
+  // Only run the 3D scene while it is actually on-screen and the tab is visible.
+  // This stops the render loop + physics when the user is elsewhere on the page.
+  const wrapRef = useRef(null);
+  const [active, setActive] = useState(false);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    let onScreen = false;
+    const update = () => setActive(onScreen && document.visibilityState === 'visible');
+    const io = new IntersectionObserver(
+      ([entry]) => { onScreen = entry.isIntersecting; update(); },
+      { threshold: 0.05 }
+    );
+    io.observe(el);
+    document.addEventListener('visibilitychange', update);
+    return () => { io.disconnect(); document.removeEventListener('visibilitychange', update); };
+  }, []);
+
   return (
+    <div ref={wrapRef} style={{ width: '100%', height: '100%' }}>
     <Canvas
-      shadows
+      frameloop={active ? 'always' : 'never'}
+      dpr={[1, 1.5]}
       camera={{ position: [0, 1.8, 3.8], fov: 42 }}
       style={{ width: '100%', height: '100%', outline: 'none' }}
     >
@@ -212,7 +233,7 @@ export default function RespiratorScene() {
 
           {/* Flat Screen — REAL textured mesh, seated just proud of the bezel front */}
           <group position={[DISPLAY_CENTER_X, 0, 0.028]}>
-            <ScreenDisplay width={SCREEN_W} height={SCREEN_H} />
+            <ScreenDisplay width={SCREEN_W} height={SCREEN_H} active={active} />
           </group>
 
           {/* Interactive settings dial */}
@@ -230,5 +251,6 @@ export default function RespiratorScene() {
         maxDistance={6}
       />
     </Canvas>
+    </div>
   );
 }

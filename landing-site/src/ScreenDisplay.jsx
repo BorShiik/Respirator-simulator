@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useRespiratorStore, PARAM_META, SELECTABLE, PATIENT_PARAMS } from './store';
-import logoUrl from '../assets/logo.png';
+import logoUrl from '../assets/logo-mark.png';
 
 /**
  * ScreenDisplay — the student-UI screen as a real textured 3D mesh.
@@ -11,13 +11,11 @@ import logoUrl from '../assets/logo.png';
  * toggle. Colours mirror the real student-ui light/dark themes.
  */
 
-// Project logo (transparent PNG) — only the lungs symbol is drawn (the
-// "PulmoFlow" wordmark below it in the source image is cropped out).
+// Project logo mark (small square lungs symbol, transparent PNG).
 const logoImg = new Image();
 let logoReady = false;
 logoImg.onload = () => { logoReady = true; };
 logoImg.src = logoUrl;
-const LOGO_SRC = { x: 282, y: 45, w: 460, h: 400 };
 
 // ── Design-space layout (800 × 500) ──────────────────────────────
 const DW = 800;
@@ -259,8 +257,13 @@ function drawPatientInline(ctx, C, x, y, w, h) {
   ctx.restore();
 }
 
-export default function ScreenDisplay({ width = 1.6, height = 1.0 }) {
+export default function ScreenDisplay({ width = 1.6, height = 1.0, active = true }) {
   const { gl } = useThree();
+
+  // Keep the latest `active` flag readable inside the physics interval without
+  // tearing it down on every visibility change.
+  const activeRef = useRef(active);
+  activeRef.current = active;
 
   const canvas = useMemo(() => {
     const cv = document.createElement('canvas');
@@ -296,7 +299,7 @@ export default function ScreenDisplay({ width = 1.6, height = 1.0 }) {
   useEffect(() => {
     const tick = () => {
       const store = useRespiratorStore.getState();
-      if (store.paused) return;
+      if (!activeRef.current || store.paused) return;
 
       const state = stateRef.current;
       const p = store.params;
@@ -368,11 +371,15 @@ export default function ScreenDisplay({ width = 1.6, height = 1.0 }) {
     return () => clearInterval(interval);
   }, [stateRef]);
 
-  // Paint the whole UI to the canvas every frame
-  useFrame(() => {
+  // Repaint the screen texture (throttled to ~30 fps — the waveforms stay smooth
+  // while halving canvas-draw + GPU-upload cost vs the 60 fps render loop).
+  useFrame((_, delta) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     const state = stateRef.current;
+    state.drawAcc = (state.drawAcc ?? 0) + delta;
+    if (state.drawAcc < 1 / 30) return;
+    state.drawAcc = 0;
     const store = useRespiratorStore.getState();
     const p = store.params;
     const selected = store.selected;
@@ -391,12 +398,7 @@ export default function ScreenDisplay({ width = 1.6, height = 1.0 }) {
     /* ── STATUS BAR ── */
     const sbY = PADY + 4;
     if (logoReady) {
-      const bw = 26, bh = 26, bx = INX, by = sbY - 1;
-      const ar = LOGO_SRC.w / LOGO_SRC.h;
-      const dw = ar > 1 ? bw : bh * ar;
-      const dh = ar > 1 ? bw / ar : bh;
-      ctx.drawImage(logoImg, LOGO_SRC.x, LOGO_SRC.y, LOGO_SRC.w, LOGO_SRC.h,
-        bx + (bw - dw) / 2, by + (bh - dh) / 2, dw, dh);
+      ctx.drawImage(logoImg, INX, sbY - 1, 26, 26);
     } else {
       ctx.fillStyle = C.accent;
       rr(ctx, INX, sbY + 2, 22, 22, 5); ctx.fill();
