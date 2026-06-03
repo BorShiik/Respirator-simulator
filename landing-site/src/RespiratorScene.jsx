@@ -142,7 +142,7 @@ export default function RespiratorScene() {
       frameloop={active ? 'always' : 'never'}
       dpr={[1, 1.5]}
       camera={{ position: [0, 1.8, 3.8], fov: 42 }}
-      style={{ width: '100%', height: '100%', outline: 'none' }}
+      style={{ width: '100%', height: '100%', outline: 'none', touchAction: 'pan-y' }}
     >
       {/* Lights */}
       <ambientLight intensity={0.5} />

@@ -63,8 +63,13 @@
     <!-- SECTION 1: HERO                                -->
     <!-- ═══════════════════════════════════════════════ -->
     <section id="hero">
+      <!-- Animated background particles -->
+      <div class="hero-particles" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+
       <div class="container">
-        <div class="hero-content">
+        <div class="hero-content hero-content--centered">
           <div class="hero-text">
             <div class="hero-badge">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
@@ -80,42 +85,19 @@
               <a href="#solution" class="btn-primary">Poznaj PulmoFlow</a>
               <a href="#product" class="btn-secondary">Zobacz produkt 3D</a>
             </div>
-            <div class="hero-team">
-              <span class="hero-team-label">Zespół projektu</span>
-              <span class="hero-team-names">
-                <strong>dr Sebastian Meszyński</strong> (opiekun) · Yan Lukashevich · Hleb Yazvinski · Anton Yaniuk · Ivan Tymoshchuk
-              </span>
-            </div>
-          </div>
-
-          <div class="hero-visual">
-            <div class="hero-glow"></div>
-            <div class="hero-model-container">
-              <!-- 3D Model — replace respirator-model.glb with your file -->
-              <model-viewer
-                id="hero-model"
-                src="assets/respirator-model.glb"
-                alt="PulmoFlow Respirator Simulator 3D"
-                auto-rotate
-                auto-rotate-delay="0"
-                rotation-per-second="30deg"
-                camera-controls
-                camera-orbit="45deg 65deg 2.5m"
-                environment-image="neutral"
-                shadow-intensity="0.8"
-                exposure="1.1"
-                poster="assets/device-full.jpg"
-                style="width:100%;height:100%;"
-              >
-                <!-- Fallback when no 3D model file exists -->
-                <div slot="poster" class="model-fallback">
-                  <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.5">
-                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-                  </svg>
-                  <span>Model 3D zostanie dodany</span>
-                  <span class="model-fallback-sub">Plik: assets/respirator-model.glb</span>
-                </div>
-              </model-viewer>
+            <div class="hero-stats">
+              <div class="hero-stat">
+                <span class="hero-stat-value">50 Hz</span>
+                <span class="hero-stat-label">Częstotliwość</span>
+              </div>
+              <div class="hero-stat">
+                <span class="hero-stat-value">7</span>
+                <span class="hero-stat-label">Typów asynchronii</span>
+              </div>
+              <div class="hero-stat">
+                <span class="hero-stat-value">~500 PLN</span>
+                <span class="hero-stat-label">Koszt urządzenia</span>
+              </div>
             </div>
           </div>
         </div>
@@ -454,7 +436,7 @@
 
         <div class="product-content reveal">
           <div class="product-model">
-            <div id="react-respirator-root" style="width: 100%; height: 500px; position: relative; border-radius: 12px; overflow: hidden; background: #2E3440;"></div>
+            <div id="react-respirator-root"></div>
           </div>
 
           <p class="product-description">
