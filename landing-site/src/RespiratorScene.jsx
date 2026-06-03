@@ -20,6 +20,17 @@ const SLANT_LEN = Math.sqrt(0.5 * 0.5 + 1.6 * 1.6);
 // Z_mid = (1.6 + 0) / 2 - 0.8 = 0
 const SLANTED_FACE_POS = [0, 0.20, 0];
 
+// ── Display geometry ────────────────────────────────────────────────
+// The on-screen UI is a drei <Html transform> overlay. In transform mode the
+// rendered world size is:  pixels * scale / 40   (drei's 400 / (distanceFactor=10) factor).
+// ScreenDisplay renders an 800×500 px panel at scale 0.08, so the live screen is:
+const SCREEN_SCALE = 0.08;
+const SCREEN_W = (800 * SCREEN_SCALE) / 40; // = 1.60 world units
+const SCREEN_H = (500 * SCREEN_SCALE) / 40; // = 1.00 world units
+const BEZEL_BORDER = 0.04;     // black glass border framing the screen
+const FRAME_BORDER = 0.03;     // white frame around the black bezel
+const DISPLAY_CENTER_X = -0.25; // shifted left to leave room for the knob
+
 /**
  * InteractiveKnob Component
  * 
@@ -29,8 +40,8 @@ const SLANTED_FACE_POS = [0, 0.20, 0];
  */
 function InteractiveKnob({ setControlsEnabled }) {
   const knobRotation = useRespiratorStore((state) => state.knobRotation);
-  const adjustPressure = useRespiratorStore((state) => state.adjustPressure);
-  
+  const adjustSelected = useRespiratorStore((state) => state.adjustSelected);
+
   const accumDrag = useRef(0);
 
   // Animate the rotation using a spring for a satisfying physical/clicky feel
@@ -60,7 +71,7 @@ function InteractiveKnob({ setControlsEnabled }) {
     const threshold = 12;
     if (Math.abs(accumDrag.current) >= threshold) {
       const steps = Math.trunc(accumDrag.current / threshold);
-      adjustPressure(steps);
+      adjustSelected(steps);
       accumDrag.current = accumDrag.current % threshold;
     }
   }, {
@@ -163,41 +174,45 @@ export default function RespiratorScene() {
             <meshStandardMaterial color="#ECEFF4" roughness={0.3} metalness={0.1} />
           </mesh>
 
-          {/* White Outer Frame around the display bezel */}
+          {/* White Outer Frame around the display bezel (raised above the slanted face) */}
           <RoundedBox
-            args={[0.82, 0.56, 0.01]}
-            radius={0.025}
+            args={[
+              SCREEN_W + 2 * (BEZEL_BORDER + FRAME_BORDER),
+              SCREEN_H + 2 * (BEZEL_BORDER + FRAME_BORDER),
+              0.012,
+            ]}
+            radius={0.03}
             smoothness={4}
-            position={[-0.25, 0, 0.002]}
+            position={[DISPLAY_CENTER_X, 0, 0.018]}
             castShadow
             receiveShadow
           >
-            <meshStandardMaterial 
+            <meshStandardMaterial
               color="#E5E9F0"       // Nord5: Slightly darker light gray to create a subtle depth shadow
               roughness={0.4}
               metalness={0.1}
             />
           </RoundedBox>
 
-          {/* Physical Bezel under the Screen */}
+          {/* Physical black-glass Bezel framing the screen on all sides */}
           <RoundedBox
-            args={[0.76, 0.50, 0.01]}
-            radius={0.02}
+            args={[SCREEN_W + 2 * BEZEL_BORDER, SCREEN_H + 2 * BEZEL_BORDER, 0.012]}
+            radius={0.025}
             smoothness={4}
-            position={[-0.25, 0, 0.005]}
+            position={[DISPLAY_CENTER_X, 0, 0.020]}
             castShadow
             receiveShadow
           >
-            <meshStandardMaterial 
+            <meshStandardMaterial
               color="#05080c"       // Dark black glass bezel
               roughness={0.15}      // High gloss reflections
               metalness={0.9}       // Metallic shiny appearance
             />
           </RoundedBox>
 
-          {/* Flat Screen */}
-          <group position={[-0.25, 0, 0.011]}>
-            <ScreenDisplay />
+          {/* Flat Screen — REAL textured mesh, seated just proud of the bezel front */}
+          <group position={[DISPLAY_CENTER_X, 0, 0.028]}>
+            <ScreenDisplay width={SCREEN_W} height={SCREEN_H} />
           </group>
 
           {/* Interactive settings dial */}

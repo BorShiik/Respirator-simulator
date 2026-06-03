@@ -1,129 +1,361 @@
-import React, { useEffect, useRef } from 'react';
-import { Html } from '@react-three/drei';
-import { useRespiratorStore } from './store';
+import React, { useEffect, useMemo } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
+import * as THREE from 'three';
+import { useRespiratorStore, PARAM_META, SELECTABLE, PATIENT_PARAMS } from './store';
+import logoUrl from '../assets/logo.png';
 
 /**
- * ScreenDisplay Component
- * 
- * Renders a pixel-perfect, high-fidelity clone of the real student UI screen 
- * matching the user's provided screenshot.
- * 
- * Spacing, grid layout, fonts, colors, and visual styles are aligned:
- *   - Dark Slate/Blue colors: #0F172A (bg), #1E293B (cards), #334155 (borders)
- *   - Left Panel: Parameter cards with correct labels, values, and units.
- *   - Center Panel: Stacked charts with dotted grids, Y-axis labels, limit lines.
- *   - Right Panel: Connection status, Scenariusz/Poziom indicators, green Synchronia ring, action buttons.
- *   - Local 50Hz RC model physics engine (RK4 integration) responding to the dial knob.
+ * ScreenDisplay — the student-UI screen as a real textured 3D mesh.
+ * Interactive (raycast → UV → hit-test): tap a card to select it (the knob
+ * adjusts it), PAUZA/RESET, the PARAMETRY PACJENTA panel, and the ☀/☾ theme
+ * toggle. Colours mirror the real student-ui light/dark themes.
  */
-export default function ScreenDisplay() {
-  const mode = useRespiratorStore((state) => state.mode);
-  const inspiratoryPressure = useRespiratorStore((state) => state.inspiratoryPressure);
 
-  // References to canvas elements
-  const canvasPressureRef = useRef(null);
-  const canvasFlowRef = useRef(null);
-  const canvasVolumeRef = useRef(null);
+// Project logo (transparent PNG) — only the lungs symbol is drawn (the
+// "PulmoFlow" wordmark below it in the source image is cropped out).
+const logoImg = new Image();
+let logoReady = false;
+logoImg.onload = () => { logoReady = true; };
+logoImg.src = logoUrl;
+const LOGO_SRC = { x: 282, y: 45, w: 460, h: 400 };
 
-  // Simulation physics state
-  const stateRef = useRef({
-    time: 0,
-    breathTime: 0.02,
-    currentVolume: 0,
-    filteredPressure: 5.0,
-    filteredFlow: 0.0,
+// ── Design-space layout (800 × 500) ──────────────────────────────
+const DW = 800;
+const DH = 500;
+const PADX = 16;
+const PADY = 12;
+const INX = PADX;
+const INW = DW - 2 * PADX;
+const STATUS_H = 36;
+const BODY_Y = PADY + STATUS_H + 14;
+const BODY_H = DH - PADY - BODY_Y;
+const GAP = 12;
+const LEFT_W = 165;
+const RIGHT_W = 215;
+const LEFT_X = INX;
+const CENTER_X = LEFT_X + LEFT_W + GAP;
+const CENTER_W = INW - LEFT_W - RIGHT_W - 2 * GAP;
+const RIGHT_X = CENTER_X + CENTER_W + GAP;
 
-    // Buffers to hold 200 samples (4 seconds at 50Hz)
-    pressureBuffer: new Array(200).fill(5.0),
-    flowBuffer: new Array(200).fill(0.0),
-    volumeBuffer: new Array(200).fill(0.0),
+const CARD_COUNT = 6;
+const CARDS_TOP = BODY_Y + 48;
+const CARDS_BOTTOM = BODY_Y + BODY_H - 10;
+const CARD_GAP = 6;
+const CARD_H = (CARDS_BOTTOM - CARDS_TOP - CARD_GAP * (CARD_COUNT - 1)) / CARD_COUNT;
+const CARD_X = LEFT_X + 10;
+const CARD_W = LEFT_W - 20;
+const cardRect = (i) => ({ x: CARD_X, y: CARDS_TOP + i * (CARD_H + CARD_GAP), w: CARD_W, h: CARD_H });
+
+const RPX = RIGHT_X + 10;
+const RPW = RIGHT_W - 20;
+const BTN_PARAM_Y = BODY_Y + BODY_H - 64;
+const BTN_ROW_Y = BTN_PARAM_Y + 30;
+const PAUSE_W = RPW * 0.64;
+const RESET_X = RPX + PAUSE_W + 6;
+const RESET_W = RPW - PAUSE_W - 6;
+const PAUSE_RECT = { x: RPX, y: BTN_ROW_Y, w: PAUSE_W, h: 24 };
+const RESET_RECT = { x: RESET_X, y: BTN_ROW_Y, w: RESET_W, h: 24 };
+const PARAM_BTN_RECT = { x: RPX, y: BTN_PARAM_Y, w: RPW, h: 24 };
+const THEME_RECT = { x: INX + INW - 26, y: PADY + 4, w: 26, h: 26 };
+const hit = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+
+const SYNC_TOP = BODY_Y + 108;
+const PARAMS_BOTTOM = BTN_PARAM_Y - 8;
+const PARAMS_H = 178;
+
+const SS = 2;
+
+// ── Themes (exact values from student-ui/src/index.css) ──────────
+const THEMES = {
+  dark: {
+    bg: '#0a0f1a', panel: '#111827', panel2: '#0d1623', border: '#1e3a5f',
+    text: '#e2e8f0', heading: '#f8fafc', muted: '#94a3b8',
+    accent: '#3b82f6', green: '#10b981', orange: '#f59e0b', red: '#ef4444',
+    cyan: '#06b6d4', axis: '#334155', grid: '#1e293b', refGreen: '#059669',
+    moon: '#818cf8',
+  },
+  light: {
+    bg: '#f0f4f8', panel: '#ffffff', panel2: '#e9eef5', border: '#d1dce8',
+    text: '#1a365d', heading: '#0f2747', muted: '#64748b',
+    accent: '#0066cc', green: '#059669', orange: '#d97706', red: '#dc2626',
+    cyan: '#0891b2', axis: '#cbd5e1', grid: '#e2e8f0', refGreen: '#047857',
+    moon: '#6366f1',
+  },
+};
+
+function rgba(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
+// ── Canvas helpers ───────────────────────────────────────────────
+function rr(ctx, x, y, w, h, r) {
+  const rad = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rad, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rad);
+  ctx.arcTo(x + w, y + h, x, y + h, rad);
+  ctx.arcTo(x, y + h, x, y, rad);
+  ctx.arcTo(x, y, x + w, y, rad);
+  ctx.closePath();
+}
+
+function text(ctx, str, x, y, font, color, align = 'left', baseline = 'alphabetic') {
+  ctx.font = font;
+  ctx.fillStyle = color;
+  ctx.textAlign = align;
+  ctx.textBaseline = baseline;
+  ctx.fillText(str, x, y);
+}
+
+function drawPanel(ctx, C, x, y, w, h) {
+  ctx.fillStyle = C.panel;
+  rr(ctx, x, y, w, h, 10); ctx.fill();
+  ctx.strokeStyle = C.border;
+  ctx.lineWidth = 1;
+  rr(ctx, x, y, w, h, 10); ctx.stroke();
+}
+
+function drawChart(ctx, C, x, y, w, h, data, color, minVal, maxVal, isSymmetric, refLines, ticks) {
+  ctx.save();
+  ctx.translate(x, y);
+
+  const ML = 40, MR = 10, MT = 8, MB = 8;
+  const plotW = w - ML - MR;
+  const plotH = h - MT - MB;
+
+  const toY = (v) => isSymmetric
+    ? MT + plotH / 2 - (v / maxVal) * (plotH / 2)
+    : MT + plotH - ((v - minVal) / (maxVal - minVal)) * plotH;
+
+  ctx.lineWidth = 0.8;
+  ctx.font = '8px Inter, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  ticks.forEach((t) => {
+    const ry = toY(t);
+    ctx.strokeStyle = C.grid;
+    ctx.setLineDash([2, 2]);
+    ctx.beginPath();
+    ctx.moveTo(ML, ry);
+    ctx.lineTo(w - MR, ry);
+    ctx.stroke();
+    ctx.fillStyle = C.muted;
+    ctx.fillText(String(t), ML - 6, ry);
+  });
+  ctx.setLineDash([]);
+
+  refLines.forEach((ref) => {
+    const ry = toY(ref.val);
+    ctx.strokeStyle = ref.color;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(ML, ry);
+    ctx.lineTo(w - MR, ry);
+    ctx.stroke();
+  });
+  ctx.setLineDash([]);
+
+  if (data.length > 0) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    for (let i = 0; i < data.length; i++) {
+      const px = ML + (i / (data.length - 1)) * plotW;
+      const clamped = isSymmetric
+        ? Math.max(-maxVal, Math.min(maxVal, data[i]))
+        : Math.max(minVal, Math.min(maxVal, data[i]));
+      const py = toY(clamped);
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// SYNCHRONIA indicator — adapts to box height (compact when short).
+function drawSync(ctx, C, x, y, w, h, paused) {
+  const color = paused ? C.orange : C.green;
+  ctx.fillStyle = rgba(color, 0.04);
+  rr(ctx, x, y, w, h, 8); ctx.fill();
+  ctx.strokeStyle = rgba(color, 0.13);
+  rr(ctx, x, y, w, h, 8); ctx.stroke();
+
+  const drawGlyph = (cx, cy, r) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(2.5, r * 0.18);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    if (paused) {
+      ctx.moveTo(cx - r * 0.28, cy - r * 0.4); ctx.lineTo(cx - r * 0.28, cy + r * 0.4);
+      ctx.moveTo(cx + r * 0.28, cy - r * 0.4); ctx.lineTo(cx + r * 0.28, cy + r * 0.4);
+    } else {
+      ctx.moveTo(cx - r * 0.38, cy + r * 0.02);
+      ctx.lineTo(cx - r * 0.08, cy + r * 0.32);
+      ctx.lineTo(cx + r * 0.42, cy - r * 0.3);
+    }
+    ctx.stroke();
+  };
+
+  const label = paused ? 'PAUZA' : 'SYNCHRONIA';
+  if (h >= 96) {
+    const r = Math.min(22, (h - 46) / 2);
+    const cy = y + h / 2 - 12;
+    drawGlyph(x + w / 2, cy, r);
+    text(ctx, label, x + w / 2, cy + r + 18, '900 12px Inter, sans-serif', color, 'center', 'middle');
+    if (h >= 120) {
+      text(ctx, paused ? 'Symulacja wstrzymana' : 'Poprawna interakcja',
+        x + w / 2, cy + r + 32, '9px Inter, sans-serif', C.muted, 'center', 'middle');
+    }
+  } else {
+    const r = Math.max(9, Math.min(13, h / 2 - 7));
+    const cy = y + h / 2;
+    drawGlyph(x + 16 + r, cy, r);
+    text(ctx, label, x + 24 + r * 2, cy, '900 11px Inter, sans-serif', color, 'left', 'middle');
+  }
+}
+
+// Patient parameters expanded inline (grows bottom→up, clipped to height).
+function drawPatientInline(ctx, C, x, y, w, h) {
+  ctx.save();
+  rr(ctx, x, y, w, h, 8); ctx.clip();
+
+  ctx.fillStyle = C.panel2;
+  rr(ctx, x, y, w, h, 8); ctx.fill();
+  ctx.strokeStyle = C.border; ctx.lineWidth = 1;
+  rr(ctx, x, y, w, h, 8); ctx.stroke();
+
+  const padX = 7, padY = 7;
+  const cols = 2, rows = 5;
+  const gapX = 5, gapY = 4;
+  const cellW = (w - 2 * padX - gapX) / cols;
+  const cellH = (PARAMS_H - 2 * padY - gapY * (rows - 1)) / rows;
+  const baseTop = y + h - PARAMS_H;
+
+  PATIENT_PARAMS.forEach((pp, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const cx = x + padX + col * (cellW + gapX);
+    const cy = baseTop + padY + row * (cellH + gapY);
+    ctx.fillStyle = C.panel;
+    rr(ctx, cx, cy, cellW, cellH, 6); ctx.fill();
+    ctx.strokeStyle = C.border; ctx.lineWidth = 1;
+    rr(ctx, cx, cy, cellW, cellH, 6); ctx.stroke();
+    text(ctx, pp.label, cx + 7, cy + cellH / 2 - 7, 'bold 7px Inter, sans-serif', C.muted, 'left', 'middle');
+    const vs = Number.isInteger(pp.value) ? String(pp.value) : pp.value.toFixed(1);
+    text(ctx, vs, cx + 7, cy + cellH / 2 + 7, '800 12px monospace', C.text, 'left', 'middle');
+    const vw = ctx.measureText(vs).width;
+    text(ctx, pp.unit, cx + 10 + vw, cy + cellH / 2 + 8, '6px Inter, sans-serif', C.muted, 'left', 'middle');
   });
 
-  // 1. 50Hz Physics Loop (Euler + RK4 Solver of the dual-parameter RC lung model)
+  ctx.restore();
+}
+
+export default function ScreenDisplay({ width = 1.6, height = 1.0 }) {
+  const { gl } = useThree();
+
+  const canvas = useMemo(() => {
+    const cv = document.createElement('canvas');
+    cv.width = DW * SS;
+    cv.height = DH * SS;
+    return cv;
+  }, []);
+
+  const texture = useMemo(() => {
+    const t = new THREE.CanvasTexture(canvas);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = gl.capabilities.getMaxAnisotropy();
+    t.minFilter = THREE.LinearMipmapLinearFilter;
+    t.magFilter = THREE.LinearFilter;
+    return t;
+  }, [canvas, gl]);
+
+  const stateRef = useMemo(() => ({
+    current: {
+      time: 0,
+      breathTime: 0.02,
+      currentVolume: 0,
+      filteredPressure: 5.0,
+      filteredFlow: 0.0,
+      pressureBuffer: new Array(200).fill(5.0),
+      flowBuffer: new Array(200).fill(0.0),
+      volumeBuffer: new Array(200).fill(0.0),
+      patientAnim: 0,
+    },
+  }), []);
+
+  // 50 Hz physics loop — driven by live store params
   useEffect(() => {
     const tick = () => {
-      const state = stateRef.current;
-      // Get the live value of the knob-controlled inspiratory pressure from Zustand
-      const ipap = useRespiratorStore.getState().inspiratoryPressure;
+      const store = useRespiratorStore.getState();
+      if (store.paused) return;
 
-      const dt = 0.02; // 50 Hz
-      const R = 12.0;  // Airway Resistance
-      const C = 0.04;  // Compliance (40 mL/cmH2O -> 0.04 L/cmH2O)
-      const Rin = 1.0; // Inhalation valve resistance
-      const Rout = 8.0; // Exhalation valve resistance
-      
-      const T = 4.0;   // Inhalation period (60s / 15 RR = 4.0s)
-      const Ti = 1.0;  // Inspiratory time = 1.0s
+      const state = stateRef.current;
+      const p = store.params;
+      const ipap = p.ipap;
+      const peep = p.epap;
+      const T = 60 / p.rr;
+      const Ti = Math.min(p.ti, 0.9 * T);
+
+      const dt = 0.02;
+      const R = 12.0;
+      const C_lung = 0.04;
+      const Rin = 1.0;
+      const Rout = 8.0;
 
       const tC = state.time % T;
       const tB = state.breathTime;
 
-      // Physics equation derivatives
       const getDerivative = (tcVal, tbVal, vol) => {
         const isInspiration = tcVal < Ti;
-        const pin = isInspiration ? ipap : 5.0; // PEEP = 5.0 cmH2O
-        
-        // Spontaneous breathing effort (Pmus)
-        const tBreathCycle = tbVal % 4.0; // 15 breaths per minute cycle
+        const pin = isInspiration ? ipap : peep;
+        const tBreathCycle = tbVal % 4.0;
         let pm = 0;
-        if (tBreathCycle < 1.0) { // Neural Ti = 1.0s
+        if (tBreathCycle < 1.0) {
           const fv = 60 / 4.0;
           const p01 = 2.0;
-          // Calculate max diaphragm pressure curve (sine squared)
           const Pmax = p01 / (1 - Math.exp(-(0.1 * (fv + 4 * p01)) / 10));
           pm = Pmax * Math.sin((Math.PI * tBreathCycle) / 1.0) ** 2;
         }
-
         const denom = (1 / R + 1 / Rin + 1 / Rout);
-        const Pp = (vol / (R * C) + pin / Rin - pm / R) / denom;
+        const Pp = (vol / (R * C_lung) + pin / Rin - pm / R) / denom;
         const Iout = Pp / Rout;
         const Iin = (pin - Pp) / Rin;
-        
         return { dV: Iin - Iout, Pp, pm };
       };
 
-      // RK4 numerical integration for volume
       const V0 = state.currentVolume;
-      const res1 = getDerivative(tC, tB, V0);
-      const k1 = res1.dV;
-
-      const res2 = getDerivative(tC + dt / 2, tB + dt / 2, V0 + k1 * dt / 2);
-      const k2 = res2.dV;
-
-      const res3 = getDerivative(tC + dt / 2, tB + dt / 2, V0 + k2 * dt / 2);
-      const k3 = res3.dV;
-
-      const res4 = getDerivative(tC + dt, tB + dt, V0 + k3 * dt);
-      const k4 = res4.dV;
+      const k1 = getDerivative(tC, tB, V0).dV;
+      const k2 = getDerivative(tC + dt / 2, tB + dt / 2, V0 + k1 * dt / 2).dV;
+      const k3 = getDerivative(tC + dt / 2, tB + dt / 2, V0 + k2 * dt / 2).dV;
+      const k4 = getDerivative(tC + dt, tB + dt, V0 + k3 * dt).dV;
 
       const V_new = Math.max(0, V0 + (dt / 6) * (k1 + 2 * k2 + 2 * k3 + k4));
       state.currentVolume = V_new;
 
       const finalRes = getDerivative(tC + dt, tB + dt, V_new);
-      const Pp_new = finalRes.Pp;
-      const dV_new = finalRes.dV;
-      const pm_new = finalRes.pm;
-
       state.time += dt;
       state.breathTime += dt;
 
-      // display pressure: alveolar pressure minus muscle effort dip (servo impedance)
-      const rawDisplayPressure = Pp_new - pm_new * 0.3;
+      const rawDisplayPressure = finalRes.Pp - finalRes.pm * 0.3;
       const noise = (Math.random() - 0.5) * 0.015;
-      const rawFlow = dV_new + noise;
+      const rawFlow = finalRes.dV + noise;
 
-      // Exponential moving average filter for smooth display
       const alpha = 0.25;
       state.filteredPressure = alpha * rawDisplayPressure + (1 - alpha) * state.filteredPressure;
       state.filteredFlow = alpha * rawFlow + (1 - alpha) * state.filteredFlow;
 
-      const finalPressure = Math.max(0, state.filteredPressure);
-      const finalFlow = state.filteredFlow * 60.0; // L/s -> L/min
-      const finalVolume = state.currentVolume * 1000.0; // L -> mL
-
-      // Push to buffers
-      state.pressureBuffer.push(finalPressure);
-      state.flowBuffer.push(finalFlow);
-      state.volumeBuffer.push(finalVolume);
+      state.pressureBuffer.push(Math.max(0, state.filteredPressure));
+      state.flowBuffer.push(state.filteredFlow * 60.0);
+      state.volumeBuffer.push(state.currentVolume * 1000.0);
 
       if (state.pressureBuffer.length > 200) {
         state.pressureBuffer.shift();
@@ -132,689 +364,203 @@ export default function ScreenDisplay() {
       }
     };
 
-    const interval = setInterval(tick, 20); // 50 Hz
+    const interval = setInterval(tick, 20);
     return () => clearInterval(interval);
-  }, []);
+  }, [stateRef]);
 
-  // 2. 60 FPS Drawing Loop (Canvas Drawing in requestAnimationFrame)
-  useEffect(() => {
-    let animId;
+  // Paint the whole UI to the canvas every frame
+  useFrame(() => {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const state = stateRef.current;
+    const store = useRespiratorStore.getState();
+    const p = store.params;
+    const selected = store.selected;
+    const paused = store.paused;
+    const mode = store.mode;
+    const dark = store.dark;
+    const C = dark ? THEMES.dark : THEMES.light;
+    const fmt = (key, v) => v.toFixed(PARAM_META[key].decimals);
 
-    const draw = () => {
-      const state = stateRef.current;
+    ctx.setTransform(SS, 0, 0, SS, 0, 0);
+    ctx.save();
 
-      const drawChart = (canvas, data, color, minVal, maxVal, isSymmetric, refLines = [], ticks = []) => {
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
+    ctx.fillStyle = C.bg;
+    ctx.fillRect(0, 0, DW, DH);
 
-        const w = canvas.clientWidth;
-        const h = canvas.clientHeight;
+    /* ── STATUS BAR ── */
+    const sbY = PADY + 4;
+    if (logoReady) {
+      const bw = 26, bh = 26, bx = INX, by = sbY - 1;
+      const ar = LOGO_SRC.w / LOGO_SRC.h;
+      const dw = ar > 1 ? bw : bh * ar;
+      const dh = ar > 1 ? bw / ar : bh;
+      ctx.drawImage(logoImg, LOGO_SRC.x, LOGO_SRC.y, LOGO_SRC.w, LOGO_SRC.h,
+        bx + (bw - dw) / 2, by + (bh - dh) / 2, dw, dh);
+    } else {
+      ctx.fillStyle = C.accent;
+      rr(ctx, INX, sbY + 2, 22, 22, 5); ctx.fill();
+    }
+    text(ctx, 'SYMULATOR', INX + 34, sbY + 9, '900 13px Inter, sans-serif', C.heading, 'left', 'middle');
+    text(ctx, 'PulmoFlow', INX + 34, sbY + 21, 'bold 8px Inter, sans-serif', C.accent, 'left', 'middle');
 
-        if (canvas.width !== w || canvas.height !== h) {
-          canvas.width = w;
-          canvas.height = h;
-        }
+    // theme toggle button (☀ in dark, ☾ in light)
+    ctx.strokeStyle = C.border; ctx.lineWidth = 1;
+    ctx.fillStyle = C.panel;
+    ctx.beginPath(); ctx.arc(INX + INW - 13, sbY + 13, 13, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    text(ctx, dark ? '☀' : '☾', INX + INW - 13, sbY + 14, '13px Inter, sans-serif',
+      dark ? C.orange : C.moon, 'center', 'middle');
 
-        ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = C.border;
+    ctx.beginPath();
+    ctx.moveTo(INX, PADY + STATUS_H + 4);
+    ctx.lineTo(INX + INW, PADY + STATUS_H + 4);
+    ctx.stroke();
 
-        // Fill background
-        ctx.fillStyle = '#111827'; // Slate-900 matching card background
-        ctx.fillRect(0, 0, w, h);
+    /* ── LEFT PANEL ── */
+    drawPanel(ctx, C, LEFT_X, BODY_Y, LEFT_W, BODY_H);
+    text(ctx, 'TRYB WENTYLACJI', LEFT_X + LEFT_W / 2, BODY_Y + 18, 'bold 8px Inter, sans-serif', C.muted, 'center', 'middle');
+    text(ctx, mode, LEFT_X + LEFT_W / 2, BODY_Y + 34, '900 16px Inter, sans-serif', C.accent, 'center', 'middle');
 
-        const MARGIN_LEFT = 40;
-        const MARGIN_RIGHT = 10;
-        const MARGIN_TOP = 8;
-        const MARGIN_BOTTOM = 8;
-        const plotW = w - MARGIN_LEFT - MARGIN_RIGHT;
-        const plotH = h - MARGIN_TOP - MARGIN_BOTTOM;
+    const cards = [
+      { key: 'ipap', value: fmt('ipap', p.ipap), unit: 'cmH₂O' },
+      { key: 'epap', value: fmt('epap', p.epap), unit: 'cmH₂O' },
+      { key: 'rr', value: fmt('rr', p.rr), unit: '/min' },
+      { key: 'ti', value: fmt('ti', p.ti), unit: 's' },
+      { key: 'trigger', value: fmt('trigger', p.trigger), unit: 'cmH₂O' },
+      { key: 'vt', value: fmt('vt', p.vt), unit: 'mL' },
+    ];
+    cards.forEach((card, i) => {
+      const r = cardRect(i);
+      const active = card.key === selected;
+      const label = PARAM_META[card.key].label;
+      if (active) {
+        ctx.fillStyle = rgba(C.accent, 0.10);
+        rr(ctx, r.x, r.y, r.w, r.h, 8); ctx.fill();
+        ctx.strokeStyle = C.accent; ctx.lineWidth = 1.5;
+        rr(ctx, r.x, r.y, r.w, r.h, 8); ctx.stroke();
+        ctx.fillStyle = C.accent;
+        ctx.beginPath();
+        ctx.moveTo(r.x - 5, r.y + r.h / 2);
+        ctx.lineTo(r.x, r.y + r.h / 2 - 5);
+        ctx.lineTo(r.x, r.y + r.h / 2 + 5);
+        ctx.closePath(); ctx.fill();
+      } else {
+        ctx.fillStyle = C.panel;
+        rr(ctx, r.x, r.y, r.w, r.h, 8); ctx.fill();
+        ctx.strokeStyle = C.border; ctx.lineWidth = 1;
+        rr(ctx, r.x, r.y, r.w, r.h, 8); ctx.stroke();
+      }
+      text(ctx, label, r.x + 10, r.y + r.h / 2 - 8, 'bold 8px Inter, sans-serif', active ? C.accent : C.muted, 'left', 'middle');
+      text(ctx, card.value, r.x + 10, r.y + r.h / 2 + 8, `800 ${active ? 20 : 18}px monospace`, active ? C.heading : C.text, 'left', 'middle');
+      const vw = ctx.measureText(card.value).width;
+      text(ctx, card.unit, r.x + 14 + vw, r.y + r.h / 2 + 10, '8px Inter, sans-serif', C.muted, 'left', 'middle');
+    });
 
-        // Draw dotted gridlines and Y-axis tick labels
-        ctx.strokeStyle = '#1e293b'; // Grid color
-        ctx.lineWidth = 0.8;
-        ctx.font = '8px Inter, sans-serif';
-        ctx.fillStyle = '#94a3b8'; // Tick text color
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'middle';
+    /* ── CENTER PANEL: 3 charts ── */
+    const chartCount = 3;
+    const chartGap = 10;
+    const chartH = (BODY_H - chartGap * (chartCount - 1)) / chartCount;
+    const charts = [
+      { title: 'CIŚNIENIE', unit: 'cmH₂O', buf: state.pressureBuffer, color: C.orange, min: 0, max: 30, sym: false,
+        refs: [{ val: p.epap, color: C.green }, { val: p.ipap, color: C.red }], ticks: [0, 5, 10, 15, 20, 25, 30] },
+      { title: 'PRZEPŁYW', unit: 'L/min', buf: state.flowBuffer, color: C.green, min: -80, max: 80, sym: true,
+        refs: [{ val: 0, color: C.axis }], ticks: [-80, -40, 0, 40, 80] },
+      { title: 'OBJĘTOŚĆ', unit: 'mL', buf: state.volumeBuffer, color: C.cyan, min: 0, max: 1000, sym: false,
+        refs: [{ val: p.vt, color: C.refGreen }], ticks: [0, 250, 500, 750, 1000] },
+    ];
+    charts.forEach((ch, i) => {
+      const y = BODY_Y + i * (chartH + chartGap);
+      drawPanel(ctx, C, CENTER_X, y, CENTER_W, chartH);
+      text(ctx, ch.title, CENTER_X + 12, y + 14, 'bold 9px Inter, sans-serif', C.muted, 'left', 'middle');
+      text(ctx, ch.unit, CENTER_X + CENTER_W - 12, y + 14, 'bold 9px monospace', C.accent, 'right', 'middle');
+      drawChart(ctx, C, CENTER_X + 8, y + 24, CENTER_W - 16, chartH - 32, ch.buf, ch.color, ch.min, ch.max, ch.sym, ch.refs, ch.ticks);
+    });
 
-        ticks.forEach((tickVal) => {
-          let ry;
-          if (isSymmetric) {
-            ry = MARGIN_TOP + plotH / 2 - (tickVal / maxVal) * (plotH / 2);
-          } else {
-            ry = MARGIN_TOP + plotH - ((tickVal - minVal) / (maxVal - minVal)) * plotH;
-          }
-          
-          // Draw grid line
-          ctx.strokeStyle = '#1e293b';
-          ctx.setLineDash([2, 2]);
-          ctx.beginPath();
-          ctx.moveTo(MARGIN_LEFT, ry);
-          ctx.lineTo(w - MARGIN_RIGHT, ry);
-          ctx.stroke();
+    /* ── RIGHT PANEL ── */
+    drawPanel(ctx, C, RIGHT_X, BODY_Y, RIGHT_W, BODY_H);
+    ctx.fillStyle = C.green;
+    ctx.beginPath(); ctx.arc(RPX + 4, BODY_Y + 16, 3.5, 0, Math.PI * 2); ctx.fill();
+    text(ctx, 'Połączono', RPX + 12, BODY_Y + 17, 'bold 10px Inter, sans-serif', C.green, 'left', 'middle');
+    text(ctx, 'www.pulmoflow', RIGHT_X + RIGHT_W - 10, BODY_Y + 17, '10px Inter, sans-serif', C.muted, 'right', 'middle');
 
-          // Draw text label
-          ctx.fillText(tickVal.toString(), MARGIN_LEFT - 6, ry);
-        });
-        ctx.setLineDash([]);
+    let ry = BODY_Y + 30;
+    ctx.fillStyle = rgba(C.text, 0.05);
+    rr(ctx, RPX, ry, RPW, 34, 8); ctx.fill();
+    ctx.strokeStyle = rgba(C.text, 0.08); ctx.lineWidth = 1;
+    rr(ctx, RPX, ry, RPW, 34, 8); ctx.stroke();
+    text(ctx, 'SCENARIUSZ', RPX + 10, ry + 12, 'bold 8px Inter, sans-serif', C.muted, 'left', 'middle');
+    text(ctx, 'Free Practice', RPX + 10, ry + 24, 'bold 13px Inter, sans-serif', C.heading, 'left', 'middle');
 
-        // Draw Reference lines
-        refLines.forEach((ref) => {
-          let ry;
-          if (isSymmetric) {
-            ry = MARGIN_TOP + plotH / 2 - (ref.val / maxVal) * (plotH / 2);
-          } else {
-            ry = MARGIN_TOP + plotH - ((ref.val - minVal) / (maxVal - minVal)) * plotH;
-          }
-          ctx.strokeStyle = ref.color;
-          ctx.lineWidth = 1;
-          ctx.setLineDash([4, 4]);
-          ctx.beginPath();
-          ctx.moveTo(MARGIN_LEFT, ry);
-          ctx.lineTo(w - MARGIN_RIGHT, ry);
-          ctx.stroke();
-        });
-        ctx.setLineDash([]);
+    ry += 42;
+    ctx.fillStyle = rgba(C.text, 0.03);
+    rr(ctx, RPX, ry, RPW, 28, 8); ctx.fill();
+    ctx.strokeStyle = rgba(C.text, 0.08);
+    rr(ctx, RPX, ry, RPW, 28, 8); ctx.stroke();
+    text(ctx, 'POZIOM', RPX + 10, ry + 14, 'bold 8px Inter, sans-serif', C.muted, 'left', 'middle');
+    [C.green, C.green, C.axis].forEach((col, k) => {
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(RPX + RPW - 64 + k * 12, ry + 14, 3.5, 0, Math.PI * 2); ctx.fill();
+    });
+    text(ctx, 'Łatwy', RPX + RPW - 10, ry + 14, 'bold 11px Inter, sans-serif', C.green, 'right', 'middle');
 
-        // Draw Waveform Line
-        if (data.length > 0) {
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 1.8;
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-          ctx.beginPath();
+    // SYNCHRONIA + inline patient panel (expands up from the button)
+    const anim = state.patientAnim = (state.patientAnim ?? 0)
+      + ((store.patientOpen ? 1 : 0) - (state.patientAnim ?? 0)) * 0.25;
+    const ph = anim * PARAMS_H;
+    const paramsTop = PARAMS_BOTTOM - ph;
+    const syncBottom = ph > 1 ? paramsTop - 8 : PARAMS_BOTTOM;
+    drawSync(ctx, C, RPX, SYNC_TOP, RPW, syncBottom - SYNC_TOP, paused);
+    if (ph > 1) drawPatientInline(ctx, C, RPX, paramsTop, RPW, ph);
 
-          for (let i = 0; i < data.length; i++) {
-            const x = MARGIN_LEFT + (i / (data.length - 1)) * plotW;
-            const val = data[i];
-            let y;
-            if (isSymmetric) {
-              const clamped = Math.max(-maxVal, Math.min(maxVal, val));
-              y = MARGIN_TOP + plotH / 2 - (clamped / maxVal) * (plotH / 2);
-            } else {
-              const clamped = Math.max(minVal, Math.min(maxVal, val));
-              y = MARGIN_TOP + plotH - ((clamped - minVal) / (maxVal - minVal)) * plotH;
-            }
+    // PARAMETRY PACJENTA
+    const pOpen = store.patientOpen;
+    ctx.fillStyle = pOpen ? rgba(C.accent, 0.12) : rgba(C.text, 0.05);
+    rr(ctx, RPX, BTN_PARAM_Y, RPW, 24, 8); ctx.fill();
+    ctx.strokeStyle = pOpen ? rgba(C.accent, 0.4) : rgba(C.text, 0.08);
+    rr(ctx, RPX, BTN_PARAM_Y, RPW, 24, 8); ctx.stroke();
+    text(ctx, `PARAMETRY PACJENTA ${pOpen ? '▴' : '▾'}`, RIGHT_X + RIGHT_W / 2, BTN_PARAM_Y + 13, 'bold 10px Inter, sans-serif', pOpen ? C.accent : C.muted, 'center', 'middle');
 
-            if (i === 0) {
-              ctx.moveTo(x, y);
-            } else {
-              ctx.lineTo(x, y);
-            }
-          }
-          ctx.stroke();
-        }
-      };
+    // PAUZA / WZNÓW
+    const pc = paused ? C.green : C.orange;
+    ctx.fillStyle = rgba(pc, 0.15);
+    rr(ctx, PAUSE_RECT.x, PAUSE_RECT.y, PAUSE_RECT.w, PAUSE_RECT.h, 8); ctx.fill();
+    ctx.strokeStyle = rgba(pc, 0.35);
+    rr(ctx, PAUSE_RECT.x, PAUSE_RECT.y, PAUSE_RECT.w, PAUSE_RECT.h, 8); ctx.stroke();
+    text(ctx, paused ? '▶  WZNÓW' : '❚❚ PAUZA', PAUSE_RECT.x + PAUSE_RECT.w / 2, PAUSE_RECT.y + 13, 'bold 10px Inter, sans-serif', pc, 'center', 'middle');
 
-      // Draw Pressure (Orange/Yellow), Flow (Green), Volume (Cyan)
-      const currentIpap = useRespiratorStore.getState().inspiratoryPressure;
-      drawChart(
-        canvasPressureRef.current, 
-        state.pressureBuffer, 
-        '#f59e0b', // Paw color
-        0, 30, false, 
-        [{ val: 5.0, color: '#10b981' }, { val: currentIpap, color: '#ef4444' }], // PEEP (green) & IPAP (red)
-        [0, 5, 10, 15, 20, 25, 30]
-      );
-      
-      drawChart(
-        canvasFlowRef.current, 
-        state.flowBuffer, 
-        '#10b981', // Flow color
-        -80, 80, true, 
-        [{ val: 0.0, color: '#475569' }], 
-        [-80, -60, -40, -20, 0, 20, 40, 60, 80]
-      );
-      
-      drawChart(
-        canvasVolumeRef.current, 
-        state.volumeBuffer, 
-        '#06b6d4', // Volume color
-        0, 700, false, 
-        [{ val: 500.0, color: '#059669' }], 
-        [0, 100, 200, 300, 400, 500, 600, 700]
-      );
+    // RESET
+    ctx.fillStyle = rgba(C.red, 0.15);
+    rr(ctx, RESET_RECT.x, RESET_RECT.y, RESET_RECT.w, RESET_RECT.h, 8); ctx.fill();
+    ctx.strokeStyle = rgba(C.red, 0.35);
+    rr(ctx, RESET_RECT.x, RESET_RECT.y, RESET_RECT.w, RESET_RECT.h, 8); ctx.stroke();
+    text(ctx, 'RESET', RESET_RECT.x + RESET_RECT.w / 2, RESET_RECT.y + 13, 'bold 10px Inter, sans-serif', C.red, 'center', 'middle');
 
-      animId = requestAnimationFrame(draw);
-    };
+    ctx.restore();
+    texture.needsUpdate = true;
+  });
 
-    animId = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(animId);
-  }, []);
+  // Click handling: raycast UV → design space → hit-test
+  const onScreenClick = (e) => {
+    if (!e.uv) return;
+    e.stopPropagation();
+    const x = e.uv.x * DW;
+    const y = (1 - e.uv.y) * DH;
+    const store = useRespiratorStore.getState();
+
+    if (hit(THEME_RECT, x, y)) { store.toggleTheme(); return; }
+    if (hit(PARAM_BTN_RECT, x, y)) { store.togglePatient(); return; }
+    if (hit(PAUSE_RECT, x, y)) { store.togglePause(); return; }
+    if (hit(RESET_RECT, x, y)) { store.reset(); return; }
+    for (let i = 0; i < SELECTABLE.length; i++) {
+      if (hit(cardRect(i), x, y)) { store.selectParam(SELECTABLE[i]); return; }
+    }
+  };
 
   return (
-    <Html
-      transform
-      scale={0.08}
-      position={[0, 0, 0.005]}
-    >
-      <div 
-        style={{
-          width: '800px',
-          height: '500px',
-          background: '#0a0f1a', // Deep navy-black matching student-ui
-          padding: '12px 16px',
-          boxSizing: 'border-box',
-          fontFamily: "'Inter', system-ui, sans-serif",
-          color: '#e2e8f0',
-          display: 'flex',
-          flexDirection: 'column',
-          userSelect: 'none',
-        }}
-      >
-        {/* TOP STATUS BAR: Simulator Title and Theme indicator */}
-        <div 
-          style={{
-            height: '36px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            borderBottom: '1px solid #1e3a5f',
-            paddingBottom: '6px',
-            marginBottom: '8px',
-            flexShrink: 0
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {/* Medical respirator logo */}
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-              <path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v4M8 23h8" />
-            </svg>
-            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-              <span style={{ fontSize: '13px', fontWeight: '900', letterSpacing: '1px', color: '#F8FAFC' }}>
-                SYMULATOR
-              </span>
-              <span style={{ fontSize: '8px', color: '#3b82f6', fontWeight: 'bold', letterSpacing: '0.5px' }}>
-                PulmoFlow
-              </span>
-            </div>
-          </div>
-          
-          <div 
-            style={{ 
-              width: '26px', 
-              height: '26px', 
-              borderRadius: '50%', 
-              backgroundColor: '#111827', 
-              border: '1px solid #1e3a5f',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#f59e0b',
-              fontSize: '12px'
-            }}
-          >
-            ☀
-          </div>
-        </div>
-
-        {/* MAIN BODY: 3 Panels */}
-        <div style={{ flex: 1, display: 'flex', gap: '12px', minHeight: 0 }}>
-          
-          {/* LEFT PANEL: Settings card stack */}
-          <div 
-            style={{
-              width: '165px',
-              backgroundColor: '#111827',
-              border: '1px solid #1e3a5f',
-              borderRadius: '10px',
-              padding: '10px',
-              boxSizing: 'border-box',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
-              height: '100%',
-              minHeight: 0
-            }}
-          >
-            {/* Tryb Wentylacji title */}
-            <div style={{ textAlign: 'center', flexShrink: 0 }}>
-              <div style={{ fontSize: '8px', color: '#94a3b8', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                TRYB WENTYLACJI
-              </div>
-              <div style={{ fontSize: '16px', fontWeight: '900', color: '#3b82f6', marginTop: '1px' }}>
-                {mode}
-              </div>
-            </div>
-
-            {/* Parameter Cards Grid Stack */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1, minHeight: 0 }}>
-              
-              {/* Card 1: IPAP/PINSP (Active, adjustable) */}
-              <div 
-                style={{
-                  flex: 1,
-                  background: 'rgba(59, 130, 246, 0.08)',
-                  borderRadius: '8px',
-                  padding: '6px 10px',
-                  border: '1.5px solid #3b82f6',
-                  boxShadow: '0 0 8px rgba(59, 130, 246, 0.3)',
-                  position: 'relative',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  minHeight: 0
-                }}
-              >
-                {/* Pointer indicator */}
-                <div style={{
-                  position: 'absolute',
-                  left: '-5px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  width: '0',
-                  height: '0',
-                  borderTop: '5px solid transparent',
-                  borderBottom: '5px solid transparent',
-                  borderRight: '5px solid #3b82f6'
-                }}></div>
-                <div style={{ fontSize: '8px', color: '#3b82f6', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                  IPAP / PINSP
-                </div>
-                <div style={{ display: 'flex', alignItems: 'baseline', marginTop: '1px' }}>
-                  <span style={{ fontSize: '20px', fontWeight: '900', color: '#FFFFFF', fontFamily: 'monospace' }}>
-                    {Math.round(inspiratoryPressure)}
-                  </span>
-                  <span style={{ fontSize: '8px', color: '#94a3b8', marginLeft: '3px' }}>cmH₂O</span>
-                </div>
-              </div>
-
-              {/* Card 2: EPAP / PEEP */}
-              <div 
-                style={{
-                  flex: 1,
-                  background: '#111827',
-                  borderRadius: '8px',
-                  padding: '6px 10px',
-                  border: '1px solid #1e3a5f',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  minHeight: 0
-                }}
-              >
-                <div style={{ fontSize: '8px', color: '#94a3b8', fontWeight: 'semibold', textTransform: 'uppercase' }}>EPAP / PEEP</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', marginTop: '1px' }}>
-                  <span style={{ fontSize: '18px', fontWeight: '800', color: '#e2e8f0', fontFamily: 'monospace' }}>5</span>
-                  <span style={{ fontSize: '8px', color: '#94a3b8', marginLeft: '3px' }}>cmH₂O</span>
-                </div>
-              </div>
-
-              {/* Card 3: Częstość (RR) */}
-              <div 
-                style={{
-                  flex: 1,
-                  background: '#111827',
-                  borderRadius: '8px',
-                  padding: '6px 10px',
-                  border: '1px solid #1e3a5f',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  minHeight: 0
-                }}
-              >
-                <div style={{ fontSize: '8px', color: '#94a3b8', fontWeight: 'semibold', textTransform: 'uppercase' }}>CZĘSTOŚĆ (RR)</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', marginTop: '1px' }}>
-                  <span style={{ fontSize: '18px', fontWeight: '800', color: '#e2e8f0', fontFamily: 'monospace' }}>15</span>
-                  <span style={{ fontSize: '8px', color: '#94a3b8', marginLeft: '3px' }}>/min</span>
-                </div>
-              </div>
-
-              {/* Card 4: Czas Wdechu (Ti) */}
-              <div 
-                style={{
-                  flex: 1,
-                  background: '#111827',
-                  borderRadius: '8px',
-                  padding: '6px 10px',
-                  border: '1px solid #1e3a5f',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  minHeight: 0
-                }}
-              >
-                <div style={{ fontSize: '8px', color: '#94a3b8', fontWeight: 'semibold', textTransform: 'uppercase' }}>CZAS WDECHU (TI)</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', marginTop: '1px' }}>
-                  <span style={{ fontSize: '18px', fontWeight: '800', color: '#e2e8f0', fontFamily: 'monospace' }}>1.0</span>
-                  <span style={{ fontSize: '8px', color: '#94a3b8', marginLeft: '3px' }}>s</span>
-                </div>
-              </div>
-
-              {/* Card 5: Wyzwalacz */}
-              <div 
-                style={{
-                  flex: 1,
-                  background: '#111827',
-                  borderRadius: '8px',
-                  padding: '6px 10px',
-                  border: '1px solid #1e3a5f',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  minHeight: 0
-                }}
-              >
-                <div style={{ fontSize: '8px', color: '#94a3b8', fontWeight: 'semibold', textTransform: 'uppercase' }}>WYZWALACZ</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', marginTop: '1px' }}>
-                  <span style={{ fontSize: '18px', fontWeight: '800', color: '#e2e8f0', fontFamily: 'monospace' }}>2.0</span>
-                  <span style={{ fontSize: '8px', color: '#94a3b8', marginLeft: '3px' }}>cmH₂O</span>
-                </div>
-              </div>
-
-              {/* Card 6: Obj. Oddechowa (VT) - Disabled / Greyed-out in PC-CMV */}
-              <div 
-                style={{
-                  flex: 1,
-                  background: '#111827',
-                  borderRadius: '8px',
-                  padding: '6px 10px',
-                  border: '1px solid #1e3a5f',
-                  opacity: 0.35,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  minHeight: 0
-                }}
-              >
-                <div style={{ fontSize: '8px', color: '#94a3b8', fontWeight: 'semibold', textTransform: 'uppercase' }}>OBJ. ODDECHOWA (VT)</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', marginTop: '1px' }}>
-                  <span style={{ fontSize: '18px', fontWeight: '800', color: '#e2e8f0', fontFamily: 'monospace' }}>500</span>
-                  <span style={{ fontSize: '8px', color: '#94a3b8', marginLeft: '3px' }}>mL</span>
-                </div>
-              </div>
-
-            </div>
-          </div>
-
-          {/* CENTER PANEL: Stacked Canvas Charts */}
-          <div 
-            style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '10px',
-              height: '100%',
-              minWidth: 0,
-              minHeight: 0
-            }}
-          >
-            {/* Paw Chart */}
-            <div 
-              style={{ 
-                flex: 1, 
-                backgroundColor: '#111827',
-                border: '1px solid #1e3a5f',
-                borderRadius: '10px',
-                padding: '8px 12px 10px 12px',
-                boxSizing: 'border-box',
-                display: 'flex', 
-                flexDirection: 'column', 
-                minHeight: 0
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '14px', flexShrink: 0 }}>
-                <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 'bold', textTransform: 'uppercase' }}>CIŚNIENIE</span>
-                <span style={{ fontSize: '9px', color: '#3b82f6', fontFamily: 'monospace', fontWeight: 'bold' }}>cmH₂O</span>
-              </div>
-              <div style={{ flex: 1, position: 'relative', marginTop: '4px', minHeight: 0 }}>
-                <canvas ref={canvasPressureRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'block', borderRadius: '6px' }} />
-              </div>
-            </div>
-
-            {/* Flow Chart */}
-            <div 
-              style={{ 
-                flex: 1, 
-                backgroundColor: '#111827',
-                border: '1px solid #1e3a5f',
-                borderRadius: '10px',
-                padding: '8px 12px 10px 12px',
-                boxSizing: 'border-box',
-                display: 'flex', 
-                flexDirection: 'column', 
-                minHeight: 0
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '14px', flexShrink: 0 }}>
-                <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 'bold', textTransform: 'uppercase' }}>PRZEPŁYW</span>
-                <span style={{ fontSize: '9px', color: '#3b82f6', fontFamily: 'monospace', fontWeight: 'bold' }}>L/min</span>
-              </div>
-              <div style={{ flex: 1, position: 'relative', marginTop: '4px', minHeight: 0 }}>
-                <canvas ref={canvasFlowRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'block', borderRadius: '6px' }} />
-              </div>
-            </div>
-
-            {/* Volume Chart */}
-            <div 
-              style={{ 
-                flex: 1, 
-                backgroundColor: '#111827',
-                border: '1px solid #1e3a5f',
-                borderRadius: '10px',
-                padding: '8px 12px 10px 12px',
-                boxSizing: 'border-box',
-                display: 'flex', 
-                flexDirection: 'column', 
-                minHeight: 0
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '14px', flexShrink: 0 }}>
-                <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 'bold', textTransform: 'uppercase' }}>OBJĘTOŚĆ</span>
-                <span style={{ fontSize: '9px', color: '#3b82f6', fontFamily: 'monospace', fontWeight: 'bold' }}>mL</span>
-              </div>
-              <div style={{ flex: 1, position: 'relative', marginTop: '4px', minHeight: 0 }}>
-                <canvas ref={canvasVolumeRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'block', borderRadius: '6px' }} />
-              </div>
-            </div>
-          </div>
-
-          {/* RIGHT PANEL: Status info & controls */}
-          <div 
-            style={{
-              width: '215px',
-              backgroundColor: '#111827',
-              border: '1px solid #1e3a5f',
-              borderRadius: '10px',
-              padding: '10px',
-              boxSizing: 'border-box',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              height: '100%',
-              minHeight: 0
-            }}
-          >
-            {/* Top network row */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10px', color: '#10B981', fontWeight: 'bold' }}>
-                <span style={{ 
-                  width: '7px', 
-                  height: '7px', 
-                  borderRadius: '50%', 
-                  background: '#10B981', 
-                  display: 'inline-block',
-                  boxShadow: '0 0 6px #10B981'
-                }}></span>
-                Połączono
-              </div>
-              <div style={{ fontSize: '10px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span>www.aaaaaww</span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ cursor: 'pointer' }}>
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
-                </svg>
-              </div>
-            </div>
-
-            {/* Scenario block */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0, marginTop: '6px' }}>
-              {/* Scenario */}
-              <div 
-                style={{ 
-                  background: 'rgba(226, 232, 240, 0.05)', 
-                  border: '1px solid rgba(226, 232, 240, 0.08)',
-                  borderRadius: '8px', 
-                  padding: '6px 10px' 
-                }}
-              >
-                <div style={{ fontSize: '8px', color: '#94a3b8', fontWeight: 'bold', letterSpacing: '0.05em' }}>SCENARIUSZ</div>
-                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#FFFFFF', marginTop: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  Free Practice
-                </div>
-              </div>
-
-              {/* Difficulty Level */}
-              <div 
-                style={{ 
-                  background: 'rgba(226, 232, 240, 0.03)', 
-                  border: '1px solid rgba(226, 232, 240, 0.08)',
-                  borderRadius: '8px', 
-                  padding: '6px 10px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}
-              >
-                <span style={{ fontSize: '8px', color: '#94a3b8', fontWeight: 'bold', letterSpacing: '0.05em' }}>POZIOM</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span style={{ color: '#10B981', fontSize: '10px' }}>●</span>
-                  <span style={{ color: '#10B981', fontSize: '10px' }}>●</span>
-                  <span style={{ color: '#475569', fontSize: '10px' }}>●</span>
-                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#10B981', marginLeft: '2px' }}>Łatwy</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Synchronia circle panel */}
-            <div 
-              style={{
-                flex: 1,
-                margin: '8px 0',
-                background: 'rgba(16, 185, 129, 0.03)',
-                border: '1px solid rgba(16, 185, 129, 0.12)',
-                borderRadius: '8px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                padding: '10px 0',
-                minHeight: 0
-              }}
-            >
-              {/* Outer double glowing ring */}
-              <div 
-                style={{
-                  width: '74px',
-                  height: '74px',
-                  borderRadius: '50%',
-                  border: '4px solid #10B981',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 0 15px rgba(16, 185, 129, 0.35), inset 0 0 8px rgba(16, 185, 129, 0.15)',
-                  boxSizing: 'border-box'
-                }}
-              >
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', fontWeight: '900', color: '#10B981', letterSpacing: '0.5px' }}>
-                  SYNCHRONIA
-                </div>
-                <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '1px' }}>
-                  Poprawna interakcja
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom Button Panel */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flexShrink: 0 }}>
-              {/* Patient Parameters Button */}
-              <button 
-                style={{
-                  background: 'rgba(226, 232, 240, 0.05)',
-                  color: '#94a3b8',
-                  border: '1px solid rgba(226, 232, 240, 0.08)',
-                  borderRadius: '8px',
-                  padding: '6px 0',
-                  fontSize: '10px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '5px',
-                  transition: 'background 0.2s'
-                }}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM12 14a7 7 0 0 0-7 7h14a7 7 0 0 0-7-7z" />
-                </svg>
-                PARAMETRY PACJENTA
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </button>
-              
-              {/* PAUZA + RESET buttons */}
-              <div style={{ display: 'flex', gap: '5px' }}>
-                <button 
-                  style={{
-                    background: 'rgba(217, 119, 6, 0.15)',
-                    color: '#f59e0b',
-                    border: '1px solid rgba(217, 119, 6, 0.3)',
-                    borderRadius: '8px',
-                    padding: '6px 0',
-                    fontSize: '10px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    width: '65%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '4px'
-                  }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="18" y1="20" x2="18" y2="4" />
-                    <line x1="6" y1="20" x2="6" y2="4" />
-                  </svg>
-                  PAUZA
-                </button>
-                <button 
-                  style={{
-                    background: 'rgba(239, 68, 68, 0.15)',
-                    color: '#ef4444',
-                    border: '1px solid rgba(239, 68, 68, 0.3)',
-                    borderRadius: '8px',
-                    padding: '6px 0',
-                    fontSize: '10px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    width: '32%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '4px'
-                  }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-                  </svg>
-                  RESET
-                </button>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </div>
-    </Html>
+    <mesh onClick={onScreenClick}>
+      <planeGeometry args={[width, height]} />
+      <meshBasicMaterial map={texture} toneMapped={false} />
+    </mesh>
   );
 }
