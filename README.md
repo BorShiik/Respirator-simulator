@@ -236,23 +236,10 @@ Przykładowa struktura scenariusza:
 }
 ```
 
-## 🤝 Wkład
-
-1. Fork repozytorium
-2. Stwórz branch (`git checkout -b feature/nazwa`)
-3. Commit (`git commit -m 'Dodaj funkcję'`)
-4. Push (`git push origin feature/nazwa`)
-5. Otwórz Pull Request
-
-## 📄 Licencja
-
-MIT License - zobacz [LICENSE](LICENSE)
-
 ## 👥 Autorzy
 
-- Projekt edukacyjny
+- Anton Yaniuk
+- Hleb Yazvinski
+- Ivan Tymoshchuk
+- Yan Lukashevich
 
-## 🙏 Podziękowania
-
-- Konsultacje medyczne: [do uzupełnienia]
-- Inspiracja: rzeczywiste problemy w szkoleniu personelu medycznego
