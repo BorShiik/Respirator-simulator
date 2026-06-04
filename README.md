@@ -22,7 +22,7 @@ cd trainer-ui && npm install && npm run dev
 
 ---
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![License](https://img.shields.io/badge/Restrict%20license)
 ![Node](https://img.shields.io/badge/node-20+-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi%204-red.svg)
 
