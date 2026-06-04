@@ -1,5 +1,11 @@
 # Symulator Respiratora
 
+> **Strona demonstracyjna live:** [borshiik.github.io/Respirator-simulator](https://borshiik.github.io/PulmoFlow/)
+
+Interaktywna strona prezentacyjna (landing page) oraz demonstracja internetowa projektu **PulmoFlow** — zaawansowanego systemu szkoleniowego przeznaczonego dla lekarzy, pielęgniarek i ratowników medycznych do nauki rozpoznawania i eliminacji asynchronii pacjent–respirator.
+
+---
+
 Edukacyjny symulator wentylacji mechanicznej do nauki rozpoznawania i eliminacji asynchronii pacjent–respirator.
 
 ## Szybki start
