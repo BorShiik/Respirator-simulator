@@ -199,6 +199,72 @@ export class ScenariosService {
         ],
         durationSeconds: 40,
       },
+
+      // ═══════════════════════════════════════════════════════════════════
+      // CLINICAL DEMO SCENARIOS — normal respiration for different patient
+      // profiles.  No asynchronies; intended for presentation of waveform
+      // differences between patient categories.
+      // ═══════════════════════════════════════════════════════════════════
+
+      {
+        name: 'Zdrowy dorosły (70 kg)',
+        description: 'Pacjent dorosły ~70 kg z prawidłową mechaniką płuc, wentylowany po planowym zabiegu chirurgicznym. Stabilna wentylacja — wzorcowe krzywe ciśnienia, przepływu i objętości.',
+        initialResistance: 5,
+        initialCompliance: 60,
+        initialPatientParams: { ...this.defaultPatientParams(), p01: 2, Tcykl: 4.0, PTi: 1.2, rout: 10 },
+        initialSettings: { ipap: 15, epap: 5, peep: 5, rr: 14, ti: 1.0, trigger: 2, vt: 500, pinsp: 15, mode: 'PC-CMV', pressureRaiseT: 0 },
+        blocks: [
+          { id: 'b0', type: 'NORMAL' as const, startTime: 0, duration: 600, description: 'Stabilna wentylacja — prawidłowa mechanika płuc',
+            parameterChanges: {}, resistance: 5, compliance: 60, rin: 1, rout: 10, p01: 2, Tcykl: 4.0, PTi: 1.2, PriorityPR: 0 },
+        ],
+        durationSeconds: 600,
+      },
+
+      {
+        name: 'Dziecko 1–5 lat (15 kg)',
+        description: 'Dziecko ~15 kg z prawidłową mechaniką płuc, pediatryczne parametry wentylacji. Wąskie drogi oddechowe → wyższy opór, mały VT (~120 mL), wysoka częstość oddechów.',
+        initialResistance: 15,
+        initialCompliance: 20,
+        initialPatientParams: { ...this.defaultPatientParams(), p01: 1.5, Tcykl: 2.0, PTi: 0.6, rin: 2, rout: 15 },
+        initialSettings: { ipap: 14, epap: 4, peep: 4, rr: 25, ti: 0.7, trigger: 1, vt: 120, pinsp: 14, mode: 'PC-CMV', pressureRaiseT: 0 },
+        blocks: [
+          { id: 'b0', type: 'NORMAL' as const, startTime: 0, duration: 600, description: 'Stabilna wentylacja — parametry pediatryczne',
+            parameterChanges: {}, resistance: 15, compliance: 20, rin: 2, rout: 15, p01: 1.5, Tcykl: 2.0, PTi: 0.6, PriorityPR: 0 },
+        ],
+        durationSeconds: 600,
+      },
+
+      {
+        name: 'Astma oskrzelowa (zaostrzenie)',
+        description: 'Dorosły 70 kg z ciężkim zaostrzeniem astmy. Znacznie zwiększony opór dróg oddechowych (skurcz oskrzeli), pułapka powietrzna (air trapping). Strategia: niski RR, długi czas wydechu.',
+        initialResistance: 25,
+        initialCompliance: 50,
+        initialPatientParams: { ...this.defaultPatientParams(), p01: 4, Tcykl: 3.0, PTi: 1.0, rin: 3, rout: 30 },
+        initialSettings: { ipap: 20, epap: 5, peep: 5, rr: 12, ti: 1.0, trigger: 2, vt: 450, pinsp: 20, mode: 'PC-CMV', pressureRaiseT: 0 },
+        blocks: [
+          { id: 'b0', type: 'NORMAL' as const, startTime: 0, duration: 5, description: 'Faza stabilizacji — astma z podwyższonym oporem',
+            parameterChanges: {}, resistance: 25, compliance: 50, rin: 3, rout: 30, p01: 4, Tcykl: 3.0, PTi: 1.0, PriorityPR: 0 },
+          { id: 'b1', type: 'NORMAL' as const, startTime: 5, duration: 595, description: 'Zaostrzenie skurczu oskrzeli — R↑ do 30, rout↑ do 35 → air trapping, auto-PEEP',
+            parameterChanges: {}, resistance: 30, compliance: 50, rin: 3, rout: 35, p01: 4, Tcykl: 3.0, PTi: 1.0, PriorityPR: 0 },
+        ],
+        durationSeconds: 600,
+      },
+
+      {
+        name: 'ARDS (ciężki)',
+        description: 'Dorosły 70 kg z ciężkim ARDS. Krytycznie obniżona podatność płuc (\"sztywne płuca\"), wysoki PEEP (12), wentylacja protekcyjna (niski VT ~6 mL/kg). Driving pressure < 15 cmH₂O.',
+        initialResistance: 8,
+        initialCompliance: 15,
+        initialPatientParams: { ...this.defaultPatientParams(), p01: 5, Tcykl: 2.5, PTi: 0.8, rout: 10 },
+        initialSettings: { ipap: 25, epap: 12, peep: 12, rr: 20, ti: 0.8, trigger: 3, vt: 350, pinsp: 25, mode: 'PC-CMV', pressureRaiseT: 0 },
+        blocks: [
+          { id: 'b0', type: 'NORMAL' as const, startTime: 0, duration: 5, description: 'Faza stabilizacji — ciężki ARDS',
+            parameterChanges: {}, resistance: 8, compliance: 15, rin: 1, rout: 10, p01: 5, Tcykl: 2.5, PTi: 0.8, PriorityPR: 0 },
+          { id: 'b1', type: 'NORMAL' as const, startTime: 5, duration: 595, description: 'Progresja ARDS — C↓ do 12, p01↑ do 6 → jeszcze sztywniejsze płuca',
+            parameterChanges: {}, resistance: 8, compliance: 12, rin: 1, rout: 10, p01: 6, Tcykl: 2.5, PTi: 0.8, PriorityPR: 0 },
+        ],
+        durationSeconds: 600,
+      },
     ];
 
     for (const scenario of defaultScenarios) {
