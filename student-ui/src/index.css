@@ -133,3 +133,151 @@
     display: none;
   }
 }
+
+/* ─── Registration Screen Layout ────────────────────────────────── */
+.registration-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  background-color: #f0f4f8;
+  overflow: hidden;
+}
+
+.registration-form-area {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  min-height: 0;
+}
+
+.registration-keyboard {
+  flex: 0 0 auto;
+  width: 100%;
+  animation: slideUp 0.25s ease-out;
+}
+
+.registration-keyboard-inner {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border-top: 1px solid rgba(59, 130, 246, 0.3);
+  padding: 0.5rem 0.75rem 0.75rem;
+  box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.4);
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* ─── Raspberry Pi Keyboard Theme ───────────────────────────────── */
+.rpi-keyboard-theme {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  font-family: 'Inter', system-ui, sans-serif !important;
+}
+
+.rpi-keyboard-theme .hg-row {
+  display: flex !important;
+  gap: 4px !important;
+  margin-bottom: 4px !important;
+}
+
+.rpi-keyboard-theme .hg-row:last-child {
+  margin-bottom: 0 !important;
+}
+
+.rpi-keyboard-theme .hg-button {
+  background: linear-gradient(180deg, #374151 0%, #1f2937 100%) !important;
+  border: 1px solid rgba(75, 85, 99, 0.6) !important;
+  border-bottom: 2px solid rgba(17, 24, 39, 0.8) !important;
+  border-radius: 8px !important;
+  color: #e5e7eb !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  height: 48px !important;
+  min-width: 36px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.1s ease !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.rpi-keyboard-theme .hg-button:active,
+.rpi-keyboard-theme .hg-button.hg-activeButton {
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%) !important;
+  border-color: rgba(59, 130, 246, 0.6) !important;
+  border-bottom-width: 1px !important;
+  transform: translateY(1px) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
+}
+
+/* Backspace key */
+.rpi-keyboard-theme .hg-button[data-skbtn="{bksp}"] {
+  background: linear-gradient(180deg, #dc2626 0%, #b91c1c 100%) !important;
+  border-color: rgba(220, 38, 38, 0.5) !important;
+  color: #fecaca !important;
+  font-size: 20px !important;
+  min-width: 60px !important;
+}
+
+.rpi-keyboard-theme .hg-button[data-skbtn="{bksp}"]:active {
+  background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%) !important;
+  color: #ffffff !important;
+}
+
+/* Enter key */
+.rpi-keyboard-theme .hg-button[data-skbtn="{enter}"] {
+  background: linear-gradient(180deg, #059669 0%, #047857 100%) !important;
+  border-color: rgba(5, 150, 105, 0.5) !important;
+  color: #a7f3d0 !important;
+  font-size: 20px !important;
+  min-width: 60px !important;
+}
+
+.rpi-keyboard-theme .hg-button[data-skbtn="{enter}"]:active {
+  background: linear-gradient(180deg, #10b981 0%, #059669 100%) !important;
+  color: #ffffff !important;
+}
+
+/* Shift key */
+.rpi-keyboard-theme .hg-button[data-skbtn="{shift}"] {
+  background: linear-gradient(180deg, #4b5563 0%, #374151 100%) !important;
+  border-color: rgba(107, 114, 128, 0.5) !important;
+  color: #d1d5db !important;
+  min-width: 70px !important;
+}
+
+.rpi-keyboard-theme .hg-button[data-skbtn="{shift}"]:active {
+  background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%) !important;
+  color: #ffffff !important;
+}
+
+/* Space bar */
+.rpi-keyboard-theme .hg-button[data-skbtn="{space}"] {
+  flex-grow: 1 !important;
+  min-width: 200px !important;
+  font-size: 14px !important;
+  letter-spacing: 0.05em !important;
+  color: #9ca3af !important;
+}
+
+/* Numpad mode (room code) — larger keys */
+.rpi-keyboard-theme .hg-button.hg-standardBtn {
+  flex: 1 !important;
+}

@@ -64,6 +64,14 @@ function StudentRegistration({
     }
   };
 
+  // Clear roomCode from localStorage when there's an error so user can re-enter
+  useEffect(() => {
+    if (error) {
+      localStorage.removeItem('roomCode');
+      setRoomCode('');
+    }
+  }, [error]);
+
   useEffect(() => {
     const stored = localStorage.getItem('studentName');
     const storedRoom = localStorage.getItem('roomCode');
@@ -100,174 +108,183 @@ function StudentRegistration({
   };
 
   return (
-    <div className="min-h-screen bg-clinical-bg flex flex-col md:flex-row items-center justify-center p-4 gap-8">
-      <div className="bg-clinical-panel rounded-2xl shadow-lg p-8 w-full max-w-md border border-clinical-border flex-shrink-0">
-        <div className="text-center mb-8">
-          <img src="logo.png" alt="PulmoFlow Logo" className="w-56 mx-auto mb-4 object-contain bg-white rounded-xl p-3 border border-clinical-border shadow-sm" />
-          <h1 className="text-xl font-bold text-clinical-text">
-            Symulator Respiratora
-          </h1>
-          <p className="text-clinical-muted mt-2">
-            Wprowadź swoje dane, aby rozpocząć
-          </p>
-        </div>
-
-        {error && (
-          <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-red-500 text-sm mb-6 text-center">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="firstName" className="block text-sm font-medium text-clinical-text mb-2">
-              Imię
-            </label>
-            <input
-              type="text"
-              id="firstName"
-              value={firstName}
-              onFocus={() => setActiveInput('firstName')}
-              onChange={(e) => setFirstName(e.target.value)}
-              placeholder="np. Jan"
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white text-slate-900 placeholder:text-slate-400 ${activeInput === 'firstName' ? 'border-clinical-accent ring-2 ring-clinical-accent/30' : 'border-clinical-border'}`}
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="lastName" className="block text-sm font-medium text-clinical-text mb-2">
-              Nazwisko
-            </label>
-            <input
-              type="text"
-              id="lastName"
-              value={lastName}
-              onFocus={() => setActiveInput('lastName')}
-              onChange={(e) => setLastName(e.target.value)}
-              placeholder="np. Kowalski"
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white text-slate-900 placeholder:text-slate-400 ${activeInput === 'lastName' ? 'border-clinical-accent ring-2 ring-clinical-accent/30' : 'border-clinical-border'}`}
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="roomCode" className="block text-sm font-medium text-clinical-text mb-2">
-              Kod pokoju (6 cyfr)
-            </label>
-            <input
-              type="text"
-              id="roomCode"
-              value={roomCode}
-              onFocus={() => setActiveInput('roomCode')}
-              onChange={(e) => setRoomCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder="np. 123456"
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white text-slate-900 placeholder:text-slate-400 text-center tracking-[0.5em] text-lg font-mono ${activeInput === 'roomCode' ? 'border-clinical-accent ring-2 ring-clinical-accent/30' : 'border-clinical-border'}`}
-              maxLength={6}
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={!firstName.trim() || !lastName.trim() || roomCode.length !== 6 || isConnecting}
-            className="w-full control-button control-button-primary disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
-          >
-            {isConnecting ? (
-              <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            ) : null}
-            {isConnecting ? 'Łączenie...' : 'Rozpocznij symulację'}
-          </button>
-          
-          <div className="relative flex items-center py-2">
-            <div className="flex-grow border-t border-clinical-border"></div>
-            <span className="flex-shrink-0 mx-4 text-clinical-muted text-sm">lub</span>
-            <div className="flex-grow border-t border-clinical-border"></div>
-          </div>
-          
-          <button
-            type="button"
-            onClick={() => {
-              if (firstName.trim() && lastName.trim() && !isConnecting) {
-                const fullName = `${firstName.trim()} ${lastName.trim()}`;
-                localStorage.setItem('studentName', fullName);
-                onRegister(fullName, 'LEARN');
-              }
-            }}
-            disabled={!firstName.trim() || !lastName.trim() || isConnecting}
-            className="w-full control-button border border-clinical-accent text-clinical-accent hover:bg-clinical-accent/10 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
-          >
-            Tryb nauki (Solo)
-          </button>
-        </form>
-
-        {savedName && (
-          <div className="pt-4 border-t border-clinical-border mt-4">
-            <p className="text-xs text-clinical-muted mb-2 text-center">
-              Zaloguj jako ostatni użytkownik
+    <div className="registration-screen">
+      {/* Scrollable form area */}
+      <div className="registration-form-area">
+        <div className="bg-clinical-panel rounded-2xl shadow-lg p-6 w-full max-w-md border border-clinical-border">
+          <div className="text-center mb-4">
+            <img src="logo.png" alt="PulmoFlow Logo" className="w-40 mx-auto mb-3 object-contain bg-white rounded-xl p-2 border border-clinical-border shadow-sm" />
+            <h1 className="text-lg font-bold text-clinical-text">
+              Symulator Respiratora
+            </h1>
+            <p className="text-clinical-muted mt-1 text-sm">
+              Wprowadź swoje dane, aby rozpocząć
             </p>
+          </div>
+
+          {error && (
+            <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-red-500 text-sm mb-4 text-center">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div>
+              <label htmlFor="firstName" className="block text-sm font-medium text-clinical-text mb-1">
+                Imię
+              </label>
+              <input
+                type="text"
+                id="firstName"
+                value={firstName}
+                onFocus={() => setActiveInput('firstName')}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="np. Jan"
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white text-slate-900 placeholder:text-slate-400 ${activeInput === 'firstName' ? 'border-clinical-accent ring-2 ring-clinical-accent/30' : 'border-clinical-border'}`}
+                required
+              />
+            </div>
+
+            <div>
+              <label htmlFor="lastName" className="block text-sm font-medium text-clinical-text mb-1">
+                Nazwisko
+              </label>
+              <input
+                type="text"
+                id="lastName"
+                value={lastName}
+                onFocus={() => setActiveInput('lastName')}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="np. Kowalski"
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white text-slate-900 placeholder:text-slate-400 ${activeInput === 'lastName' ? 'border-clinical-accent ring-2 ring-clinical-accent/30' : 'border-clinical-border'}`}
+                required
+              />
+            </div>
+
+            <div>
+              <label htmlFor="roomCode" className="block text-sm font-medium text-clinical-text mb-1">
+                Kod pokoju (6 cyfr)
+              </label>
+              <input
+                type="text"
+                id="roomCode"
+                value={roomCode}
+                onFocus={() => setActiveInput('roomCode')}
+                onChange={(e) => setRoomCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="np. 123456"
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-clinical-accent focus:border-clinical-accent outline-none transition-colors bg-white text-slate-900 placeholder:text-slate-400 text-center tracking-[0.5em] text-lg font-mono ${activeInput === 'roomCode' ? 'border-clinical-accent ring-2 ring-clinical-accent/30' : 'border-clinical-border'}`}
+                maxLength={6}
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={!firstName.trim() || !lastName.trim() || roomCode.length !== 6 || isConnecting}
+              className="w-full control-button control-button-primary disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
+            >
+              {isConnecting ? (
+                <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : null}
+              {isConnecting ? 'Łączenie...' : 'Rozpocznij symulację'}
+            </button>
+            
+            <div className="relative flex items-center py-1">
+              <div className="flex-grow border-t border-clinical-border"></div>
+              <span className="flex-shrink-0 mx-4 text-clinical-muted text-sm">lub</span>
+              <div className="flex-grow border-t border-clinical-border"></div>
+            </div>
+            
             <button
               type="button"
-              onClick={handleUseSaved}
-              disabled={roomCode.length !== 6 || isConnecting}
-              className="w-full px-4 py-3 border border-clinical-accent text-clinical-accent rounded-lg hover:bg-blue-50 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => {
+                if (firstName.trim() && lastName.trim() && !isConnecting) {
+                  const fullName = `${firstName.trim()} ${lastName.trim()}`;
+                  localStorage.setItem('studentName', fullName);
+                  onRegister(fullName, 'LEARN');
+                }
+              }}
+              disabled={!firstName.trim() || !lastName.trim() || isConnecting}
+              className="w-full control-button border-2 border-clinical-accent text-clinical-accent hover:bg-clinical-accent hover:text-white disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2 transition-all duration-200"
             >
-              {savedName}
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+              Tryb nauki (Solo)
             </button>
-          </div>
-        )}
+          </form>
+
+          {savedName && (
+            <div className="pt-3 border-t border-clinical-border mt-3">
+              <p className="text-xs text-clinical-muted mb-2 text-center">
+                Zaloguj jako ostatni użytkownik
+              </p>
+              <button
+                type="button"
+                onClick={handleUseSaved}
+                disabled={roomCode.length !== 6 || isConnecting}
+                className="w-full px-4 py-3 border border-clinical-accent text-clinical-accent rounded-lg hover:bg-blue-50 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {savedName}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* Virtual keyboard - fixed at bottom for Raspberry Pi */}
       {activeInput && (
-        <div className="w-full max-w-2xl bg-white p-4 rounded-2xl shadow-xl border border-clinical-border animate-fade-in">
-          <div className="flex justify-between items-center mb-2 px-2">
-            <span className="text-sm font-semibold text-clinical-muted uppercase tracking-wider">
-              Klawiatura Ekranowa
-            </span>
-            <button 
-              onClick={() => setActiveInput(null)}
-              className="text-clinical-muted hover:text-clinical-accent"
-            >
-              ✕ Zamknij
-            </button>
+        <div className="registration-keyboard">
+          <div className="registration-keyboard-inner">
+            <div className="flex justify-between items-center mb-2 px-2">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                {activeInput === 'firstName' ? '⌨ Imię' : activeInput === 'lastName' ? '⌨ Nazwisko' : '⌨ Kod pokoju'}
+              </span>
+              <button 
+                onClick={() => setActiveInput(null)}
+                className="px-3 py-1 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 text-sm font-medium transition-colors"
+              >
+                ✕ Zamknij
+              </button>
+            </div>
+            <Keyboard
+              keyboardRef={(_r: any) => {}}
+              layoutName={layoutName}
+              onChange={onKeyboardChange}
+              onKeyPress={onKeyPress}
+              input={getKeyboardInput()}
+              display={{
+                "{bksp}": "⌫",
+                "{enter}": "↵",
+                "{shift}": "⇧",
+                "{space}": "⎵  Spacja",
+                "{lock}": "Caps",
+                "{tab}": "Tab"
+              }}
+              layout={{
+                default: activeInput === 'roomCode' 
+                  ? ["1 2 3", "4 5 6", "7 8 9", "{bksp} 0 {enter}"]
+                  : [
+                    "1 2 3 4 5 6 7 8 9 0 {bksp}",
+                    "q w e r t y u i o p",
+                    "a s d f g h j k l {enter}",
+                    "{shift} z x c v b n m",
+                    "{space}"
+                  ],
+                shift: [
+                    "1 2 3 4 5 6 7 8 9 0 {bksp}",
+                    "Q W E R T Y U I O P",
+                    "A S D F G H J K L {enter}",
+                    "{shift} Z X C V B N M",
+                    "{space}"
+                ]
+              }}
+              theme={"hg-theme-default rpi-keyboard-theme"}
+            />
           </div>
-          <Keyboard
-            keyboardRef={(_r: any) => {}}
-            layoutName={layoutName}
-            onChange={onKeyboardChange}
-            onKeyPress={onKeyPress}
-            input={getKeyboardInput()}
-            display={{
-              "{bksp}": "⌫ Usuń",
-              "{enter}": "↵ Enter",
-              "{shift}": "⇧ Shift",
-              "{space}": "Spacja",
-              "{lock}": "Caps",
-              "{tab}": "Tab"
-            }}
-            layout={{
-              default: activeInput === 'roomCode' 
-                ? ["1 2 3", "4 5 6", "7 8 9", "{bksp} 0 {enter}"]
-                : [
-                  "1 2 3 4 5 6 7 8 9 0 {bksp}",
-                  "q w e r t y u i o p",
-                  "a s d f g h j k l {enter}",
-                  "{shift} z x c v b n m",
-                  "{space}"
-                ],
-              shift: [
-                  "1 2 3 4 5 6 7 8 9 0 {bksp}",
-                  "Q W E R T Y U I O P",
-                  "A S D F G H J K L {enter}",
-                  "{shift} Z X C V B N M",
-                  "{space}"
-              ]
-            }}
-            theme={"hg-theme-default myTheme"}
-          />
         </div>
       )}
     </div>
@@ -493,6 +510,7 @@ function App() {
   const handleLogout = () => {
     setStudentInfo(null);
     setIsRegistered(false);
+    localStorage.removeItem('roomCode');
   };
 
   return (
