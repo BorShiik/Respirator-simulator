@@ -1,5 +1,11 @@
 # Symulator Respiratora
 
+> **Strona demonstracyjna live:** [borshiik.github.io/Respirator-simulator](https://borshiik.github.io/PulmoFlow/)
+
+Interaktywna strona prezentacyjna (landing page) oraz demonstracja internetowa projektu **PulmoFlow** — zaawansowanego systemu szkoleniowego przeznaczonego dla lekarzy, pielęgniarek i ratowników medycznych do nauki rozpoznawania i eliminacji asynchronii pacjent–respirator.
+
+---
+
 Edukacyjny symulator wentylacji mechanicznej do nauki rozpoznawania i eliminacji asynchronii pacjent–respirator.
 
 ## Szybki start
@@ -22,7 +28,7 @@ cd trainer-ui && npm install && npm run dev
 
 ---
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![License](https://img.shields.io/badge/Restrict-licence-blue)
 ![Node](https://img.shields.io/badge/node-20+-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi%204-red.svg)
 
@@ -236,23 +242,10 @@ Przykładowa struktura scenariusza:
 }
 ```
 
-## 🤝 Wkład
-
-1. Fork repozytorium
-2. Stwórz branch (`git checkout -b feature/nazwa`)
-3. Commit (`git commit -m 'Dodaj funkcję'`)
-4. Push (`git push origin feature/nazwa`)
-5. Otwórz Pull Request
-
-## 📄 Licencja
-
-MIT License - zobacz [LICENSE](LICENSE)
-
 ## 👥 Autorzy
 
-- Projekt edukacyjny
+- Anton Yaniuk
+- Hleb Yazvinski
+- Ivan Tymoshchuk
+- Yan Lukashevich
 
-## 🙏 Podziękowania
-
-- Konsultacje medyczne: [do uzupełnienia]
-- Inspiracja: rzeczywiste problemy w szkoleniu personelu medycznego
